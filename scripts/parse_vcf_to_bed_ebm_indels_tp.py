@@ -10,7 +10,7 @@ f_out = open(args.output[0], "w+")
 
 lines = f.readlines()
 
-f_out.write("CHROM\tPOS\tPOS+length(REF)\tFILTER\tGT\tGQ\tDP\tVAF\tindel_length\tlabel\n")
+f_out.write("#CHROM\tPOS\tPOS+length(REF)\tFILTER\tGT\tGQ\tDP\tVAF\tindel_length\tlabel\n")
 f_out.flush()        
 for line in lines:
     if line.startswith("#"):
