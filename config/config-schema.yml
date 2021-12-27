@@ -41,17 +41,18 @@ properties:
         additionalProperties: false
         required:
           - sdf_url
-        sdf:
-          description: the url for the reference SDF to use
-          type: string
-          format: uri
+        properties:
+          sdf_url:
+            description: the url for the reference SDF to use
+            type: string
+            format: uri
 
 ################################################################################
 # global
 
   global:
     anyOf:
-      $ref: "$defs/run_config"
+      - $ref: "#/common/run_config"
 
 ################################################################################
 # runs
@@ -59,42 +60,36 @@ properties:
   runs:
     patternProperties:
       ^[A-Za-z0-9_]+_v[0-9]+$:
-        anyOf:
-          $ref: "$defs/run_config"
+        allOf:
+          - $ref: "#/common/run_config"
 
 ################################################################################
 # common
 
-  $defs:
-    run_config:
-      additionalProperties: false
-      required:
-        - features
-        - ebm
-        properties:
-          features:
+common:
+  run_config:
+    additionalProperties: false
+    properties:
+      features:
+        additionalProperties: false
+        patternProperties:
+          ^[A-Za-z0-9_]+$:
             additionalProperties: false
-            patternProperties:
-              ^[A-Za-z0-9_]+$:
-                additionalProperties: false
-                properties:
-                  log_transform:
-                    description: log transform the feature if 'true'
-                    type: boolean
-                  fill_na:
-                    description: if present, fill missing values with this value
-                    type: float
-
-          ebm:
-            additionalProperties: false
-            required:
-              - test_size
             properties:
-              test_size:
-                description: |
-                  the size of the testing partition when training the model
-                type: float
-                minimum: 0
-                maximum: 1
-                      
-                  
+              log_transform:
+                description: log transform the feature if 'true'
+                type: boolean
+              fill_na:
+                description: if present, fill missing values with this value
+                type: number
+      ebm:
+        additionalProperties: false
+        required:
+          - test_size
+        properties:
+          test_size:
+            description: |
+              the size of the testing partition when training the model
+            type: number
+            minimum: 0
+            maximum: 1

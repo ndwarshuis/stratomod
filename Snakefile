@@ -13,12 +13,12 @@ min_version("6.12")
 configfile: "config/config.yml"
 
 
-# validate(config, "config/schema.yml")
+validate(config, "config/config-schema.yml")
 
 
 def get_git_tag():
     args = ["git", "describe", "--tags", "--abbrev=0", "--always"]
-    return sb.run(args, capture_output=True).stdout.strip()
+    return sp.run(args, capture_output=True).stdout.strip()
 
 
 def merge_dicts(d1, d2):
@@ -111,7 +111,7 @@ rule get_vcf:
     params:
         url=lookup_config(config, "resources", "query_url"),
     shell:
-        "curl -o {output} {params.url}"
+        "curl -O {params.url} | gunzip -c > {output}"
 
 
 rule preprocess_vcf:
@@ -141,7 +141,7 @@ rule get_ref_sdf:
     params:
         url=lookup_config(config, "resources", "ref", "sdf.url"),
     shell:
-        "curl -o {output} {params.url}"
+        "curl -O {params.url} | unzip -c > {output}"
 
 
 rule get_bench_vcf:
@@ -150,7 +150,7 @@ rule get_bench_vcf:
     params:
         url=lookup_config(config, "resources", "bench", "vcf_url"),
     shell:
-        "curl -o {output} {params.url}"
+        "curl -O {params.url} | gunzip -c > {output}"
 
 
 rule get_bench_bed:
