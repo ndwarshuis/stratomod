@@ -18,7 +18,7 @@ validate(config, "config/config-schema.yml")
 
 def get_git_tag():
     args = ["git", "describe", "--tags", "--abbrev=0", "--always"]
-    return sp.run(args, capture_output=True).stdout.strip()
+    return sp.run(args, capture_output=True).stdout.strip().decode()
 
 
 def merge_dicts(d1, d2):
@@ -35,21 +35,27 @@ def merge_dicts(d1, d2):
         else:
             return v
 
+    if d1 is None:
+        return d2
+    if d2 is None:
+        return d1
     return {k: use_other_maybe(k, v) for k, v in d1.items()}
 
 
 def lookup_run_config(config, run_key):
-    r = config[run_key]
+    r = config["runs"][run_key]
     g = config["global"]
     return merge_dicts(g, r)
 
 
 def lookup_run_json(config, run_key):
-    return json.dumps(get_run_config(config, run_key))
+    return json.dumps(lookup_run_config(config, run_key))
 
 
-def lookup_config(config, keys):
-    return config[keys[0]] if len(keys) == 1 else lookup(config[keys[0]], keys[1:])
+def lookup_config(config, *keys):
+    k = keys[0]
+    ks = keys[1:]
+    return config[k] if len(ks) == 0 else lookup_config(config[k], *ks)
 
 
 git_tag = get_git_tag()
@@ -77,9 +83,10 @@ results_dir = "results"
 label_dir = join(results_dir, "labels")
 preprocessing_dir = join(results_dir, "preprocessing")
 
-ebm_output_dir = join(resources_dir, "ebm", "{}_{{run_key}}".format(git_tag))
+ebm_dir = join(resources_dir, "ebm", "{}_{{run_key}}".format(git_tag))
+ebm_input_tsv = join(ebm_dir, "input.tsv")
 ebm_output_files = [
-    join(ebm_output_dir, f)
+    join(ebm_dir, f)
     for f in [
         "model.pickle",
         "train_x.pickle",
@@ -98,7 +105,7 @@ ebm_output_files = [
 
 rule all:
     input:
-        expand(EBM_OUTPUT_FILES_full, tag=git_tag, run_key=run_keys),
+        expand(ebm_output_files, tag=git_tag, run_key=run_keys),
 
 
 ################################################################################
@@ -116,7 +123,7 @@ rule get_vcf:
 
 rule preprocess_vcf:
     input:
-        get_vcf.output,
+        rules.get_vcf.output,
     output:
         join(label_dir, "query_corrected_refcall.vcf"),
     shell:
@@ -139,7 +146,7 @@ rule get_ref_sdf:
     output:
         join(resources_dir, "ref.sdf"),
     params:
-        url=lookup_config(config, "resources", "ref", "sdf.url"),
+        url=lookup_config(config, "resources", "ref", "sdf_url"),
     shell:
         "curl -O {params.url} | unzip -c > {output}"
 
@@ -164,10 +171,10 @@ rule get_bench_bed:
 
 rule get_vcf_labels:
     input:
-        query_vcf=preprocess_vcf.output,
-        truth_vcf=get_bench_vcf.output,
-        truth_bed=get_bench_bed.output,
-        sdf=get_ref_sdf.output,
+        query_vcf=rules.preprocess_vcf.output,
+        truth_vcf=rules.get_bench_vcf.output,
+        truth_bed=rules.get_bench_bed.output,
+        sdf=rules.get_ref_sdf.output,
     output:
         tp="tp.vcf",
         fp="fp.vcf",
@@ -185,7 +192,7 @@ rule get_vcf_labels:
 
 rule parse_label_vcf:
     input:
-        get_vcf_labels.output,
+        rules.get_vcf_labels.output,
     output:
         tp="tp.tsv",
         fp="fp.tsv",
@@ -195,8 +202,8 @@ rule parse_label_vcf:
 
 rule concat_tsv_files:
     input:
-        tp=get_vcf_labels.output.tp,
-        fp=get_vcf_labels.output.fp,
+        tp=rules.get_vcf_labels.output.tp,
+        fp=rules.get_vcf_labels.output.fp,
     output:
         "labelled.tsv",
     shell:
@@ -211,7 +218,7 @@ rule concat_tsv_files:
 
 rule add_superdups:
     input:
-        variants=concat_tsv_files.output,
+        variants=rules.concat_tsv_files.output,
     output:
         join(preprocessing_dir, "superdups.tsv"),
     shell:
@@ -224,7 +231,7 @@ rule add_superdups:
 
 rule add_homopolymers:
     input:
-        variants=add_superdups.output,
+        variants=rules.add_superdups.output,
     output:
         join(preprocessing_dir, "added_homopolymers.tsv"),
     shell:
@@ -243,7 +250,7 @@ rule get_genome_tsv:
         mysql --user=genome --host=genome-mysql.soe.ucsc.edu \
         -A -P 3306 -D hg38 -N -B -e \
         'SELECT chrom,size FROM chromInfo 
-        WHERE chrom REGEXP "chr[0-9]{1,2}$"
+        WHERE chrom REGEXP "chr[0-9]{{1,2}}$"
         ORDER BY CAST(REPLACE(chrom,'chr','') as INT);' \
         > {output}
         """
@@ -256,15 +263,15 @@ rule get_simreps_tsv:
         """
         mysql --user=genome --host=genome-mysql.soe.ucsc.edu \
         -A -P 3306 -D hg38 -B -e \
-        'SELECT * FROM simpleRepeat WHERE chrom REGEXP "chr[0-9]{1,2}";' \
+        'SELECT * FROM simpleRepeat WHERE chrom REGEXP "chr[0-9]{{1,2}}";' \
         > {output}
         """
 
 
 rule add_simple_reps:
     input:
-        variants=add_homopolymers.output,
-        annotations=get_simreps_tsv.output,
+        variants=rules.add_homopolymers.output,
+        annotations=rules.get_simreps_tsv.output,
         # genome=get_genome_file,
     output:
         join(preprocessing_dir, "added_simreps.tsv"),
@@ -287,15 +294,15 @@ rule get_repeat_masker_tsv:
         mysql --user=genome --host=genome-mysql.soe.ucsc.edu \
         -A -P 3306 -D hg38 -B -e \
         'SELECT genoName,genoStart,genoEnd,repClass FROM rmsk
-        WHERE genoName REGEXP "chr[0-9]{1,2}";' \
+        WHERE genoName REGEXP "chr[0-9]{{1,2}}";' \
         > {output}
         """
 
 
 rule add_repeat_masker:
     input:
-        variants=add_homopolymers.output,
-        annotations=get_repeat_masker_tsv.output,
+        variants=rules.add_homopolymers.output,
+        annotations=rules.get_repeat_masker_tsv.output,
     output:
         join(preprocessing_dir, "added_repeat_masker.tsv"),
     shell:
@@ -321,14 +328,14 @@ rule add_repeat_masker:
 
 def get_postprocess_config(wildcards):
     c = lookup_run_config(config, wildcards.run_key)
-    return json.dump(c["features"])
+    return json.dumps(c["features"])
 
 
 rule postprocess_output:
     input:
-        add_repeat_masker.output,
+        rules.add_repeat_masker.output,
     output:
-        join(preprocessing_dir, "postprocess.tsv"),
+        ebm_input_tsv,
     params:
         config=get_postprocess_config,
     shell:
@@ -344,11 +351,11 @@ rule postprocess_output:
 
 rule train_ebm:
     input:
-        postprocess_output.output,
+        rules.postprocess_output.output,
     output:
-        files=ebm_output_files,
-        dir=ebm_output_dir,
+        ebm_output_files,
     params:
         config=lambda wildcards: lookup_run_json(config, wildcards.run_key),
+        out_dir=ebm_dir,
     shell:
-        "python run_ebm -c '{params.config}' -o {output.dir}"
+        "python run_ebm -c '{params.config}' -o {params.out_dir}"
