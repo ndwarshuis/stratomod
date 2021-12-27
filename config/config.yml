@@ -1,0 +1,34 @@
+# variant_filters:
+  # include_indels: true
+  # include_snps: false
+
+  # annotations:
+  #   slop:
+  #     simple_repeat: 5
+  #     homopolymer: 5
+resources:
+  query_url:
+  bench:
+    vcf_url:
+    bed_url:
+  ref:
+    sdf_url:
+
+
+global:
+  features:
+    foo:
+    bar:
+      log_transform: true
+      fill_na: 1
+
+  ebm:
+    # hyperparameters:
+    test_size: 0.2
+  
+runs:
+  test_v1:
+  other_v1:
+    features:
+      foo:
+        log_transform: true

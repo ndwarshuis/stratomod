@@ -1,4 +1,6 @@
 import pandas as pd
+import json
+from functools import partial
 import subprocess as sp
 from os.path import join
 from snakemake.utils import min_version, validate
@@ -19,8 +21,39 @@ def get_git_tag():
     return sb.run(args, capture_output=True).stdout.strip()
 
 
+def merge_dicts(d1, d2):
+    # ASSUME: d2 is a subset of d1
+    # NOTE: this will only recursively merge nested dicts (not lists, which
+    # could also be present in a yaml config)
+    def use_other_maybe(k, v):
+        if k in d2:
+            _v = d2[k]
+            if isinstance(_v, dict):
+                return merge_dicts(d1[k], _v)
+            else:
+                return _v
+        else:
+            return v
+
+    return {k: use_other_maybe(k, v) for k, v in d1.items()}
+
+
+def lookup_run_config(config, run_key):
+    r = config[run_key]
+    g = config["global"]
+    return merge_dicts(g, r)
+
+
+def lookup_run_json(config, run_key):
+    return json.dumps(get_run_config(config, run_key))
+
+
+def lookup_config(config, keys):
+    return config[keys[0]] if len(keys) == 1 else lookup(config[keys[0]], keys[1:])
+
+
 git_tag = get_git_tag()
-cfg_names = []
+run_keys = list(config["runs"])
 
 ################################################################################
 # output paths
@@ -44,7 +77,7 @@ results_dir = "results"
 label_dir = join(results_dir, "labels")
 preprocessing_dir = join(results_dir, "preprocessing")
 
-ebm_output_dir = join(resources_dir, "ebm", "{git_tag}_{cfg_name}")
+ebm_output_dir = join(resources_dir, "ebm", "{}_{{run_key}}".format(git_tag))
 ebm_output_files = [
     join(ebm_output_dir, f)
     for f in [
@@ -65,7 +98,7 @@ ebm_output_files = [
 
 rule all:
     input:
-        expand(EBM_OUTPUT_FILES_full, tag=git_tag, cfg_name=cfg_names),
+        expand(EBM_OUTPUT_FILES_full, tag=git_tag, run_key=run_keys),
 
 
 ################################################################################
@@ -75,8 +108,10 @@ rule all:
 rule get_vcf:
     output:
         join(resources_dir, "query.vcf"),
+    params:
+        url=lookup_config(config, "resources", "query_url"),
     shell:
-        "curl blablabla"
+        "curl -o {output} {params.url}"
 
 
 rule preprocess_vcf:
@@ -103,22 +138,28 @@ rule preprocess_vcf:
 rule get_ref_sdf:
     output:
         join(resources_dir, "ref.sdf"),
+    params:
+        url=lookup_config(config, "resources", "ref", "sdf.url"),
     shell:
-        """curl blablabla"""
+        "curl -o {output} {params.url}"
 
 
 rule get_bench_vcf:
     output:
         join(resources_dir, "bench.vcf"),
+    params:
+        url=lookup_config(config, "resources", "bench", "vcf_url"),
     shell:
-        """curl blablabla"""
+        "curl -o {output} {params.url}"
 
 
 rule get_bench_bed:
     output:
         join(resources_dir, "bench.bed"),
+    params:
+        url=lookup_config(config, "resources", "bench", "bed_url"),
     shell:
-        """curl blablabla"""
+        "curl -o {output} {params.url}"
 
 
 rule get_vcf_labels:
@@ -278,13 +319,20 @@ rule add_repeat_masker:
 # postprocess output
 
 
+def get_postprocess_config(wildcards):
+    c = lookup_run_config(config, wildcards.run_key)
+    return json.dump(c["features"])
+
+
 rule postprocess_output:
     input:
         add_repeat_masker.output,
     output:
         join(preprocessing_dir, "postprocess.tsv"),
+    params:
+        config=get_postprocess_config,
     shell:
-        """python some_postprocess_script {input} >> {output}"""
+        """python some_script -c {params.config} -i {input} > {output}"""
 
 
 ################################################################################
@@ -298,6 +346,9 @@ rule train_ebm:
     input:
         postprocess_output.output,
     output:
-        ebm_output_files,
+        files=ebm_output_files,
+        dir=ebm_output_dir,
+    params:
+        config=lambda wildcards: lookup_run_json(config, wildcards.run_key),
     shell:
-        "python run_ebm"
+        "python run_ebm -c '{params.config}' -o {output.dir}"
