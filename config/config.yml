@@ -1,3 +1,8 @@
+paths:
+  resources: "resources"
+  results: "results"
+
+  
 # variant_filters:
   # include_indels: true
   # include_snps: false

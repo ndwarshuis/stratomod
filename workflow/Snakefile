@@ -65,16 +65,18 @@ run_keys = list(config["runs"])
 ################################################################################
 # output paths
 
+conf_paths = config["paths"]
+
 # downloaded files
 
-resources_dir = "resources"
+resources_dir = conf_paths["resources"]
 
 bench_dir = join(resources_dir, "bench")
 annotations_data_dir = join(resources_dir, "annotations")
 
 # computed output
 
-results_dir = "results"
+results_dir = conf_paths["results"]
 
 label_dir = join(results_dir, "labels")
 rtg_dir = join(label_dir, "rtg")

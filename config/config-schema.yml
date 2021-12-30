@@ -1,11 +1,27 @@
 $schema: "http://json-schema.org/draft-07/schema#"
 description: explainable boosted machines pipeline
 required:
+  - paths
   - resources
   - global
   - runs
 additionalProperties: false
 properties:
+
+################################################################################
+# paths
+  paths:
+    additionalProperties: false
+    required:
+      - resources
+      - results
+    properties:
+      resources:
+        description: the path in which snakemake will put resource files
+        type: string
+      results:
+        description: the path in which snakemake will put result files
+        type: string
 
 ################################################################################
 # resources
