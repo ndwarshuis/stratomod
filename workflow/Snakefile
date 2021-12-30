@@ -1,5 +1,6 @@
 import pandas as pd
 import json
+import re
 from functools import partial
 import subprocess as sp
 from os.path import join, basename, splitext, dirname
@@ -16,7 +17,9 @@ validate(config, "../config/config-schema.yml")
 
 def get_git_tag():
     args = ["git", "describe", "--tags", "--abbrev=0", "--always"]
-    return sp.run(args, capture_output=True).stdout.strip().decode()
+    tag = sp.run(args, capture_output=True).stdout.strip().decode()
+    m = re.match("(v\d+\.\d+\.\d+)-\d+", tag)
+    return tag if m is None else m[1]
 
 
 def merge_dicts(d1, d2):
