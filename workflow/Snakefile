@@ -1,0 +1,422 @@
+import pandas as pd
+import json
+from functools import partial
+import subprocess as sp
+from os.path import join, basename, splitext, dirname
+from snakemake.utils import min_version, validate
+
+min_version("6.12")
+
+
+configfile: "config/config.yml"
+
+
+validate(config, "../config/config-schema.yml")
+
+
+def get_git_tag():
+    args = ["git", "describe", "--tags", "--abbrev=0", "--always"]
+    return sp.run(args, capture_output=True).stdout.strip().decode()
+
+
+def merge_dicts(d1, d2):
+    # ASSUME: d2 is a subset of d1
+    # NOTE: this will only recursively merge nested dicts (not lists, which
+    # could also be present in a yaml config)
+    def use_other_maybe(k, v):
+        if k in d2:
+            _v = d2[k]
+            if isinstance(_v, dict):
+                return merge_dicts(d1[k], _v)
+            else:
+                return _v
+        else:
+            return v
+
+    if d1 is None:
+        return d2
+    if d2 is None:
+        return d1
+    return {k: use_other_maybe(k, v) for k, v in d1.items()}
+
+
+def lookup_run_config(config, run_key):
+    r = config["runs"][run_key]
+    g = config["global"]
+    return merge_dicts(g, r)
+
+
+def lookup_run_json(config, run_key):
+    return json.dumps(lookup_run_config(config, run_key))
+
+
+def lookup_config(config, *keys):
+    k = keys[0]
+    ks = keys[1:]
+    return config[k] if len(ks) == 0 else lookup_config(config[k], *ks)
+
+
+git_tag = get_git_tag()
+run_keys = list(config["runs"])
+
+################################################################################
+# output paths
+
+# downloaded files
+
+resources_dir = "resources"
+
+bench_dir = join(resources_dir, "bench")
+annotations_data_dir = join(resources_dir, "annotations")
+
+# computed output
+
+results_dir = "results"
+
+label_dir = join(results_dir, "labels")
+rtg_dir = join(label_dir, "rtg")
+preprocessing_dir = join(results_dir, "preprocessing")
+annotated_dir = join(results_dir, "annotated")
+
+ebm_dir = join(results_dir, "ebm", "{}_{{run_key}}".format(git_tag))
+ebm_input_tsv = join(ebm_dir, "input.tsv")
+ebm_output_files = [
+    join(ebm_dir, f)
+    for f in [
+        "model.pickle",
+        "train_x.pickle",
+        "train_y.pickle",
+        "test_x.pickle",
+        "test_y.pickle",
+        "config.yml",
+    ]
+]
+
+################################################################################
+# main target
+#
+# Define what EBM models we want to run, and pin the output dirs to 'all'
+
+
+rule all:
+    input:
+        expand(ebm_output_files, tag=git_tag, run_key=run_keys),
+
+
+################################################################################
+# VCF preprocessing
+
+
+rule get_vcf:
+    output:
+        join(resources_dir, "query.vcf.gz"),
+    params:
+        url=lookup_config(config, "resources", "query_url"),
+    shell:
+        "curl -o {output} {params.url}"
+
+
+rule preprocess_vcf:
+    input:
+        rules.get_vcf.output,
+    output:
+        join(label_dir, "query_corrected_refcall.vcf.gz"),
+    conda:
+        "envs/samtools.yml"
+    shell:
+        """
+        gunzip -c {input} | \
+        sed -e '/.RefCall./ s/\.\/\./0\/1/g' | \
+        sed -e '/.RefCall./ s/0\/0/0\/1/g' | \
+        bgzip -c > {output}
+        """
+
+
+rule index_vcf:
+    input:
+        rules.preprocess_vcf.output,
+    output:
+        join(label_dir, "query_corrected_refcall.vcf.gz.tbi"),
+    conda:
+        "envs/samtools.yml"
+    shell:
+        "tabix -p vcf {input}"
+
+
+################################################################################
+# get reference sdf
+
+
+ref_url = lookup_config(config, "resources", "ref", "sdf_url")
+
+
+rule get_ref_sdf:
+    output:
+        directory(join(resources_dir, splitext(basename(ref_url))[0])),
+    params:
+        url=ref_url,
+        dir=lambda _, output: dirname(output[0]),
+    shell:
+        "curl {params.url} | bsdtar -xf - -C {params.dir}"
+
+
+################################################################################
+# get benchmark files
+
+
+# TODO use more unique names for these file so it is less likely in the future
+# that we will change the config and have an old/wrong file that won't be
+# overwritten by snakemake
+rule get_bench_vcf:
+    output:
+        join(bench_dir, "bench.vcf.gz"),
+    params:
+        url=lookup_config(config, "resources", "bench", "vcf_url"),
+    shell:
+        "curl -o {output} {params.url}"
+
+
+rule get_bench_tbi:
+    output:
+        join(bench_dir, "bench.vcf.gz.tbi"),
+    params:
+        url=lookup_config(config, "resources", "bench", "tbi_url"),
+    shell:
+        "curl -o {output} {params.url}"
+
+
+rule get_bench_bed:
+    output:
+        join(bench_dir, "bench.bed"),
+    params:
+        url=lookup_config(config, "resources", "bench", "bed_url"),
+    shell:
+        "curl -o {output} {params.url}"
+
+
+################################################################################
+# VCF -> tsv
+
+
+# rtg won't output to a directory that already exists, so do this weird temp
+# file thing
+rule get_vcf_labels:
+    input:
+        query_vcf=rules.preprocess_vcf.output,
+        truth_vcf=rules.get_bench_vcf.output,
+        truth_bed=rules.get_bench_bed.output,
+        sdf=rules.get_ref_sdf.output,
+        # not used on CLI but still needed
+        query_tbi=rules.index_vcf.output,
+        truth_tbi=rules.get_bench_tbi.output,
+    output:
+        tp=join(rtg_dir, "tp.vcf.gz"),
+        fp=join(rtg_dir, "fp.vcf.gz"),
+    conda:
+        "envs/rtg.yml"
+    params:
+        extra="--ref-overlap --all-records",
+        tmp_dir="/tmp/vcfeval",
+        output_dir=rtg_dir,
+    shell:
+        """
+        rtg vcfeval {params.extra} \
+            -b {input.truth_vcf} \
+            -e {input.truth_bed} \
+            -c {input.query_vcf} \
+            -o {params.tmp_dir} \
+        -t {input.sdf}
+        mv {params.tmp_dir}/* {params.output_dir}
+        rm -r {params.tmp_dir}
+        """
+
+
+# TODO wet code
+rule unzip_vcf_labels:
+    input:
+        tp=join(rtg_dir, "tp.vcf.gz"),
+        fp=join(rtg_dir, "fp.vcf.gz")
+    output:
+        tp=join(label_dir, "tp.vcf"),
+        fp=join(label_dir, "fp.vcf")
+    shell:
+        """
+        gunzip {input.tp} -c > {output.tp}
+        gunzip {input.fp} -c > {output.fp}
+        """
+
+
+# TODO super wet code
+rule parse_label_vcf:
+    input:
+        tp=rules.unzip_vcf_labels.output.tp,
+        fp=rules.unzip_vcf_labels.output.fp,
+    output:
+        tp=join(label_dir, "tp.tsv"),
+        fp=join(label_dir, "fp.tsv"),
+    shell:
+        """
+        python workflow/scripts/parse_vcf_to_bed_ebm_indels_fp.py \
+        --input {input.fp} --output {output.fp}
+
+        python workflow/scripts/parse_vcf_to_bed_ebm_indels_tp.py \
+        --input {input.tp} --output {output.tp}
+        """
+
+
+rule concat_tsv_files:
+    input:
+        tp=rules.parse_label_vcf.output.tp,
+        fp=rules.parse_label_vcf.output.fp,
+    output:
+        join(label_dir, "labeled.tsv"),
+    shell:
+        """
+        cp {input.tp} {output}
+        tail -n+2 {input.fp} >> {output}
+        """
+
+
+## TODO add filtering rules here if we wish
+
+################################################################################
+# get annotations data
+
+rule get_genome_tsv:
+    output:
+        join(annotations_data_dir, "genome.txt"),
+    shell:
+        """
+        mysql --user=genome --host=genome-mysql.soe.ucsc.edu \
+        -A -P 3306 -D hg38 -N -B -e \
+        \"SELECT chrom,size FROM chromInfo 
+        WHERE chrom REGEXP '^chr[0-9]{{1,2}}$'
+        ORDER BY CAST(REPLACE(chrom,'chr','') as INT);\" \
+        > {output}
+        """
+
+rule get_simreps_tsv:
+    output:
+        join(annotations_data_dir, "simple_repeats.tsv"),
+    shell:
+        """
+        mysql --user=genome --host=genome-mysql.soe.ucsc.edu \
+        -A -P 3306 -D hg38 -B -e \
+        \"SELECT * FROM simpleRepeat WHERE chrom REGEXP '^chr[0-9]{{1,2}}$';\" \
+        > {output}
+        """
+
+rule get_repeat_masker_tsv:
+    output:
+        join(annotations_data_dir, "repeat_masker.tsv"),
+    shell:
+        """
+        mysql --user=genome --host=genome-mysql.soe.ucsc.edu \
+        -A -P 3306 -D hg38 -B -e \
+        \"SELECT genoName,genoStart,genoEnd,repClass FROM rmsk
+        WHERE genoName REGEXP '^chr[0-9]{{1,2}}$';\" \
+        > {output}
+        """
+
+################################################################################
+# add annotations
+
+rule add_superdups:
+    input:
+        variants=rules.concat_tsv_files.output,
+    output:
+        join(annotated_dir, "1_added_superdups.tsv"),
+    shell:
+        """cat {input.variants} > {output}"""
+
+rule add_homopolymers:
+    input:
+        variants=rules.add_superdups.output,
+    output:
+        join(annotated_dir, "2_added_homopolymers.tsv"),
+    shell:
+        """cat {input.variants} > {output}"""
+
+rule add_simple_reps:
+    input:
+        variants=rules.add_homopolymers.output,
+        annotations=rules.get_simreps_tsv.output,
+        genome=rules.get_genome_tsv.output,
+    output:
+        join(annotated_dir, "3_added_simreps.tsv"),
+    shell:
+        """
+        python workflow/scripts/annotate_simple_repeats.py \
+        -i {input.variants} \
+        -g {input.genome} \
+        -s {input.annotations} \
+        -o {output}
+        """
+
+rule add_repeat_masker:
+    input:
+        variants=rules.add_simple_reps.output,
+        annotations=rules.get_repeat_masker_tsv.output,
+    output:
+        join(annotated_dir, "4_added_repeat_masker.tsv"),
+    shell:
+        """
+        python workflow/scripts/annotate_repeat_masker.py \
+        -i {input.variants} \
+        -r {input.annotations} \
+        -o {output}
+        """
+
+# rule add_mappability:
+#     input:
+#         add_repeat_masker.output,
+#     output:
+#         join(preprocessing_dir, "added_mappability.tsv"),
+
+
+################################################################################
+# postprocess output
+
+
+def get_postprocess_config(wildcards):
+    c = lookup_run_config(config, wildcards.run_key)
+    return json.dumps(c["features"])
+
+
+rule postprocess_output:
+    input:
+        rules.add_repeat_masker.output,
+    output:
+        ebm_input_tsv,
+    params:
+        config=get_postprocess_config,
+    shell:
+        """
+        python workflow/scripts/postprocess.py \
+        -c '{params.config}' \
+        -i {input} \
+        -o {output}
+        """
+
+
+################################################################################
+# run EBM
+#
+# assume that this will take care of test/train split, actual training, and
+# pickling
+
+
+rule train_ebm:
+    input:
+        rules.postprocess_output.output,
+    output:
+        ebm_output_files,
+    params:
+        config=lambda wildcards: lookup_run_json(config, wildcards.run_key),
+        out_dir=ebm_dir,
+    shell:
+        """python workflow/scripts/run_ebm.py \
+        -i {input} \
+        -c '{params.config}' \
+        -o {params.out_dir}
+        """

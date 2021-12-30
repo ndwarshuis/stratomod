@@ -8,20 +8,29 @@
   #     homopolymer: 5
 resources:
   # TODO this pwd thing is amusing
-  query_url: file://$(pwd)/resources/HG002.hiseqx.pcr-free.40x.dedup.grch38_chr1_22.vcf.gz
+  # query_url: file://$(pwd)/resources/HG002.hiseqx.pcr-free.40x.dedup.grch38_chr1_22.vcf.gz
+  query_url: file://$(pwd)/resources/small.vcf.gz
   bench:
     vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/latest/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
+    tbi_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/latest/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz.tbi
     bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/latest/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed
   ref:
     sdf_url: https://s3.amazonaws.com/rtg-datasets/references/GRCh38.sdf.zip
 
 
+# TODO currently there is no way to remove any of these features in any of the
+# run configs
 global:
   features:
-    foo:
-    bar:
-      log_transform: true
-      fill_na: 1
+    indel_length: {}
+    period_min: {}
+    copyNum_max: {}
+    perMatch_median: {}
+    region_length: {}
+    SINE: {}
+    LINE: {}
+    LTR: {}
+    Satellite: {}
 
   ebm:
     # hyperparameters:
@@ -31,5 +40,8 @@ runs:
   test_v1:
   other_v1:
     features:
-      foo:
+      indel_length:
         log_transform: true
+      region_length:
+        log_transform: true
+        fill_na: 17

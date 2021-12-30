@@ -32,6 +32,10 @@ properties:
             description: the url for the benchmark VCF to use
             type: string
             format: uri
+          tbi_url:
+            description: the url for the benchmark VCF TBI to use
+            type: string
+            format: uri
           bed_url:
             description: the url for the benchmark bed to use
             type: string
@@ -75,6 +79,7 @@ common:
         patternProperties:
           ^[A-Za-z0-9_]+$:
             additionalProperties: false
+            type: object
             properties:
               log_transform:
                 description: log transform the feature if 'true'
