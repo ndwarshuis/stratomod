@@ -12,9 +12,8 @@ paths:
   #     simple_repeat: 5
   #     homopolymer: 5
 resources:
-  # TODO this pwd thing is amusing
-  # query_url: file://$(pwd)/resources/HG002.hiseqx.pcr-free.40x.dedup.grch38_chr1_22.vcf.gz
-  query_url: file://$(pwd)/resources/small.vcf.gz
+  # TODO make an entry to get the VCF file itself...when we figure out how best
+  # to do this
   bench:
     vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/latest/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
     tbi_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/latest/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz.tbi

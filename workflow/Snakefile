@@ -112,18 +112,19 @@ rule all:
 # VCF preprocessing
 
 
-rule get_vcf:
-    output:
-        join(resources_dir, "query.vcf.gz"),
-    params:
-        url=lookup_config(config, "resources", "query_url"),
-    shell:
-        "curl -o {output} {params.url}"
+# rule get_vcf:
+#     output:
+#         join(resources_dir, "query.vcf.gz"),
+#     params:
+#         url=lookup_config(config, "resources", "query_url"),
+#     shell:
+#         "curl -o {output} {params.url}"
 
 
 rule preprocess_vcf:
     input:
-        rules.get_vcf.output,
+        join(resources_dir, "query.vcf.gz")
+        # rules.get_vcf.output,
     output:
         join(label_dir, "query_corrected_refcall.vcf.gz"),
     conda:

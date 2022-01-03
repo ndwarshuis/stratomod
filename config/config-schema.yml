@@ -29,14 +29,14 @@ properties:
   resources:
     additionalProperties: false
     required:
-      - query_url
+      # - query_url
       - bench
       - ref
     properties:
-      query_url:
-        description: the url for the query VCF to use
-        type: string
-        format: uri
+      # query_url:
+      #   description: the url for the query VCF to use
+      #   type: string
+      #   format: uri
 
       bench:
         additionalProperties: false
