@@ -10,13 +10,27 @@ sys.path.append(parentdir)
 import workflow.scripts.common.config as conf
 
 
+def assert_merge(global_conf, local_conf, merged_conf):
+    assert conf.merge_dicts(global_conf, local_conf) == merged_conf
+
+
 def assert_merge_noop(glb, lcl):
-    assert conf.merge_dicts(glb, lcl) == glb
+    assert_merge(glb, lcl, glb)
 
 
 class ConfigTest(ut.TestCase):
+    def test_empty(self):
+        assert_merge({}, {}, {})
+
+    def test_none_global(self):
+        lcl = {"a": 1, "b": 2}
+        assert_merge(None, lcl, lcl)
+
+    def test_none_local(self):
+        assert_merge({}, None, {})
+
     def test_noop(self):
-        glb = {"a": 1, "b": {"c": 2}}
+        glb = {"a": 1, "b": {"c": 2}, "d": None}
         assert_merge_noop(glb, {})
 
     def test_single_overwrite(self):

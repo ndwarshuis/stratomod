@@ -15,10 +15,10 @@ def merge_dicts(d1, d2):
         else:
             return d1[k]
 
-    # if d1 is None:
-    #     return d2
-    # if d2 is None:
-    #     return d1
+    if d1 is None:
+        return d2
+    if d2 is None:
+        return {}
     return {
         k: pick_dict(d1, d2, k)
         for k in set(d1.keys()) | set(d2.keys())
