@@ -5,7 +5,7 @@ from functools import partial
 import subprocess as sp
 from os.path import join, basename, splitext, dirname
 from snakemake.utils import min_version, validate
-from scripts.common.config import lookup_run_json, lookup_config
+from scripts.common.config import lookup_run_json, lookup_config, lookup_run_config
 
 min_version("6.12")
 
