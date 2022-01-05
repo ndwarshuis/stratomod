@@ -20,8 +20,8 @@ def process_series(opts, ser):
     # TODO use defaults in the yaml schema to make this easier
     log_trans = opts["log_transform"] if "log_transform" in opts else False
     fillval = opts["fill_na"] if "fill_na" in opts else 0
-    _ser = np.log(ser) if log_trans else ser
-    return _ser.fillna(fillval)
+    _ser = pd.to_numeric(ser, errors="coerce")
+    return (np.log(_ser) if log_trans else _ser).fillna(fillval)
 
 
 def check_columns(wanted_cols, df_cols):
