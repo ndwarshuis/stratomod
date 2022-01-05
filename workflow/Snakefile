@@ -252,44 +252,41 @@ rule concat_tsv_files:
 ################################################################################
 # get annotations data
 
+chr_regexp = "^chr[0-9]{1,2}$"
+
 
 rule get_genome_tsv:
     output:
         join(annotations_data_dir, "genome.txt"),
-    shell:
-        """
-        mysql --user=genome --host=genome-mysql.soe.ucsc.edu \
-        -A -P 3306 -D hg38 -N -B -e \
-        \"SELECT chrom,size FROM chromInfo 
-        WHERE chrom REGEXP '^chr[0-9]{{1,2}}$'
-        ORDER BY CAST(REPLACE(chrom,'chr','') as INT);\" \
-        > {output}
-        """
+    params:
+        columns="chrom,size",
+        table="chromInfo",
+        where_regexp=("chrom", chr_regexp),
+        order_by="CAST(REPLACE(chrom,'chr','') as INT)",
+        extra="-N",
+    wrapper:
+        "file://workflow/wrappers/mysql_select"
 
 
 rule get_simreps_tsv:
     output:
         join(annotations_data_dir, "simple_repeats.tsv"),
-    shell:
-        """
-        mysql --user=genome --host=genome-mysql.soe.ucsc.edu \
-        -A -P 3306 -D hg38 -B -e \
-        \"SELECT * FROM simpleRepeat WHERE chrom REGEXP '^chr[0-9]{{1,2}}$';\" \
-        > {output}
-        """
+    params:
+        table="simpleRepeat",
+        where_regexp=("chrom", chr_regexp),
+    wrapper:
+        "file://workflow/wrappers/mysql_select"
 
 
 rule get_repeat_masker_tsv:
     output:
         join(annotations_data_dir, "repeat_masker.tsv"),
-    shell:
-        """
-        mysql --user=genome --host=genome-mysql.soe.ucsc.edu \
-        -A -P 3306 -D hg38 -B -e \
-        \"SELECT genoName,genoStart,genoEnd,repClass FROM rmsk
-        WHERE genoName REGEXP '^chr[0-9]{{1,2}}$';\" \
-        > {output}
-        """
+    params:
+        columns="genoName,genoStart,genoEnd,repClass",
+        table="rmsk",
+        where_regexp=("genoName", chr_regexp),
+    wrapper:
+        "file://workflow/wrappers/mysql_select"
 
 
 ################################################################################
