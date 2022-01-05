@@ -48,7 +48,6 @@ preprocessing_dir = join(results_dir, "preprocessing")
 annotated_dir = join(results_dir, "annotated")
 
 ebm_dir = join(results_dir, "ebm", "{}_{{run_key}}".format(git_tag))
-ebm_input_tsv = join(ebm_dir, "input.tsv")
 ebm_output_files = [
     join(ebm_dir, f)
     for f in [
@@ -201,43 +200,32 @@ rule get_vcf_labels:
         """
 
 
-# TODO wet code
 rule unzip_vcf_labels:
     input:
-        tp=join(rtg_dir, "tp.vcf.gz"),
-        fp=join(rtg_dir, "fp.vcf.gz"),
+        join(rtg_dir, "{label}.vcf.gz"),
     output:
-        tp=join(label_dir, "tp.vcf"),
-        fp=join(label_dir, "fp.vcf"),
+        join(label_dir, "{label}.vcf"),
     shell:
-        """
-        gunzip {input.tp} -c > {output.tp}
-        gunzip {input.fp} -c > {output.fp}
-        """
+        "gunzip {input} -c > {output}"
 
 
-# TODO super wet code
 rule parse_label_vcf:
     input:
-        tp=rules.unzip_vcf_labels.output.tp,
-        fp=rules.unzip_vcf_labels.output.fp,
+        rules.unzip_vcf_labels.output,
     output:
-        tp=join(label_dir, "tp.tsv"),
-        fp=join(label_dir, "fp.tsv"),
+        join(label_dir, "{label}.tsv"),
     shell:
         """
-        python workflow/scripts/parse_vcf_to_bed_ebm_indels_fp.py \
-        --input {input.fp} --output {output.fp}
-
-        python workflow/scripts/parse_vcf_to_bed_ebm_indels_tp.py \
-        --input {input.tp} --output {output.tp}
+        python \
+        workflow/scripts/parse_vcf_to_bed_ebm_indels_{wildcards.label}.py \
+        --input {input} \
+        --output {output}
         """
 
 
 rule concat_tsv_files:
     input:
-        tp=rules.parse_label_vcf.output.tp,
-        fp=rules.parse_label_vcf.output.fp,
+        **{k: expand(rules.parse_label_vcf.output, label=k) for k in ["tp", "fp"]},
     output:
         join(label_dir, "labeled.tsv"),
     shell:
@@ -363,7 +351,7 @@ rule postprocess_output:
     input:
         rules.add_repeat_masker.output,
     output:
-        ebm_input_tsv,
+        join(ebm_dir, "input.tsv"),
     params:
         config=get_postprocess_config,
     shell:
