@@ -2,4 +2,4 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - rtg-tools
+  - rtg-tools=3.12.1

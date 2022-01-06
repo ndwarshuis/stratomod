@@ -1,6 +1,9 @@
 channels:
   - conda-forge
 dependencies:
+  - pip=21.3.1 # conda complains without this
+  - pyyaml=6.0 # for dumping the config in the EBM script
+  - numba=0.54.1 # needed for interpret packages below
   # the conda packages for these are broken :(
   - pip:
     - interpret==0.2.7
