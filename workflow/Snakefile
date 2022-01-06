@@ -240,6 +240,9 @@ rule concat_tsv_files:
 ################################################################################
 # get annotations data
 
+# TODO not sure if this is a snakemake bug or not, but I'm not "supposed" to be
+# able to pass this string as a param because it has { and } (wildcards).
+# Putting it in a tuple seems to make snakemake not care.
 chr_regexp = "^chr[0-9]{1,2}$"
 
 
@@ -286,6 +289,8 @@ rule add_superdups:
         variants=rules.concat_tsv_files.output,
     output:
         join(annotated_dir, "1_added_superdups.tsv"),
+    conda:
+        "envs/bedtools.yml"
     shell:
         """cat {input.variants} > {output}"""
 
@@ -295,6 +300,8 @@ rule add_homopolymers:
         variants=rules.add_superdups.output,
     output:
         join(annotated_dir, "2_added_homopolymers.tsv"),
+    conda:
+        "envs/bedtools.yml"
     shell:
         """cat {input.variants} > {output}"""
 
@@ -306,6 +313,8 @@ rule add_simple_reps:
         genome=rules.get_genome_tsv.output,
     output:
         join(annotated_dir, "3_added_simreps.tsv"),
+    conda:
+        "envs/bedtools.yml"
     shell:
         """
         python workflow/scripts/annotate_simple_repeats.py \
@@ -322,6 +331,8 @@ rule add_repeat_masker:
         annotations=rules.get_repeat_masker_tsv.output,
     output:
         join(annotated_dir, "4_added_repeat_masker.tsv"),
+    conda:
+        "envs/bedtools.yml"
     shell:
         """
         python workflow/scripts/annotate_repeat_masker.py \
@@ -378,6 +389,8 @@ rule train_ebm:
     params:
         config=lambda wildcards: lookup_run_json(config, wildcards.run_key),
         out_dir=ebm_dir,
+    conda:
+        "envs/ebm.yml"
     shell:
         """python workflow/scripts/run_ebm.py \
         -i {input} \

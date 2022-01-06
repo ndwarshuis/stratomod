@@ -1,0 +1,7 @@
+channels:
+  - conda-forge
+dependencies:
+  # the conda packages for these are broken :(
+  - pip:
+    - interpret==0.2.7
+    - interpret-core==0.2.7
