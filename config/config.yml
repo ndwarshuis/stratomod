@@ -20,6 +20,10 @@ resources:
     bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/latest/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed
   ref:
     sdf_url: https://s3.amazonaws.com/rtg-datasets/references/GRCh38.sdf.zip
+  annotations:
+    mappability:
+      low: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.0/GRCh38/mappability/GRCh38_nonunique_l100_m2_e1.bed.gz 
+      high: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.0/GRCh38/mappability/GRCh38_nonunique_l250_m0_e0.bed.gz
 
 
 # TODO currently there is no way to remove any of these features in any of the

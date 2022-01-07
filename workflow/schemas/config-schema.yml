@@ -32,6 +32,7 @@ properties:
       # - query_url
       - bench
       - ref
+      - annotations
     properties:
       # query_url:
       #   description: the url for the query VCF to use
@@ -66,6 +67,26 @@ properties:
             description: the url for the reference SDF to use
             type: string
             format: uri
+
+      annotations:
+        additionalProperties: false
+        required:
+          - mappability
+        properties:
+          mappability:
+            additionalProperties: false
+            required:
+            - low
+            - high
+            properties:
+              low:
+                description: the url for low stringency mappability bed file
+                type: string
+                format: uri
+              high:
+                description: the url for high stringency mappability bed file
+                type: string
+                format: uri
 
 ################################################################################
 # global
