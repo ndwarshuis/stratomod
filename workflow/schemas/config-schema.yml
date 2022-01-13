@@ -2,14 +2,17 @@ $schema: "http://json-schema.org/draft-07/schema#"
 description: explainable boosted machines pipeline
 required:
   - paths
+  - inputs
   - resources
-  - global
-  - runs
+  - ebm_settings
+  - feature_sets
+  - ebm_runs
 additionalProperties: false
 properties:
 
 ################################################################################
 # paths
+
   paths:
     additionalProperties: false
     required:
@@ -24,49 +27,76 @@ properties:
         type: string
 
 ################################################################################
+# inputs
+
+  inputs:
+    additionalProperties: false
+    patternProperties:
+      ^[\w\.\-]+$:
+        required:
+          - vcf
+          - ref
+          - benchmark
+        additionalProperties: false
+        properties:
+          benchmark:
+            description: the benchmark index to use for this input
+            type: string
+
+          ref:
+            description: the reference index to use for this input
+            type: string
+
+          vcf:
+            description: the vcf to use for this input
+            type: string
+
+################################################################################
 # resources
 
   resources:
     additionalProperties: false
     required:
-      # - query_url
-      - bench
-      - ref
+      - benchmarks
+      - references
       - annotations
     properties:
-      # query_url:
-      #   description: the url for the query VCF to use
-      #   type: string
-      #   format: uri
 
-      bench:
+      benchmarks:
         additionalProperties: false
-        required:
-          - vcf_url
-          - bed_url
-        properties:
-          vcf_url:
-            description: the url for the benchmark VCF to use
-            type: string
-            format: uri
-          tbi_url:
-            description: the url for the benchmark VCF TBI to use
-            type: string
-            format: uri
-          bed_url:
-            description: the url for the benchmark bed to use
-            type: string
-            format: uri
+        patternProperties:
+          ^[\w\.\-]+$:
+            additionalProperties: false
+            required:
+              - vcf_url
+              - bed_url
+              - tbi_url
+            properties:
+              vcf_url:
+                description: the url for the benchmark VCF to use
+                type: string
+                format: uri
+              tbi_url:
+                description: the url for the benchmark VCF TBI to use
+                type: string
+                format: uri
+              bed_url:
+                description: the url for the benchmark bed to use
+                type: string
+                format: uri
 
-      ref:
+      references:
         additionalProperties: false
-        required:
-          - sdf_url
-        properties:
-          sdf_url:
-            description: the url for the reference SDF to use
-            type: string
-            format: uri
+        patternProperties:
+          ^[\w\.\-]+$:
+            required:
+              - sdf
+            additionalProperties: false
+            properties:
+              sdf:
+                description: the url for the reference SDF to use
+                type: string
+                format: uri
 
       annotations:
         additionalProperties: false
@@ -89,45 +119,12 @@ properties:
                 format: uri
 
 ################################################################################
-# global
+# EBM settings
 
-  global:
-    anyOf:
-      - $ref: "#/common/run_config"
-
-################################################################################
-# runs
-
-  runs:
-    patternProperties:
-      ^[A-Za-z0-9_]+_v[0-9]+$:
-        allOf:
-          - $ref: "#/common/run_config"
-
-################################################################################
-# common
-
-common:
-  run_config:
+  ebm_settings:
     additionalProperties: false
-    properties:
-      features:
-        additionalProperties: false
-        patternProperties:
-          ^[A-Za-z0-9_]+$:
-            additionalProperties: false
-            type: object
-            properties:
-              log_transform:
-                description: log transform the feature if 'true'
-                type: boolean
-              fill_na:
-                description: if present, fill missing values with this value
-                type: number
-      ebm:
-        additionalProperties: false
-        required:
-          - test_size
+    patternProperties:
+      ^[\w\.\-]+$:
         properties:
           test_size:
             description: |
@@ -135,3 +132,46 @@ common:
             type: number
             minimum: 0
             maximum: 1
+
+################################################################################
+# feature sets
+
+  feature_sets:
+    additionalProperties: false
+    patternProperties:
+      ^[\w\.\-]+$:
+        additionalProperties: false
+        patternProperties:
+          ^[\w_]+$:
+            additionalProperties: false
+            properties:
+              log_transform:
+                description: log transform the feature if 'true'
+                type: boolean
+              fill_na:
+                description: if present, fill missing values with this value
+                type: number
+
+################################################################################
+# EBM runs
+
+  ebm_runs:
+    additionalProperties: false
+    patternProperties:
+      ^[\w_]+_v[0-9]+$:
+        additionalProperties: false
+        required:
+          - input
+          - filter
+          - feature_set
+        properties:
+          input:
+            description: the input index to use for this run
+            type: string
+          filter:
+            description: the filter to use for this run; either INDEL or SNP
+            type: string
+            pattern: ^INDEL|SNP$
+          feature_set: 
+            description: the feature set to use for this run
+            type: string
