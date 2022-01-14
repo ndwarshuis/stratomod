@@ -3,6 +3,7 @@ paths:
   resources: "resources"
   results: "results"
 
+# TODO this isn't being used yet
 # the VCF file to annotate and analyze via EBMs and associated metadata
 inputs:
   HG002-DV:
@@ -28,7 +29,7 @@ resources:
 
 # settings for each EBM run
 ebm_settings:
-  ebm-test:
+  ebm_test:
     # hyperparameters:
     test_size: 0.2
 
@@ -71,7 +72,9 @@ ebm_runs:
     input: HG002-DV
     filter: INDEL
     feature_set: trans_features
+    ebm_settings: ebm_test
   other_v1:
     input: HG002-DV
     filter: SNP
     feature_set: all_features
+    ebm_settings: ebm_test

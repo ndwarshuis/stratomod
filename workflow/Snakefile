@@ -25,7 +25,7 @@ def get_git_tag():
 
 
 git_tag = get_git_tag()
-run_keys = list(config["runs"])
+run_keys = list(config["ebm_runs"])
 
 ################################################################################
 # output paths
@@ -37,7 +37,7 @@ conf_paths = config["paths"]
 resources_dir = Path(conf_paths["resources"])
 
 bench_dir = resources_dir / "bench"
-annotations_data_dir = resources_dir / "annotations"
+annotations_src_dir = resources_dir / "annotations"
 
 # computed output
 
@@ -45,8 +45,8 @@ results_dir = Path(conf_paths["results"])
 
 label_dir = results_dir / "labels"
 rtg_dir = label_dir / "rtg"
-preprocessing_dir = results_dir / "preprocessing"
-annotated_dir = results_dir / "annotated"
+annotations_tsv_dir = results_dir / "annotations"
+annotated_dir = results_dir / "annotated_input"
 
 ebm_dir = results_dir / "ebm" / "{}_{{run_key}}".format(git_tag)
 ebm_output_files = [
@@ -117,7 +117,8 @@ rule index_vcf:
 # get reference sdf
 
 
-ref_url = lookup_config(config, "resources", "ref", "sdf_url")
+# TODO don't hardcode the reference in the future
+ref_url = lookup_config(config, "resources", "references", "GRCh38", "sdf")
 
 
 rule get_ref_sdf:
@@ -134,14 +135,16 @@ rule get_ref_sdf:
 # get benchmark files
 
 
-# TODO use more unique names for these file so it is less likely in the future
-# that we will change the config and have an old/wrong file that won't be
-# overwritten by snakemake
+def lookup_benchmark(key):
+    # TODO don't hardcode the benchmark in the future
+    return (lookup_config(config, "resources", "benchmarks", "v4.2.1", key),)
+
+
 rule get_bench_vcf:
     output:
         bench_dir / "bench.vcf.gz",
     params:
-        url=lookup_config(config, "resources", "bench", "vcf_url"),
+        url=lookup_benchmark("vcf_url"),
     shell:
         "curl -o {output} {params.url}"
 
@@ -150,7 +153,7 @@ rule get_bench_tbi:
     output:
         bench_dir / "bench.vcf.gz.tbi",
     params:
-        url=lookup_config(config, "resources", "bench", "tbi_url"),
+        url=lookup_benchmark("tbi_url"),
     shell:
         "curl -o {output} {params.url}"
 
@@ -159,7 +162,7 @@ rule get_bench_bed:
     output:
         bench_dir / "bench.bed",
     params:
-        url=lookup_config(config, "resources", "bench", "bed_url"),
+        url=lookup_benchmark("bed_url"),
     shell:
         "curl -o {output} {params.url}"
 
@@ -214,11 +217,13 @@ rule parse_label_vcf:
     input:
         rules.unzip_vcf_labels.output,
     output:
-        label_dir / "{label}.tsv",
+        label_dir / "{filter_prefix}_{label}.tsv",
     shell:
         """
         python \
-        workflow/scripts/parse_vcf_to_bed_ebm_indels_{wildcards.label}.py \
+        workflow/scripts/parse_vcf_to_bed_ebm.py \
+        --type {wildcards.filter_prefix} \
+        --label {wildcards.label} \
         --input {input} \
         --output {output}
         """
@@ -226,9 +231,12 @@ rule parse_label_vcf:
 
 rule concat_tsv_files:
     input:
-        **{k: expand(rules.parse_label_vcf.output, label=k) for k in ["tp", "fp"]},
+        **{
+            k: expand(rules.parse_label_vcf.output, label=k, allow_missing=True)
+            for k in ["tp", "fp"]
+        },
     output:
-        label_dir / "labeled.tsv",
+        label_dir / "{filter_prefix}_labeled.tsv",
     shell:
         """
         cp {input.tp} {output}
@@ -247,9 +255,9 @@ rule concat_tsv_files:
 chr_regexp = "^chr[0-9]{1,2}$"
 
 
-rule get_genome_tsv:
+rule get_genome:
     output:
-        annotations_data_dir / "genome.txt",
+        annotations_src_dir / "genome.txt",
     params:
         columns="chrom,size",
         table="chromInfo",
@@ -260,9 +268,9 @@ rule get_genome_tsv:
         "file://workflow/wrappers/mysql_select"
 
 
-rule get_simreps_tsv:
+rule get_simreps_src:
     output:
-        annotations_data_dir / "simple_repeats.tsv",
+        annotations_src_dir / "simple_repeats.tsv",
     params:
         table="simpleRepeat",
         where_regexp=("chrom", chr_regexp),
@@ -270,9 +278,9 @@ rule get_simreps_tsv:
         "file://workflow/wrappers/mysql_select"
 
 
-rule get_repeat_masker_tsv:
+rule get_repeat_masker_src:
     output:
-        annotations_data_dir / "repeat_masker.tsv",
+        annotations_src_dir / "repeat_masker.tsv",
     params:
         columns="genoName,genoStart,genoEnd,repClass",
         table="rmsk",
@@ -286,9 +294,9 @@ rule get_repeat_masker_tsv:
 # with the feature tsv file, the 1's will be a binary representation of a
 # variant being in a given mappability region (and non-overlaps will be empty,
 # which presumably will be filled with 0's)
-rule get_mappability_tsv_high:
+rule get_mappability_high_src:
     output:
-        annotations_data_dir / "mappability_high.tsv",
+        annotations_src_dir / "mappability_high.tsv",
     params:
         url=config["resources"]["annotations"]["mappability"]["high"],
         feature_name="mappability_high",
@@ -303,85 +311,78 @@ rule get_mappability_tsv_high:
         """
 
 
-use rule get_mappability_tsv_high as get_mappability_tsv_low with:
+use rule get_mappability_high_src as get_mappability_low_src with:
     output:
-        annotations_data_dir / "mappability_low.tsv",
+        annotations_src_dir / "mappability_low.tsv",
     params:
         url=config["resources"]["annotations"]["mappability"]["low"],
         feature_name="mappability_low",
 
 
 ################################################################################
+# process annotations (merge, filter, etc)
+
+
+rmsk_classes = ["SINE", "LINE", "LTR", "Satellite"]
+
+
+rule get_repeat_masker_classes:
+    input:
+        rules.get_repeat_masker_src.output,
+    output:
+        expand(
+            annotations_tsv_dir / "repeat_masker_{cls}.tsv",
+            cls=rmsk_classes,
+        ),
+    conda:
+        "envs/bedtools.yml"
+    params:
+        outdir=lambda _, output: Path(output[0]).parent,
+        classes=",".join(rmsk_classes),
+    shell:
+        """
+        python workflow/scripts/get_rmsk_classes.py \
+        -i {input} \
+        -o {params.outdir} \
+        -c {params.classes}
+        """
+
+
+rule get_simple_reps:
+    input:
+        src=rules.get_simreps_src.output,
+        genome=rules.get_genome.output,
+    output:
+        annotations_tsv_dir / "merged_simreps.tsv",
+    conda:
+        "envs/bedtools.yml"
+    shell:
+        """
+        python workflow/scripts/get_simple_repeats.py \
+        -i {input.src} \
+        -g {input.genome} \
+        -o {output}
+        """
+
+
+# TODO add superdups and homopolymers
+
+
+################################################################################
 # add annotations
 
 
-rule add_superdups:
+rule add_annotations:
     input:
         variants=rules.concat_tsv_files.output,
-    output:
-        annotated_dir / "1_added_superdups.tsv",
-    conda:
-        "envs/bedtools.yml"
-    shell:
-        """cat {input.variants} > {output}"""
-
-
-rule add_homopolymers:
-    input:
-        variants=rules.add_superdups.output,
-    output:
-        annotated_dir / "2_added_homopolymers.tsv",
-    conda:
-        "envs/bedtools.yml"
-    shell:
-        """cat {input.variants} > {output}"""
-
-
-rule add_simple_reps:
-    input:
-        variants=rules.add_homopolymers.output,
-        annotations=rules.get_simreps_tsv.output,
-        genome=rules.get_genome_tsv.output,
-    output:
-        annotated_dir / "3_added_simreps.tsv",
-    conda:
-        "envs/bedtools.yml"
-    shell:
-        """
-        python workflow/scripts/annotate_simple_repeats.py \
-        -i {input.variants} \
-        -g {input.genome} \
-        -s {input.annotations} \
-        -o {output}
-        """
-
-
-rule add_repeat_masker:
-    input:
-        variants=rules.add_simple_reps.output,
-        annotations=rules.get_repeat_masker_tsv.output,
-    output:
-        annotated_dir / "4_added_repeat_masker.tsv",
-    conda:
-        "envs/bedtools.yml"
-    shell:
-        """
-        python workflow/scripts/annotate_repeat_masker.py \
-        -i {input.variants} \
-        -r {input.annotations} \
-        -o {output}
-        """
-
-
-rule add_mappability:
-    input:
-        variants=rules.add_repeat_masker.output,
         tsvs=[
-            rules.get_mappability_tsv_high.output,
-            rules.get_mappability_tsv_low.output,
+            rules.get_repeat_masker_classes.output,
+            rules.get_simple_reps.output,
+            rules.get_mappability_high_src.output,
+            rules.get_mappability_low_src.output,
         ],
     output:
-        annotated_dir / "5_mappability.tsv",
+        annotated_dir / "{filter_prefix}.tsv",
     conda:
         "envs/bedtools.yml"
     shell:
@@ -398,13 +399,16 @@ rule add_mappability:
 
 
 def get_postprocess_config(wildcards):
-    c = lookup_run_config(config, wildcards.run_key)
-    return json.dumps(c["features"])
+    f = config["ebm_runs"][wildcards.run_key]["feature_set"]
+    return json.dumps(config["feature_sets"][f])
 
 
 rule postprocess_output:
     input:
-        rules.add_mappability.output,
+        lambda wildcards: expand(
+            rules.add_annotations.output,
+            filter_prefix=config["ebm_runs"][wildcards.run_key]["filter"],
+        ),
     output:
         ebm_dir / "input.tsv",
     params:
@@ -425,13 +429,18 @@ rule postprocess_output:
 # pickling
 
 
+def lookup_ebm_run(wildcards):
+    e = config["ebm_runs"][wildcards.run_key]["ebm_settings"]
+    return json.dumps({"settings": config["ebm_settings"][e]})
+
+
 rule train_ebm:
     input:
         rules.postprocess_output.output,
     output:
         ebm_output_files,
     params:
-        config=lambda wildcards: lookup_run_json(config, wildcards.run_key),
+        config=lookup_ebm_run,
         out_dir=str(ebm_dir),
     conda:
         "envs/ebm.yml"

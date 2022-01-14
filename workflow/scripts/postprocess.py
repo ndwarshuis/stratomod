@@ -17,9 +17,10 @@ def make_parser():
 
 
 def process_series(opts, ser):
+    _opts = {} if opts is None else opts
     # TODO use defaults in the yaml schema to make this easier
-    log_trans = opts["log_transform"] if "log_transform" in opts else False
-    fillval = opts["fill_na"] if "fill_na" in opts else 0
+    log_trans = _opts["log_transform"] if "log_transform" in _opts else False
+    fillval = _opts["fill_na"] if "fill_na" in _opts else 0
     _ser = pd.to_numeric(ser, errors="coerce")
     return (np.log(_ser) if log_trans else _ser).fillna(fillval)
 
@@ -51,10 +52,11 @@ def select_columns(config, df):
 
 
 def process_data(config, df):
-    _df = select_columns(config, df)
     for col, opts in config.items():
-        _df[col] = process_series(opts, _df[col])
-    return _df
+        df[col] = process_series(opts, df[col])
+    # select columns after transforms to avoid pandas asking me to make a
+    # deep copy (which will happen on a slice of a slice)
+    return select_columns(config, df)
 
 
 def main():

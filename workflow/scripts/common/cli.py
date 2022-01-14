@@ -1,3 +1,4 @@
+import sys
 import argparse
 
 
@@ -37,3 +38,7 @@ def make_io_parser(desc, idesc, odesc):
     add_output_arg(odesc, parser)
     add_input_arg(idesc, parser)
     return parser
+
+
+def printerr(s):
+    print(s, file=sys.stderr)

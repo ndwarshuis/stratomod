@@ -164,6 +164,7 @@ properties:
           - input
           - filter
           - feature_set
+          - ebm_settings
         properties:
           input:
             description: the input index to use for this run
@@ -174,4 +175,7 @@ properties:
             pattern: ^INDEL|SNP$
           feature_set: 
             description: the feature set to use for this run
+            type: string
+          ebm_settings:
+            description: the settings to use for the EBM
             type: string

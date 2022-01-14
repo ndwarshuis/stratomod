@@ -27,7 +27,7 @@ def merge_dicts(d1, d2):
 
 
 def lookup_run_config(config, run_key):
-    r = config["runs"][run_key]
+    r = config["ebm_runs"][run_key]
     g = config["global"]
     return merge_dicts(g, r)
 

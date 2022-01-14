@@ -40,7 +40,7 @@ def write_pickle(path, obj):
 
 
 def train_ebm(config, label, outdir, df):
-    ebm_config = config["ebm"]
+    ebm_config = config["settings"]
     # TODO don't hardcode this
     # df = df.sample(frac=0.01)
     train_cols = [c for c in df.columns if c != label]
