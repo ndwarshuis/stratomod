@@ -3,6 +3,7 @@ import argparse
 from pybedtools import BedTool as bt
 from common.tsv import read_tsv, write_tsv
 from common.cli import add_input_arg, printerr
+from common.bed import sort_bed_numerically
 
 STARTCOL = "genoStart"
 ENDCOL = "genoEnd"
@@ -36,12 +37,12 @@ def merge_and_write_class(df, outdir, classname):
     merged = bt.from_dataframe(dropped).merge().to_dataframe(names=RMSK_COLS)
     merged[classname] = merged[ENDCOL] - merged[STARTCOL]
     path = Path(outdir) / ("repeat_masker_%s.tsv" % classname)
-    write_tsv(path, merged)
+    write_tsv(path, merged, header=True)
 
 
 def main():
     args = make_parser().parse_args()
-    rmsk_df = read_tsv(args.input)
+    rmsk_df = sort_bed_numerically(read_tsv(args.input, names=RMSK_DF_COLS))
     for cls in args.classes.split(","):
         printerr("Filtering and merging repeat masker class %s" % cls)
         merge_and_write_class(rmsk_df, args.outdir, cls)

@@ -2,23 +2,17 @@ import sys
 import pandas as pd
 
 
-def read_tsv_from(path):
-    return pd.read_csv(path, sep="\t")
+def read_tsv_from(path, *args, **kwargs):
+    return pd.read_csv(path, sep="\t", *args, **kwargs)
 
 
-def read_tsv(path):
-    if path is None:
-        return read_tsv_from(sys.stdin)
-    # with open(path, "rt") as f:
-    return read_tsv_from(path)
+def read_tsv(path, *args, **kwargs):
+    return read_tsv_from(sys.stdin if path is None else path, *args, **kwargs)
 
 
-def write_tsv_to(f, df):
-    df.to_csv(f, sep="\t", index=False, header=True)
+def write_tsv_to(f, df, *args, **kwargs):
+    df.to_csv(f, sep="\t", index=False, *args, **kwargs)
 
 
-def write_tsv(path, df):
-    if path is None:
-        return write_tsv_to(sys.stdout, df)
-    # with open(path, "wt") as f:
-    return write_tsv_to(path, df)
+def write_tsv(path, df, *args, **kwargs):
+    return write_tsv_to(sys.stdout if path is None else path, df, *args, **kwargs)

@@ -199,7 +199,9 @@ rule get_vcf_labels:
             -c {input.query_vcf} \
             -o {params.tmp_dir} \
         -t {input.sdf}
+
         mv {params.tmp_dir}/* {params.output_dir}
+
         rm -r {params.tmp_dir}
         """
 
@@ -239,8 +241,10 @@ rule concat_tsv_files:
         label_dir / "{filter_prefix}_labeled.tsv",
     shell:
         """
-        cp {input.tp} {output}
-        tail -n+2 {input.fp} >> {output}
+        tail -n+2 {input.tp} | \
+        cat {input.fp} - | \
+        python workflow/scripts/sort_and_filter_bed.py --header \
+        > {output}
         """
 
 
@@ -249,123 +253,35 @@ rule concat_tsv_files:
 ################################################################################
 # get annotations data
 
-# TODO not sure if this is a snakemake bug or not, but I'm not "supposed" to be
-# able to pass this string as a param because it has { and } (wildcards).
-# Putting it in a tuple seems to make snakemake not care.
-chr_regexp = "^chr[0-9]{1,2}$"
+# All these files from from here:
+# https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/
 
 
+# download the first two columns of this table (chrom and length)
 rule get_genome:
     output:
         annotations_src_dir / "genome.txt",
     params:
-        columns="chrom,size",
-        table="chromInfo",
-        where_regexp=("chrom", chr_regexp),
-        order_by="CAST(REPLACE(chrom,'chr','') as INT)",
-        extra="-N",
-    wrapper:
-        "file://workflow/wrappers/mysql_select"
-
-
-rule get_simreps_src:
-    output:
-        annotations_src_dir / "simple_repeats.tsv",
-    params:
-        table="simpleRepeat",
-        where_regexp=("chrom", chr_regexp),
-    wrapper:
-        "file://workflow/wrappers/mysql_select"
-
-
-rule get_repeat_masker_src:
-    output:
-        annotations_src_dir / "repeat_masker.tsv",
-    params:
-        columns="genoName,genoStart,genoEnd,repClass",
-        table="rmsk",
-        where_regexp=("genoName", chr_regexp),
-    wrapper:
-        "file://workflow/wrappers/mysql_select"
-
-
-# As this file is being downloaded, strip the header, add a new column filled
-# with 1's, and add our own header to identify this new column. When intersected
-# with the feature tsv file, the 1's will be a binary representation of a
-# variant being in a given mappability region (and non-overlaps will be empty,
-# which presumably will be filled with 0's)
-rule get_mappability_high_src:
-    output:
-        annotations_src_dir / "mappability_high.tsv",
-    params:
-        url=config["resources"]["annotations"]["mappability"]["high"],
-        feature_name="mappability_high",
+        url="https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/chromInfo.txt.gz",
     shell:
         """
-        echo 'chrom\tstart\tend\t{params.feature_name}' > {output}
-        curl -L {params.url} | \
+        curl {params.url} | \
         gunzip -c | \
-        sed 's/$/\t1/' | \
-        tail -n+2 \
-        >> {output}
+        cut -f1,2 | \
+        sed -n '/^chr\([0-9XY][[:space:]]\|[0-9]\{{2\}}[[:space:]]\)/p' | \
+        sed 's/^chr//' | \
+        sed 's/^X/23/;s/^Y/24/' | \
+        sort -k1,1n | \
+        sed 's/^23/X/;s/^24/Y/;s/^/chr/' \
+        > {output}
         """
 
 
-use rule get_mappability_high_src as get_mappability_low_src with:
-    output:
-        annotations_src_dir / "mappability_low.tsv",
-    params:
-        url=config["resources"]["annotations"]["mappability"]["low"],
-        feature_name="mappability_low",
-
-
-################################################################################
-# process annotations (merge, filter, etc)
-
-
-rmsk_classes = ["SINE", "LINE", "LTR", "Satellite"]
-
-
-rule get_repeat_masker_classes:
-    input:
-        rules.get_repeat_masker_src.output,
-    output:
-        expand(
-            annotations_tsv_dir / "repeat_masker_{cls}.tsv",
-            cls=rmsk_classes,
-        ),
-    conda:
-        "envs/bedtools.yml"
-    params:
-        outdir=lambda _, output: Path(output[0]).parent,
-        classes=",".join(rmsk_classes),
-    shell:
-        """
-        python workflow/scripts/get_rmsk_classes.py \
-        -i {input} \
-        -o {params.outdir} \
-        -c {params.classes}
-        """
-
-
-rule get_simple_reps:
-    input:
-        src=rules.get_simreps_src.output,
-        genome=rules.get_genome.output,
-    output:
-        annotations_tsv_dir / "merged_simreps.tsv",
-    conda:
-        "envs/bedtools.yml"
-    shell:
-        """
-        python workflow/scripts/get_simple_repeats.py \
-        -i {input.src} \
-        -g {input.genome} \
-        -o {output}
-        """
-
-
-# TODO add superdups and homopolymers
+include: "rules/repeat_masker.smk"
+include: "rules/homopolymers.smk"
+include: "rules/mappability.smk"
+include: "rules/tandem_repeats.smk"
+include: "rules/segdups.smk"
 
 
 ################################################################################
@@ -380,6 +296,16 @@ rule add_annotations:
             rules.get_simple_reps.output,
             rules.get_mappability_high_src.output,
             rules.get_mappability_low_src.output,
+            expand(
+                rules.get_segdups.output,
+                colname=list(segdups_cols),
+                allow_missing=True,
+            ),
+            expand(
+                rules.get_homopolymers.output,
+                bases=["AT", "GC"],
+                allow_missing=True,
+            ),
         ],
     output:
         annotated_dir / "{filter_prefix}.tsv",

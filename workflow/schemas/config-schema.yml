@@ -102,6 +102,8 @@ properties:
         additionalProperties: false
         required:
           - mappability
+          - superdups
+          - homopolymers
         properties:
           mappability:
             additionalProperties: false
@@ -115,6 +117,28 @@ properties:
                 format: uri
               high:
                 description: the url for high stringency mappability bed file
+                type: string
+                format: uri
+
+          superdups:
+            description: the url to the superdups txt file
+            type: string
+            format: uri
+
+          homopolymers:
+            required:
+              - find_regions
+              - fasta
+            additionalProperties: false
+            properties:
+              find_regions:
+                description: |
+                  the url of the script to use when finding simple repeat regions
+                type: string
+                format: uri
+              fasta:
+                description: |
+                  the url of the fasta file containing the simple regions
                 type: string
                 format: uri
 

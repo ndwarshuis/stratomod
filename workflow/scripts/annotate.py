@@ -21,6 +21,8 @@ def make_parser():
 
 
 def left_outer_intersect(left, path):
+    printerr("Adding annotations from %s" % path)
+
     # Use bedtools to perform left-outer join of two bed/tsv files. Since
     # bedtools will join all columns from the two input files, keep track of the
     # width of the left input file so that the first three columns of the right
@@ -30,13 +32,14 @@ def left_outer_intersect(left, path):
     right = read_tsv(path)
     right_cols = right.columns.tolist()
     right_bed = bt.from_dataframe(right)
-    printerr("Adding annotations from %s" % path)
-    printerr("Annotations added: %s\n" % ", ".join(right_cols[3:]))
     new_df = (
         bt.from_dataframe(left)
         .intersect(right_bed, loj=True)
         .to_dataframe(names=left_cols + right_cols)
     )
+
+    printerr("Annotations added: %s\n" % ", ".join(right_cols[3:]))
+
     return new_df.drop(columns=new_df.columns[left_width : left_width + 3])
 
 
