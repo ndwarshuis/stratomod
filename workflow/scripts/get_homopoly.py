@@ -1,14 +1,12 @@
 from pybedtools import BedTool as bt
 from pybedtools import cleanup
-from common.tsv import write_tsv
+from common.tsv import write_tsv, read_tsv
 from common.cli import printerr, make_io_parser
 from common.bed import sort_bed_numerically
 
 BASE_COL = "base"
 BED_COLS = ["chr", "start", "end"]
 SIMPLE_REPEAT_BED_COLS = BED_COLS + [BASE_COL]
-
-# ASSUME the input bed file for this script is sorted
 
 
 def make_parser():
@@ -32,10 +30,12 @@ def make_parser():
     return parser
 
 
+# TODO this works but means we will sort a massive dataframe each time the
+# script is called
 def read_input(path):
     printerr("Reading dataframe from %s\n" % path)
-    return bt(path).to_dataframe(names=SIMPLE_REPEAT_BED_COLS)
-    # return df[df["chr"].str.match("^chr([0-9]{1,2}|X|Y)$")]
+    df = read_tsv(path, header=None, comment="#", names=SIMPLE_REPEAT_BED_COLS)
+    return sort_bed_numerically(df)
 
 
 def filter_base(df, base):

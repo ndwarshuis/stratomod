@@ -20,31 +20,20 @@ rule download_find_regions_script:
         "curl -o {output} {params.url}"
 
 
-# TODO don't hardcode tmp
 rule find_simple_repeats:
     input:
         script=rules.download_find_regions_script.output,
         fasta=rules.download_no_alt_analysis.output,
     output:
         homopolymers_results_dir / "simple_repeats_p3.bed",
-    params:
-        tmpfile="/tmp/.simple_repeats.bed",
     conda:
         "../envs/find_simple_repeats.yml"
     shell:
         """
         python {input.script} \
         -p 3 -d 100000 -t 100000 -q 100000 \
-        {input.fasta} {params.tmpfile}
-
-        cat {params.tmpfile} | \
-        python workflow/scripts/sort_and_filter_bed.py \
-        > {output}
-
-        rm -f {params.tmpfile}
+        {input.fasta} {output}
         """
-        # echo "Remove extra contigs and comment headers"
-        # sed -i -n '/^chr\([0-9XY][[:space:]]\|[0-9]\{2\}[[:space:]]\)/p' {output}
 
 
 rule get_homopolymers:
