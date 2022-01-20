@@ -34,21 +34,18 @@ for line in lines:
     # chr1    631859  .       CG      C       46.8    PASS    .       GT:GQ:DP:AD:VAF:PL      1/1:41:34:1,33:0.970588:46,41,0
     if "," in alt:
         continue
-    # if we want INDELs skip everything that has REF/ALT of one BP
-    if args.type == "INDEL" and len(ref) == 1 and len(alt) == 1:
-        continue
-    # if we want SNPs, skip everything that isn't REF/ALT with on BP
-    if args.type == "SNP" and len(ref) != 1 and len(alt) != 1:
-        continue
     ref_length = len(ref)
     alt_length = len(alt)
-    indel_length = 0
-    if ref_length == alt_length:
+    # if we want INDELs skip everything that has REF/ALT of one BP or the same
+    # number of BPs
+    if args.type == "INDEL" and (
+        (ref_length == alt_length == 1) or ref_length == alt_length
+    ):
         continue
-    if ref_length > alt_length:
-        indel_length = alt_length - ref_length
-    elif alt_length > ref_length:
-        indel_length = alt_length - ref_length
+    # if we want SNPs, skip everything that isn't REF/ALT with one BP
+    if args.type == "SNP" and ref_length != 1 and alt_length != 1:
+        continue
+    indel_length = alt_length - ref_length
     filter = split_line[6]
     sample = split_line[9]
     sample_split = sample.split(":")
