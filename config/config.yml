@@ -40,46 +40,101 @@ ebm_settings:
 
 # different feature sets for each EBM run and annotation
 feature_sets:
-  all_features:
+  all_indel_features:
+    # VCF
+    DP:
+    VAF:
     indel_length:
+    # segdups
+    alignL_max:
+    fracMatchIndel_max:
+    alignL_count:
+    # homopolymers
+    AT_homopolymer_length:
+    GC_homopolymer_length:
+    # tandem repeats
     period_min:
     copyNum_max:
     perMatch_median:
     region_length:
+    # repeat masker
     SINE:
     LINE:
     LTR:
     Satellite:
+    # mappability
+    mappability_high:
+    mappability_low:
 
-  trans_features:
-    indel_length:
-      log_transform: true
+  all_snp_features:
+    # VCF
+    DP:
+    VAF:
+    # segdups
+    alignL_max:
+    fracMatchIndel_max:
+    alignL_count:
+    # homopolymers
+    AT_homopolymer_length:
+    GC_homopolymer_length:
+    # tandem repeats
     period_min:
-      log_transform: true
     copyNum_max:
-      log_transform: true
     perMatch_median:
-      log_transform: true
     region_length:
-      log_transform: true
+    # repeat masker
     SINE:
-      log_transform: true
     LINE:
-      log_transform: true
     LTR:
-      log_transform: true
     Satellite:
-      log_transform: true
+    # mappability
+    mappability_high:
+    mappability_low:
+
+  prev_indel_features:
+    # VCF
+    DP:
+    VAF:
+    indel_length:
+    # segdups
+    alignL_max:
+    fracMatchIndel_max:
+    alignL_count:
+    # homopolymers
+    AT_homopolymer_length:
+    GC_homopolymer_length:
+
+  prev_snp_features:
+    # VCF
+    DP:
+    VAF:
+    # segdups
+    alignL_max:
+    fracMatchIndel_max:
+    alignL_count:
+    # homopolymers
+    AT_homopolymer_length:
+    GC_homopolymer_length:
 
 # settings for each ebm run
 ebm_runs:
-  test_v1:
-    input: HG002-DV
-    filter: INDEL
-    feature_set: trans_features
-    ebm_settings: ebm_test
-  other_v1:
+  all_snp_v1:
     input: HG002-DV
     filter: SNP
-    feature_set: all_features
+    feature_set: all_snp_features
+    ebm_settings: ebm_test
+  all_indel_v1:
+    input: HG002-DV
+    filter: INDEL
+    feature_set: all_indel_features
+    ebm_settings: ebm_test
+  prev_snp_v1:
+    input: HG002-DV
+    filter: SNP
+    feature_set: prev_snp_features
+    ebm_settings: ebm_test
+  prev_indel_v1:
+    input: HG002-DV
+    filter: INDEL
+    feature_set: prev_indel_features
     ebm_settings: ebm_test
