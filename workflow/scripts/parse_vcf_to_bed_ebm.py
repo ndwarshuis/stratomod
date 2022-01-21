@@ -43,7 +43,7 @@ for line in lines:
     ):
         continue
     # if we want SNPs, skip everything that isn't REF/ALT with one BP
-    if args.type == "SNP" and ref_length != 1 and alt_length != 1:
+    if args.type == "SNP" and not (ref_length == alt_length == 1):
         continue
     indel_length = alt_length - ref_length
     filter = split_line[6]
