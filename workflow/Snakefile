@@ -12,7 +12,7 @@ min_version("6.12")
 
 
 configfile: "config/static.yml"
-configfile: "config/config.yml"
+configfile: "config/dynamic.yml"
 
 
 validate(config, "schemas/config-schema.yml")
