@@ -11,6 +11,7 @@ from scripts.common.config import lookup_run_json, lookup_config, lookup_run_con
 min_version("6.12")
 
 
+configfile: "config/static.yml"
 configfile: "config/config.yml"
 
 
