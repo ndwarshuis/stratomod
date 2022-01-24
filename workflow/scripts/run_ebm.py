@@ -39,25 +39,39 @@ def write_pickle(path, obj):
         pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 
 
+def get_interactions(df_columns, iconfig):
+    # ASSUME type is int | [[int]]
+    if isinstance(iconfig, int):
+        return iconfig
+    return [[df_columns.index(n) for n in names] for names in iconfig]
+
+
 def train_ebm(config, label, outdir, df):
-    ebm_config = config["settings"]
-    # TODO don't hardcode this
-    # df = df.sample(frac=0.01)
+    features = config["features"]
+    misc_params = config["ebm_settings"]["misc_parameters"]
+
+    if not misc_params["downsample"] is None:
+        df = df.sample(frac=misc_params["downsample"])
+
     train_cols = [c for c in df.columns if c != label]
     X = df[train_cols]
     y = df[label]
 
-    # TODO don't hardcode this
-    seed = 1
-
     X_train, X_test, y_train, y_test = train_test_split(
         X,
         y,
-        test_size=ebm_config["test_size"],
-        random_state=seed,
+        **config["ebm_settings"]["split_parameters"],
     )
 
-    ebm = ExplainableBoostingClassifier(random_state=seed)
+    ebm = ExplainableBoostingClassifier(
+        # NOTE the EBM docs show them explicitly adding interactions here like
+        # 'F1 x F2' but it appears to work when I specify them separately via
+        # the 'interactions' parameter
+        feature_names=list(features),
+        feature_types=[f["feature_type"] for f in features.values()],
+        interactions=get_interactions(list(features), config["interactions"]),
+        **config["ebm_settings"]["classifier_parameters"],
+    )
     ebm.fit(X_train, y_train)
 
     write_pickle(join(outdir, MODEL_FILE), ebm)

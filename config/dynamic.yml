@@ -13,19 +13,21 @@ ebm_runs:
     input: HG002-DV
     filter: SNP
     ebm_settings: &ebm_settings
-      test_size: 0.2
-    features:
-      prev_snp_features: &prev_snp
-        # VCF
-        DP:
-        VAF:
-        # segdups
-        alignL_max:
-        fracMatchIndel_max:
-        alignL_count:
-        # homopolymers
-        AT_homopolymer_length:
-        GC_homopolymer_length:
+      split_parameters:
+        test_size: 0.2
+    features: &prev_snp
+      # VCF
+      DP: {}
+      VAF: {}
+      # segdups
+      alignL_max: {}
+      fracMatchIndel_max: {}
+      alignL_count: {}
+      # homopolymers
+      AT_homopolymer_length: {}
+      GC_homopolymer_length: {}
+    interactions:
+      - [VAF, DP]
 
   all_snp_v1:
     input: HG002-DV
@@ -34,18 +36,20 @@ ebm_runs:
     features: &all_snp
       <<: *prev_snp
       # tandem repeats
-      period_min:
-      copyNum_max:
-      perMatch_median:
-      region_length:
+      period_min: {}
+      copyNum_max: {}
+      perMatch_median: {}
+      region_length: {}
       # repeat masker
-      SINE:
-      LINE:
-      LTR:
-      Satellite:
+      SINE: {}
+      LINE: {}
+      LTR: {}
+      Satellite: {}
       # mappability
       mappability_high:
+        feature_type: categorical
       mappability_low:
+        feature_type: categorical
 
   prev_indel_v1:
     input: HG002-DV
@@ -53,7 +57,7 @@ ebm_runs:
     ebm_settings: *ebm_settings
     features: 
       <<: *prev_snp
-      indel_length:
+      indel_length: {}
 
   all_indel_v1:
     input: HG002-DV
@@ -61,6 +65,6 @@ ebm_runs:
     ebm_settings: *ebm_settings
     features:
       <<: *all_snp
-      indel_length:
+      indel_length: {}
 
 

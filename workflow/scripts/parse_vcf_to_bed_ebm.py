@@ -19,6 +19,8 @@ f_out.write(
 )
 f_out.flush()
 
+# TODO different VCFs have different fields, we want to have DP and VAF almost
+# always, can (almost always) just use the AD field to get the VAF
 for line in lines:
     if line.startswith("#"):
         continue

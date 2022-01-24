@@ -14,6 +14,7 @@ min_version("6.12")
 configfile: "config/static.yml"
 configfile: "config/dynamic.yml"
 
+
 validate(config, "schemas/config-schema.yml")
 
 
@@ -22,6 +23,37 @@ def get_git_tag():
     tag = sp.run(args, capture_output=True).stdout.strip().decode()
     m = re.match("(v\d+\.\d+\.\d+)-\d+", tag)
     return tag if m is None else m[1]
+
+
+# TODO this might make more sense to include in the run_ebm script
+def validate_interactions(config):
+    def assert_unique(run_name, ints):
+        assert len(set(ints)) == len(
+            ints
+        ), "Interaction set in %s must have unique values, got %s" % (
+            run_name,
+            ints,
+        )
+
+    def assert_present(run_name, feature_list, ints):
+        for i in ints:
+            assert (
+                i in feature_list
+            ), "Interaction %s not found in feature set for run %s" % (
+                i,
+                run_name,
+            )
+
+    for run_name, run_values in config["ebm_runs"].items():
+        if "interactions" in run_values and isinstance(
+            run_values["interactions"], list
+        ):
+            for ints in run_values["interactions"]:
+                assert_unique(run_name, ints)
+                assert_present(run_name, list(run_values["features"]), ints)
+
+
+validate_interactions(config)
 
 
 git_tag = get_git_tag()
@@ -85,6 +117,7 @@ rule all:
 #         "curl -o {output} {params.url}"
 
 
+# TODO this is (probably) just for DV VCFs
 rule preprocess_vcf:
     input:
         resources_dir / "query.vcf.gz",
@@ -173,6 +206,9 @@ rule get_bench_bed:
 
 # rtg won't output to a directory that already exists, so do this weird temp
 # file thing
+# TODO add option to switch of the "--ref-overlap --all-records" thingy
+# TODO --all-records = use all records including those that fail, make an option
+# for this
 rule get_vcf_labels:
     input:
         query_vcf=rules.preprocess_vcf.output,
@@ -355,7 +391,7 @@ rule postprocess_output:
 
 
 def lookup_ebm_run(wildcards):
-    return json.dumps(config["ebm_runs"][wildcards.run_key]["ebm_settings"])
+    return json.dumps(config["ebm_runs"][wildcards.run_key])
 
 
 rule train_ebm:

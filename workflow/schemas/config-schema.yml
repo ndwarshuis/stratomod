@@ -166,28 +166,137 @@ properties:
           features:
             additionalProperties: false
             patternProperties:
-              ^[\w\.\-]+$:
+              ^[\w_]+$:
                 additionalProperties: false
-                patternProperties:
-                  ^[\w_]+$:
-                    additionalProperties: false
-                    properties:
-                      log_transform:
-                        description: log transform the feature if 'true'
-                        type: boolean
-                      fill_na:
-                        description: if present, fill missing values with this value
-                        type: number
+                type: object
+                default: {}
+                properties:
+                  feature_type:
+                    type: string
+                    default: continuous
+                    pattern: ^continuous|categorical$
+                  log_transform:
+                    description: log transform the feature if 'true'
+                    type: boolean
+                    default: false
+                  fill_na:
+                    description: if present, fill missing values with this value
+                    type: number
+                    default: 0
 
+          interactions:
+            description: |
+              either a list of explicit interactions to use or an integer
+              representing the number of interactions to use automatically
+            default: 0
+            anyOf:
+              - type: number
+                minimum: 0
+              - type: array
+                items:
+                  type: array
+                  minItems: 2
+                  items:
+                    type: string
+                    pattern: ^[\w\.\-]+$
+                
           ebm_settings:
-            description: the settings to use for the EBM
             additionalProperties: false
-            patternProperties:
-              ^[\w\.\-]+$:
+            properties:
+
+              misc_parameters:
+                description: |
+                  random model parameters I don't know where else to put
+                additionalProperties: false
+                default: {}
+                properties:
+                  downsample:
+                    default: null
+                    anyOf:
+                      - type: number
+                        minimum: 0
+                        maximum: 1
+                      - type: "null"
+
+              split_parameters:
+                description: |
+                  parameters for spliting the train/test data, will be sent to
+                  'train_test_split' function
+                additionalProperties: false
+                default: {}
                 properties:
                   test_size:
-                    description: |
-                      the size of the testing partition when training the model
                     type: number
                     minimum: 0
                     maximum: 1
+                    default: 0.2
+    
+                  random_state:
+                    default: null
+                    anyOf:
+                      - type: number
+                      - type: "null"
+
+              # TODO where does mains belong?
+              classifier_parameters:
+                description: |
+                  Parameters to train the EBM classifier, will be fed to
+                  'ExplainableBoostingClassifier'. Note that 'feature_names',
+                  'interactions', 'n_jobs', and 'mains' will be set elsewhere
+                default: {}
+                properties:
+                  max_bins:
+                    type: number
+                    default: 256
+    
+                  max_interaction_bins:
+                    type: number
+                    default: 32
+    
+                  binning:
+                    type: string
+                    pattern: ^uniform|quantile|quantile_humanized$
+                    default: quantile
+    
+                  outer_bags:
+                    type: number
+                    default: 8
+    
+                  inner_bags:
+                    type: number
+                    default: 0
+    
+                  learning_rate:
+                    type: number
+                    default: 0.01
+    
+                  validation_size:
+                    type: number
+                    default: 0.15
+    
+                  early_stopping_rounds:
+                    type: number
+                    default: 50
+    
+                  early_stopping_tolerance:
+                    type: number
+                    default: 0.0001
+    
+                  max_rounds:
+                    type: number
+                    default: 5000
+    
+                  min_samples_leaf:
+                    type: number
+                    default: 2
+    
+                  max_leaves:
+                    type: number
+                    default: 3
+    
+                  random_state:
+                    type: number
+                    default: null
+                    anyOf:
+                      - type: number
+                      - type: "null"
