@@ -14,7 +14,6 @@ min_version("6.12")
 configfile: "config/static.yml"
 configfile: "config/dynamic.yml"
 
-
 validate(config, "schemas/config-schema.yml")
 
 
@@ -326,8 +325,7 @@ rule add_annotations:
 
 
 def get_postprocess_config(wildcards):
-    f = config["ebm_runs"][wildcards.run_key]["feature_set"]
-    return json.dumps(config["feature_sets"][f])
+    return json.dumps(config["ebm_runs"][wildcards.run_key]["features"])
 
 
 rule postprocess_output:
@@ -357,8 +355,7 @@ rule postprocess_output:
 
 
 def lookup_ebm_run(wildcards):
-    e = config["ebm_runs"][wildcards.run_key]["ebm_settings"]
-    return json.dumps({"settings": config["ebm_settings"][e]})
+    return json.dumps(config["ebm_runs"][wildcards.run_key]["ebm_settings"])
 
 
 rule train_ebm:

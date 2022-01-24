@@ -4,8 +4,6 @@ required:
   - paths
   - inputs
   - resources
-  - ebm_settings
-  - feature_sets
   - ebm_runs
 additionalProperties: false
 properties:
@@ -143,40 +141,6 @@ properties:
                 format: uri
 
 ################################################################################
-# EBM settings
-
-  ebm_settings:
-    additionalProperties: false
-    patternProperties:
-      ^[\w\.\-]+$:
-        properties:
-          test_size:
-            description: |
-              the size of the testing partition when training the model
-            type: number
-            minimum: 0
-            maximum: 1
-
-################################################################################
-# feature sets
-
-  feature_sets:
-    additionalProperties: false
-    patternProperties:
-      ^[\w\.\-]+$:
-        additionalProperties: false
-        patternProperties:
-          ^[\w_]+$:
-            additionalProperties: false
-            properties:
-              log_transform:
-                description: log transform the feature if 'true'
-                type: boolean
-              fill_na:
-                description: if present, fill missing values with this value
-                type: number
-
-################################################################################
 # EBM runs
 
   ebm_runs:
@@ -187,19 +151,43 @@ properties:
         required:
           - input
           - filter
-          - feature_set
+          - features
           - ebm_settings
         properties:
           input:
             description: the input index to use for this run
             type: string
+
           filter:
             description: the filter to use for this run; either INDEL or SNP
             type: string
             pattern: ^INDEL|SNP$
-          feature_set: 
-            description: the feature set to use for this run
-            type: string
+
+          features:
+            additionalProperties: false
+            patternProperties:
+              ^[\w\.\-]+$:
+                additionalProperties: false
+                patternProperties:
+                  ^[\w_]+$:
+                    additionalProperties: false
+                    properties:
+                      log_transform:
+                        description: log transform the feature if 'true'
+                        type: boolean
+                      fill_na:
+                        description: if present, fill missing values with this value
+                        type: number
+
           ebm_settings:
             description: the settings to use for the EBM
-            type: string
+            additionalProperties: false
+            patternProperties:
+              ^[\w\.\-]+$:
+                properties:
+                  test_size:
+                    description: |
+                      the size of the testing partition when training the model
+                    type: number
+                    minimum: 0
+                    maximum: 1
