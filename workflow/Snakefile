@@ -41,7 +41,6 @@ def validate_interactions(config):
             run_values["interactions"], list
         ):
             for ints in run_values["interactions"]:
-                assert_unique(run_name, ints)
                 assert_present(run_name, list(run_values["features"]), ints)
 
 
