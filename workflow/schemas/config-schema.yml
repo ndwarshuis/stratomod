@@ -159,9 +159,15 @@ properties:
             type: string
 
           filter:
-            description: the filter to use for this run; either INDEL or SNP
-            type: string
-            pattern: ^INDEL|SNP$
+            description: |
+              the filter(s) to use for this run as a list; either INDEL, SNP,
+              or both
+            type: array
+            minItems: 1
+            uniqueItems: true
+            items:
+              type: string
+              pattern: ^INDEL|SNP$
 
           features:
             additionalProperties: false

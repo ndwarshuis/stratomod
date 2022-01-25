@@ -2,6 +2,7 @@ import pandas as pd
 import json
 import re
 import subprocess as sp
+from more_itertools import unzip
 from pathlib import Path
 from os.path import basename, splitext, dirname
 from snakemake.utils import min_version, validate
@@ -70,7 +71,7 @@ rtg_dir = label_dir / "rtg"
 annotations_tsv_dir = results_dir / "annotations"
 annotated_dir = results_dir / "annotated_input"
 
-ebm_dir = results_dir / "ebm" / "{}_{{run_key}}".format(git_tag)
+ebm_dir = results_dir / "ebm" / "{}-{{filter_key}}-{{run_key}}".format(git_tag)
 ebm_output_files = [
     ebm_dir / f
     for f in [
@@ -88,10 +89,19 @@ ebm_output_files = [
 #
 # Define what EBM models we want to run, and pin the output dirs to 'all'
 
+run_keys, filter_keys = unzip(
+    [(k, f) for k, v in config["ebm_runs"].items() for f in v["filter"]]
+)
+
 
 rule all:
     input:
-        expand(ebm_output_files, tag=git_tag, run_key=run_keys),
+        expand(
+            ebm_output_files,
+            zip,
+            run_key=[*run_keys],
+            filter_key=[*filter_keys],
+        ),
 
 
 ################################################################################
@@ -245,12 +255,12 @@ rule parse_label_vcf:
     input:
         rules.unzip_vcf_labels.output,
     output:
-        label_dir / "{filter_prefix}_{label}.tsv",
+        label_dir / "{filter_key}_{label}.tsv",
     shell:
         """
         python \
         workflow/scripts/parse_vcf_to_bed_ebm.py \
-        --type {wildcards.filter_prefix} \
+        --type {wildcards.filter_key} \
         --label {wildcards.label} \
         --input {input} \
         --output {output}
@@ -264,7 +274,7 @@ rule concat_tsv_files:
             for k in ["tp", "fp"]
         },
     output:
-        label_dir / "{filter_prefix}_labeled.tsv",
+        label_dir / "{filter_key}_labeled.tsv",
     shell:
         """
         tail -n+2 {input.tp} | \
@@ -334,7 +344,7 @@ rule add_annotations:
             ),
         ],
     output:
-        annotated_dir / "{filter_prefix}.tsv",
+        annotated_dir / "{filter_key}.tsv",
     conda:
         "envs/bedtools.yml"
     shell:
@@ -356,10 +366,7 @@ def get_postprocess_config(wildcards):
 
 rule postprocess_output:
     input:
-        lambda wildcards: expand(
-            rules.add_annotations.output,
-            filter_prefix=config["ebm_runs"][wildcards.run_key]["filter"],
-        ),
+        rules.add_annotations.output,
     output:
         ebm_dir / "input.tsv",
     params:
