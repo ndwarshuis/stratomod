@@ -1,4 +1,5 @@
 import argparse
+import random
 import pickle
 import json
 import yaml
@@ -63,6 +64,11 @@ def train_ebm(config, label, outdir, df):
         **config["ebm_settings"]["split_parameters"],
     )
 
+    ebm_config = config["ebm_settings"]["classifier_parameters"]
+
+    if ebm_config["random_state"] is None:
+        ebm_config["random_state"] = random.randrange(0, 420420)
+
     ebm = ExplainableBoostingClassifier(
         # NOTE the EBM docs show them explicitly adding interactions here like
         # 'F1 x F2' but it appears to work when I specify them separately via
@@ -70,7 +76,7 @@ def train_ebm(config, label, outdir, df):
         feature_names=list(features),
         feature_types=[f["feature_type"] for f in features.values()],
         interactions=get_interactions(list(features), config["interactions"]),
-        **config["ebm_settings"]["classifier_parameters"],
+        **ebm_config,
     )
     ebm.fit(X_train, y_train)
 
