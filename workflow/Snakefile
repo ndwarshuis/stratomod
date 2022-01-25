@@ -1,0 +1,402 @@
+import pandas as pd
+import json
+import re
+import subprocess as sp
+from pathlib import Path
+from os.path import basename, splitext, dirname
+from snakemake.utils import min_version, validate
+from scripts.common.config import lookup_config
+
+min_version("6.12")
+
+
+configfile: "config/static.yml"
+configfile: "config/dynamic.yml"
+
+
+validate(config, "schemas/config-schema.yml")
+
+
+def get_git_tag():
+    args = ["git", "describe", "--tags", "--abbrev=0", "--always"]
+    tag = sp.run(args, capture_output=True).stdout.strip().decode()
+    m = re.match("(v\d+\.\d+\.\d+)-\d+", tag)
+    return tag if m is None else m[1]
+
+
+# TODO this might make more sense to include in the run_ebm script
+def validate_interactions(config):
+    def assert_present(run_name, feature_list, ints):
+        for i in ints:
+            assert (
+                i in feature_list
+            ), "Interaction %s not found in feature set for run %s" % (
+                i,
+                run_name,
+            )
+
+    for run_name, run_values in config["ebm_runs"].items():
+        if "interactions" in run_values and isinstance(
+            run_values["interactions"], list
+        ):
+            for ints in run_values["interactions"]:
+                assert_present(run_name, list(run_values["features"]), ints)
+
+
+validate_interactions(config)
+
+
+git_tag = get_git_tag()
+run_keys = list(config["ebm_runs"])
+
+################################################################################
+# output paths
+
+conf_paths = config["paths"]
+
+# downloaded files
+
+resources_dir = Path(conf_paths["resources"])
+
+bench_dir = resources_dir / "bench"
+annotations_src_dir = resources_dir / "annotations"
+
+# computed output
+
+results_dir = Path(conf_paths["results"])
+
+label_dir = results_dir / "labels"
+rtg_dir = label_dir / "rtg"
+annotations_tsv_dir = results_dir / "annotations"
+annotated_dir = results_dir / "annotated_input"
+
+ebm_dir = results_dir / "ebm" / "{}_{{run_key}}".format(git_tag)
+ebm_output_files = [
+    ebm_dir / f
+    for f in [
+        "model.pickle",
+        "train_x.pickle",
+        "train_y.pickle",
+        "test_x.pickle",
+        "test_y.pickle",
+        "config.yml",
+    ]
+]
+
+################################################################################
+# main target
+#
+# Define what EBM models we want to run, and pin the output dirs to 'all'
+
+
+rule all:
+    input:
+        expand(ebm_output_files, tag=git_tag, run_key=run_keys),
+
+
+################################################################################
+# VCF preprocessing
+
+
+# rule get_vcf:
+#     output:
+#         join(resources_dir, "query.vcf.gz"),
+#     params:
+#         url=lookup_config(config, "resources", "query_url"),
+#     shell:
+#         "curl -o {output} {params.url}"
+
+
+# TODO this is (probably) just for DV VCFs
+rule preprocess_vcf:
+    input:
+        resources_dir / "query.vcf.gz",
+        # rules.get_vcf.output,
+    output:
+        label_dir / "query_corrected_refcall.vcf.gz",
+    conda:
+        "envs/samtools.yml"
+    shell:
+        """
+        gunzip -c {input} | \
+        sed -e '/.RefCall./ s/\.\/\./0\/1/g' | \
+        sed -e '/.RefCall./ s/0\/0/0\/1/g' | \
+        bgzip -c > {output}
+        """
+
+
+rule index_vcf:
+    input:
+        rules.preprocess_vcf.output,
+    output:
+        label_dir / "query_corrected_refcall.vcf.gz.tbi",
+    conda:
+        "envs/samtools.yml"
+    shell:
+        "tabix -p vcf {input}"
+
+
+################################################################################
+# get reference sdf
+
+
+# TODO don't hardcode the reference in the future
+ref_url = lookup_config(config, "resources", "references", "GRCh38", "sdf")
+
+
+rule get_ref_sdf:
+    output:
+        directory(resources_dir / splitext(basename(ref_url))[0]),
+    params:
+        url=ref_url,
+        dir=lambda _, output: dirname(output[0]),
+    shell:
+        "curl {params.url} | bsdtar -xf - -C {params.dir}"
+
+
+################################################################################
+# get benchmark files
+
+
+def lookup_benchmark(key):
+    # TODO don't hardcode the benchmark in the future
+    return (lookup_config(config, "resources", "benchmarks", "v4.2.1", key),)
+
+
+rule get_bench_vcf:
+    output:
+        bench_dir / "bench.vcf.gz",
+    params:
+        url=lookup_benchmark("vcf_url"),
+    shell:
+        "curl -o {output} {params.url}"
+
+
+rule get_bench_tbi:
+    output:
+        bench_dir / "bench.vcf.gz.tbi",
+    params:
+        url=lookup_benchmark("tbi_url"),
+    shell:
+        "curl -o {output} {params.url}"
+
+
+rule get_bench_bed:
+    output:
+        bench_dir / "bench.bed",
+    params:
+        url=lookup_benchmark("bed_url"),
+    shell:
+        "curl -o {output} {params.url}"
+
+
+################################################################################
+# VCF -> tsv
+
+
+# rtg won't output to a directory that already exists, so do this weird temp
+# file thing
+# TODO add option to switch of the "--ref-overlap --all-records" thingy
+# TODO --all-records = use all records including those that fail, make an option
+# for this
+rule get_vcf_labels:
+    input:
+        query_vcf=rules.preprocess_vcf.output,
+        truth_vcf=rules.get_bench_vcf.output,
+        truth_bed=rules.get_bench_bed.output,
+        sdf=rules.get_ref_sdf.output,
+        # not used on CLI but still needed
+        query_tbi=rules.index_vcf.output,
+        truth_tbi=rules.get_bench_tbi.output,
+    output:
+        tp=rtg_dir / "tp.vcf.gz",
+        fp=rtg_dir / "fp.vcf.gz",
+    conda:
+        "envs/rtg.yml"
+    params:
+        extra="--ref-overlap --all-records",
+        tmp_dir="/tmp/vcfeval",
+        output_dir=rtg_dir,
+    shell:
+        """
+        rtg vcfeval {params.extra} \
+            -b {input.truth_vcf} \
+            -e {input.truth_bed} \
+            -c {input.query_vcf} \
+            -o {params.tmp_dir} \
+        -t {input.sdf}
+
+        mv {params.tmp_dir}/* {params.output_dir}
+
+        rm -r {params.tmp_dir}
+        """
+
+
+rule unzip_vcf_labels:
+    input:
+        rtg_dir / "{label}.vcf.gz",
+    output:
+        label_dir / "{label}.vcf",
+    shell:
+        "gunzip {input} -c > {output}"
+
+
+rule parse_label_vcf:
+    input:
+        rules.unzip_vcf_labels.output,
+    output:
+        label_dir / "{filter_prefix}_{label}.tsv",
+    shell:
+        """
+        python \
+        workflow/scripts/parse_vcf_to_bed_ebm.py \
+        --type {wildcards.filter_prefix} \
+        --label {wildcards.label} \
+        --input {input} \
+        --output {output}
+        """
+
+
+rule concat_tsv_files:
+    input:
+        **{
+            k: expand(rules.parse_label_vcf.output, label=k, allow_missing=True)
+            for k in ["tp", "fp"]
+        },
+    output:
+        label_dir / "{filter_prefix}_labeled.tsv",
+    shell:
+        """
+        tail -n+2 {input.tp} | \
+        cat {input.fp} - | \
+        python workflow/scripts/sort_and_filter_bed.py --header \
+        > {output}
+        """
+
+
+## TODO add filtering rules here if we wish
+
+################################################################################
+# get annotations data
+
+# All these files from from here:
+# https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/
+
+
+# download the first two columns of this table (chrom and length)
+rule get_genome:
+    output:
+        annotations_src_dir / "genome.txt",
+    params:
+        url="https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/chromInfo.txt.gz",
+    shell:
+        """
+        curl {params.url} | \
+        gunzip -c | \
+        cut -f1,2 | \
+        sed -n '/^chr\([0-9XY][[:space:]]\|[0-9]\{{2\}}[[:space:]]\)/p' | \
+        sed 's/^chr//' | \
+        sed 's/^X/23/;s/^Y/24/' | \
+        sort -k1,1n | \
+        sed 's/^23/X/;s/^24/Y/;s/^/chr/' \
+        > {output}
+        """
+
+
+include: "rules/repeat_masker.smk"
+include: "rules/homopolymers.smk"
+include: "rules/mappability.smk"
+include: "rules/tandem_repeats.smk"
+include: "rules/segdups.smk"
+
+
+################################################################################
+# add annotations
+
+
+rule add_annotations:
+    input:
+        variants=rules.concat_tsv_files.output,
+        tsvs=[
+            rules.get_repeat_masker_classes.output,
+            rules.get_simple_reps.output,
+            rules.get_mappability_high_src.output,
+            rules.get_mappability_low_src.output,
+            expand(
+                rules.get_segdups.output,
+                colname=list(segdups_cols),
+                allow_missing=True,
+            ),
+            expand(
+                rules.get_homopolymers.output,
+                bases=["AT", "GC"],
+                allow_missing=True,
+            ),
+        ],
+    output:
+        annotated_dir / "{filter_prefix}.tsv",
+    conda:
+        "envs/bedtools.yml"
+    shell:
+        """
+        python workflow/scripts/annotate.py \
+        -i {input.variants} \
+        -t {input.tsvs} \
+        -o {output}
+        """
+
+
+################################################################################
+# postprocess output
+
+
+def get_postprocess_config(wildcards):
+    return json.dumps(config["ebm_runs"][wildcards.run_key]["features"])
+
+
+rule postprocess_output:
+    input:
+        lambda wildcards: expand(
+            rules.add_annotations.output,
+            filter_prefix=config["ebm_runs"][wildcards.run_key]["filter"],
+        ),
+    output:
+        ebm_dir / "input.tsv",
+    params:
+        config=get_postprocess_config,
+    shell:
+        """
+        python workflow/scripts/postprocess.py \
+        -c '{params.config}' \
+        -i {input} \
+        -o {output}
+        """
+
+
+################################################################################
+# run EBM
+#
+# assume that this will take care of test/train split, actual training, and
+# pickling
+
+
+def lookup_ebm_run(wildcards):
+    return json.dumps(config["ebm_runs"][wildcards.run_key])
+
+
+rule train_ebm:
+    input:
+        rules.postprocess_output.output,
+    output:
+        ebm_output_files,
+    params:
+        config=lookup_ebm_run,
+        out_dir=str(ebm_dir),
+    conda:
+        "envs/ebm.yml"
+    shell:
+        """python workflow/scripts/run_ebm.py \
+        -i {input} \
+        -c '{params.config}' \
+        -o {params.out_dir}
+        """

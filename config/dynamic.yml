@@ -1,0 +1,70 @@
+# TODO this isn't being used yet
+# the VCF file to annotate and analyze via EBMs and associated metadata
+inputs:
+  HG002-DV:
+    # TODO add option to either verify the input with an MD5 or use a url
+    vcf: HG002.hiseqx.pcr-free.40x.dedup.grch38_chr1_22.vcf
+    ref: GRCh38
+    benchmark: v4.2.1
+
+# settings for each ebm run
+ebm_runs:
+  prev_snp_v1:
+    input: HG002-DV
+    filter: SNP
+    ebm_settings: &ebm_settings
+      split_parameters:
+        test_size: 0.2
+    features: &prev_snp
+      # VCF
+      DP: {}
+      VAF: {}
+      # segdups
+      alignL_max: {}
+      fracMatchIndel_max: {}
+      alignL_count: {}
+      # homopolymers
+      AT_homopolymer_length: {}
+      GC_homopolymer_length: {}
+    interactions:
+      - [VAF, DP]
+
+  all_snp_v1:
+    input: HG002-DV
+    filter: SNP
+    ebm_settings: *ebm_settings
+    features: &all_snp
+      <<: *prev_snp
+      # tandem repeats
+      period_min: {}
+      copyNum_max: {}
+      perMatch_median: {}
+      region_length: {}
+      # repeat masker
+      SINE: {}
+      LINE: {}
+      LTR: {}
+      Satellite: {}
+      # mappability
+      mappability_high:
+        feature_type: categorical
+      mappability_low:
+        feature_type: categorical
+
+  prev_indel_v1:
+    input: HG002-DV
+    filter: INDEL
+    ebm_settings: *ebm_settings
+    features: 
+      <<: *prev_snp
+      indel_length: {}
+
+  all_indel_v1:
+    input: HG002-DV
+    filter: INDEL
+    ebm_settings: *ebm_settings
+    features:
+      <<: *all_snp
+      indel_length: {}
+
+
