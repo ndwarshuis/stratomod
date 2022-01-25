@@ -27,14 +27,6 @@ def get_git_tag():
 
 # TODO this might make more sense to include in the run_ebm script
 def validate_interactions(config):
-    def assert_unique(run_name, ints):
-        assert len(set(ints)) == len(
-            ints
-        ), "Interaction set in %s must have unique values, got %s" % (
-            run_name,
-            ints,
-        )
-
     def assert_present(run_name, feature_list, ints):
         for i in ints:
             assert (

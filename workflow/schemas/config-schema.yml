@@ -196,6 +196,7 @@ properties:
                 items:
                   type: array
                   minItems: 2
+                  uniqueItems: true
                   items:
                     type: string
                     pattern: ^[\w\.\-]+$
