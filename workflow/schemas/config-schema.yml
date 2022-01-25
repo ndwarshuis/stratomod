@@ -295,7 +295,6 @@ properties:
                     default: 3
     
                   random_state:
-                    type: number
                     default: null
                     anyOf:
                       - type: number
