@@ -18,7 +18,7 @@ rule get_segdups:
     output:
         segdups_results_dir / "merged_segdups_{colname}.tsv",
     conda:
-        "../envs/bedtools.yml"
+        str(envs_dir / "bedtools.yml")
     params:
         stats=",".join(segdups_stats),
         col=lambda wildcards: segdups_cols[wildcards.colname],

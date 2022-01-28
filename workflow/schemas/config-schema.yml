@@ -30,7 +30,7 @@ properties:
   inputs:
     additionalProperties: false
     patternProperties:
-      ^[\w\.\-]+$:
+      ^[\w\.\_]+$:
         required:
           - vcf
           - ref
@@ -149,14 +149,18 @@ properties:
       ^[\w_]+_v[0-9]+$:
         additionalProperties: false
         required:
-          - input
+          - inputs
           - filter
           - features
           - ebm_settings
         properties:
-          input:
-            description: the input index to use for this run
-            type: string
+          inputs:
+            description: the input VCFs to use for this configuration
+            type: array
+            minItems: 1
+            uniqueItems: true
+            items:
+              type: string
 
           filter:
             description: |
