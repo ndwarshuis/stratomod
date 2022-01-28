@@ -1,17 +1,18 @@
 # TODO this isn't being used yet
 # the VCF file to annotate and analyze via EBMs and associated metadata
 inputs:
-  HG002-DV:
+  HG002_DV:
     # TODO add option to either verify the input with an MD5 or use a url
-    vcf: HG002.hiseqx.pcr-free.40x.dedup.grch38_chr1_22.vcf
+    # vcf: HG002.hiseqx.pcr-free.40x.dedup.grch38_chr1_22.vcf
+    vcf: query.vcf.gz
     ref: GRCh38
     benchmark: v4.2.1
 
 # settings for each ebm run
 ebm_runs:
   prev_snp_v1:
-    input: HG002-DV
-    filter: SNP
+    inputs: [HG002_DV]
+    filter: [SNP, INDEL]
     ebm_settings: &ebm_settings
       split_parameters:
         test_size: 0.2
@@ -30,8 +31,8 @@ ebm_runs:
       - [VAF, DP]
 
   all_snp_v1:
-    input: HG002-DV
-    filter: SNP
+    inputs: [HG002_DV]
+    filter: [SNP]
     ebm_settings: *ebm_settings
     features: &all_snp
       <<: *prev_snp
@@ -52,16 +53,16 @@ ebm_runs:
         feature_type: categorical
 
   prev_indel_v1:
-    input: HG002-DV
-    filter: INDEL
+    inputs: [HG002_DV]
+    filter: [INDEL]
     ebm_settings: *ebm_settings
     features: 
       <<: *prev_snp
       indel_length: {}
 
   all_indel_v1:
-    input: HG002-DV
-    filter: INDEL
+    inputs: [HG002_DV]
+    filter: [INDEL, SNP]
     ebm_settings: *ebm_settings
     features:
       <<: *all_snp

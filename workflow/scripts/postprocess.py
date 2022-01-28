@@ -17,10 +17,8 @@ def make_parser():
 
 
 def process_series(opts, ser):
-    _opts = {} if opts is None else opts
-    # TODO use defaults in the yaml schema to make this easier
-    log_trans = _opts["log_transform"] if "log_transform" in _opts else False
-    fillval = _opts["fill_na"] if "fill_na" in _opts else 0
+    log_trans = opts["log_transform"]
+    fillval = opts["fill_na"]
     _ser = pd.to_numeric(ser, errors="coerce")
     return (np.log(_ser) if log_trans else _ser).fillna(fillval)
 

@@ -27,7 +27,7 @@ rule get_repeat_masker_classes:
             cls=rmsk_classes,
         ),
     conda:
-        "../envs/bedtools.yml"
+        str(envs_dir / "bedtools.yml")
     params:
         outdir=lambda _, output: Path(output[0]).parent,
         classes=",".join(rmsk_classes),

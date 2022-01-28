@@ -27,7 +27,7 @@ rule find_simple_repeats:
     output:
         homopolymers_results_dir / "simple_repeats_p3.bed",
     conda:
-        "../envs/find_simple_repeats.yml"
+        str(envs_dir / "find_simple_repeats.yml")
     shell:
         """
         python {input.script} \
@@ -43,7 +43,7 @@ rule get_homopolymers:
     output:
         homopolymers_results_dir / "homopolymers_{bases}.tsv",
     conda:
-        "../envs/bedtools.yml"
+        str(envs_dir / "bedtools.yml")
     shell:
         """
         python workflow/scripts/get_homopoly.py \
