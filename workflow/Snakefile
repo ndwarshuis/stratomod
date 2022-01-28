@@ -20,9 +20,7 @@ validate(config, "schemas/config-schema.yml")
 
 def get_git_tag():
     args = ["git", "describe", "--tags", "--abbrev=0", "--always"]
-    tag = sp.run(args, capture_output=True).stdout.strip().decode()
-    m = re.match("(v\d+\.\d+\.\d+)-\d+", tag)
-    return tag if m is None else m[1]
+    return sp.run(args, capture_output=True).stdout.strip().decode()
 
 
 # TODO this might make more sense to include in the run_ebm script
@@ -59,19 +57,22 @@ conf_paths = config["paths"]
 
 resources_dir = Path(conf_paths["resources"])
 
+inputs_dir = resources_dir / "inputs"
 bench_dir = resources_dir / "bench"
+ref_dir = resources_dir / "reference"
 annotations_src_dir = resources_dir / "annotations"
 
 # computed output
 
 results_dir = Path(conf_paths["results"])
 
-label_dir = results_dir / "labels"
-rtg_dir = label_dir / "rtg"
 annotations_tsv_dir = results_dir / "annotations"
-annotated_dir = results_dir / "annotated_input"
 
-ebm_dir = results_dir / "ebm" / "{}-{{filter_key}}-{{run_key}}".format(git_tag)
+label_dir = results_dir / "labels" / "{input_key}"
+rtg_dir = label_dir / "rtg"
+annotated_dir = results_dir / "annotated_input" / "{input_key}"
+
+ebm_dir = results_dir / "ebm" / ("%s-{input_key}-{filter_key}-{run_key}" % git_tag)
 ebm_output_files = [
     ebm_dir / f
     for f in [
@@ -89,8 +90,13 @@ ebm_output_files = [
 #
 # Define what EBM models we want to run, and pin the output dirs to 'all'
 
-run_keys, filter_keys = unzip(
-    [(k, f) for k, v in config["ebm_runs"].items() for f in v["filter"]]
+run_keys, input_keys, filter_keys = unzip(
+    [
+        (k, i, f)
+        for k, v in config["ebm_runs"].items()
+        for f in v["filter"]
+        for i in v["inputs"]
+    ]
 )
 
 
@@ -100,6 +106,7 @@ rule all:
             ebm_output_files,
             zip,
             run_key=[*run_keys],
+            input_key=[*input_keys],
             filter_key=[*filter_keys],
         ),
 
@@ -120,10 +127,10 @@ rule all:
 # TODO this is (probably) just for DV VCFs
 rule preprocess_vcf:
     input:
-        resources_dir / "query.vcf.gz",
-        # rules.get_vcf.output,
+        lambda wildcards: inputs_dir
+        / lookup_config(config, "inputs", wildcards.input_key, "vcf"),
     output:
-        label_dir / "query_corrected_refcall.vcf.gz",
+        label_dir / "query.vcf.gz",
     conda:
         "envs/samtools.yml"
     shell:
@@ -139,7 +146,7 @@ rule index_vcf:
     input:
         rules.preprocess_vcf.output,
     output:
-        label_dir / "query_corrected_refcall.vcf.gz.tbi",
+        label_dir / "query.vcf.gz.tbi",
     conda:
         "envs/samtools.yml"
     shell:
@@ -150,15 +157,19 @@ rule index_vcf:
 # get reference sdf
 
 
-# TODO don't hardcode the reference in the future
-ref_url = lookup_config(config, "resources", "references", "GRCh38", "sdf")
+def lookup_resource(*args):
+    return lookup_config(config, "resources", *args)
+
+
+def lookup_reference(wildcards):
+    return lookup_resource("references", wildcards.ref_key, "sdf")
 
 
 rule get_ref_sdf:
     output:
-        directory(resources_dir / splitext(basename(ref_url))[0]),
+        directory(ref_dir / "{ref_key}.sdf"),
     params:
-        url=ref_url,
+        url=lookup_reference,
         dir=lambda _, output: dirname(output[0]),
     shell:
         "curl {params.url} | bsdtar -xf - -C {params.dir}"
@@ -168,34 +179,33 @@ rule get_ref_sdf:
 # get benchmark files
 
 
-def lookup_benchmark(key):
-    # TODO don't hardcode the benchmark in the future
-    return (lookup_config(config, "resources", "benchmarks", "v4.2.1", key),)
+def lookup_benchmark(wildcards, key):
+    return lookup_resource("benchmarks", wildcards.bench_key, key)
 
 
 rule get_bench_vcf:
     output:
-        bench_dir / "bench.vcf.gz",
+        bench_dir / "{bench_key}.vcf.gz",
     params:
-        url=lookup_benchmark("vcf_url"),
+        url=lambda wildcards: lookup_benchmark(wildcards, "vcf_url"),
     shell:
         "curl -o {output} {params.url}"
 
 
 rule get_bench_tbi:
     output:
-        bench_dir / "bench.vcf.gz.tbi",
+        bench_dir / "{bench_key}.vcf.gz.tbi",
     params:
-        url=lookup_benchmark("tbi_url"),
+        url=lambda wildcards: lookup_benchmark(wildcards, "tbi_url"),
     shell:
         "curl -o {output} {params.url}"
 
 
 rule get_bench_bed:
     output:
-        bench_dir / "bench.bed",
+        bench_dir / "{bench_key}.bed",
     params:
-        url=lookup_benchmark("bed_url"),
+        url=lambda wildcards: lookup_benchmark(wildcards, "bed_url"),
     shell:
         "curl -o {output} {params.url}"
 
@@ -209,15 +219,33 @@ rule get_bench_bed:
 # TODO add option to switch of the "--ref-overlap --all-records" thingy
 # TODO --all-records = use all records including those that fail, make an option
 # for this
+
+
+def lookup_input(wildcards, *args):
+    return lookup_config(config, "inputs", wildcards.input_key, *args)
+
+
+def get_bench_files(wildcards):
+    return dict(
+        (k, expand(v.output, bench_key=lookup_input(wildcards, "benchmark")))
+        for k, v in [
+            ("truth_vcf", rules.get_bench_vcf),
+            ("truth_bed", rules.get_bench_bed),
+            ("truth_tbi", rules.get_bench_tbi),
+        ]
+    )
+
+
 rule get_vcf_labels:
     input:
+        unpack(get_bench_files),
         query_vcf=rules.preprocess_vcf.output,
-        truth_vcf=rules.get_bench_vcf.output,
-        truth_bed=rules.get_bench_bed.output,
-        sdf=rules.get_ref_sdf.output,
+        sdf=lambda wildcards: expand(
+            rules.get_ref_sdf.output,
+            ref_key=lookup_input(wildcards, "ref"),
+        ),
         # not used on CLI but still needed
         query_tbi=rules.index_vcf.output,
-        truth_tbi=rules.get_bench_tbi.output,
     output:
         tp=rtg_dir / "tp.vcf.gz",
         fp=rtg_dir / "fp.vcf.gz",
@@ -226,7 +254,7 @@ rule get_vcf_labels:
     params:
         extra="--ref-overlap --all-records",
         tmp_dir="/tmp/vcfeval",
-        output_dir=rtg_dir,
+        output_dir=lambda _, output: Path(output[0]).parent,
     shell:
         """
         rtg vcfeval {params.extra} \
