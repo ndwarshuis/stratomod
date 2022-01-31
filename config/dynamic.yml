@@ -10,62 +10,142 @@ inputs:
 
 # settings for each ebm run
 ebm_runs:
-  prev_snp_v1:
+  no_DP_VAF_v1:
     inputs: [HG002_DV]
     filter: [SNP, INDEL]
     ebm_settings: &ebm_settings
       split_parameters:
         test_size: 0.2
-    features: &prev_snp
-      # VCF
-      DP: {}
-      VAF: {}
+    features: &base_features
       # segdups
-      alignL_max: {}
-      fracMatchIndel_max: {}
-      alignL_count: {}
+      alignL_max:
+        fill_na: -1
+      fracMatchIndel_max:
+        fill_na: -1
+      alignL_count:
+        fill_na: -1
       # homopolymers
-      AT_homopolymer_length: {}
-      GC_homopolymer_length: {}
-    interactions:
-      - [VAF, DP]
-
-  all_snp_v1:
-    inputs: [HG002_DV]
-    filter: [SNP]
-    ebm_settings: *ebm_settings
-    features: &all_snp
-      <<: *prev_snp
-      # tandem repeats
-      period_min: {}
-      copyNum_max: {}
-      perMatch_median: {}
-      region_length: {}
+      AT_homopolymer_length:
+        fill_na: -1
+      GC_homopolymer_length:
+        fill_na: -1
+      period_min:
+        fill_na: -1
+      copyNum_max:
+        fill_na: -1
+      perMatch_median:
+        fill_na: -1
+      region_length:
+        fill_na: -1
       # repeat masker
-      SINE: {}
-      LINE: {}
-      LTR: {}
-      Satellite: {}
+      SINE:
+        fill_na: -1
+      LINE:
+        fill_na: -1
+      LTR:
+        fill_na: -1
+      Satellite:
+        fill_na: -1
       # mappability
       mappability_high:
         feature_type: categorical
       mappability_low:
         feature_type: categorical
 
-  prev_indel_v1:
+  no_DP_VAF_log_v1:
     inputs: [HG002_DV]
-    filter: [INDEL]
+    filter: [SNP, INDEL]
     ebm_settings: *ebm_settings
-    features: 
-      <<: *prev_snp
-      indel_length: {}
+    features: &base_log_features
+      # segdups
+      alignL_max:
+        fill_na: -1
+        log_transform: true
+      fracMatchIndel_max:
+        fill_na: -1
+      alignL_count:
+        fill_na: -1
+        log_transform: true
+      # homopolymers
+      AT_homopolymer_length:
+        fill_na: -1
+        log_transform: true
+      GC_homopolymer_length:
+        fill_na: -1
+        log_transform: true
+      period_min:
+        fill_na: -1
+        log_transform: true
+      copyNum_max:
+        fill_na: -1
+        log_transform: true
+      perMatch_median:
+        fill_na: -1
+        log_transform: true
+      region_length:
+        fill_na: -1
+        log_transform: true
+      # repeat masker
+      SINE:
+        fill_na: -1
+        log_transform: true
+      LINE:
+        fill_na: -1
+        log_transform: true
+      LTR:
+        fill_na: -1
+        log_transform: true
+      Satellite:
+        fill_na: -1
+        log_transform: true
+      # mappability
+      mappability_high:
+        feature_type: categorical
+      mappability_low:
+        feature_type: categorical
 
-  all_indel_v1:
+  all_v1:
     inputs: [HG002_DV]
     filter: [INDEL, SNP]
     ebm_settings: *ebm_settings
-    features:
-      <<: *all_snp
-      indel_length: {}
+    features: &all_features
+      <<: *base_features
+      DP: {}
+      VAF: {}
 
+  all_log_v1:
+    inputs: [HG002_DV]
+    filter: [INDEL, SNP]
+    ebm_settings: *ebm_settings
+    features: &all_log_features
+      <<: *base_log_features
+      DP: {}
+      VAF: {}
 
+  no_DP_VAF_int_v1:
+    inputs: [HG002_DV]
+    filter: [INDEL, SNP]
+    ebm_settings: *ebm_settings
+    features: *base_features
+    interactions: 10
+
+  no_DP_VAF_log_int_v1:
+    inputs: [HG002_DV]
+    filter: [SNP, INDEL]
+    ebm_settings: *ebm_settings
+    features: *base_log_features
+    interactions: 10
+
+  all_int_v1:
+    inputs: [HG002_DV]
+    filter: [SNP, INDEL]
+    ebm_settings: *ebm_settings
+    features: *all_features
+    interactions: 10
+
+  all_log_int_v1:
+    inputs: [HG002_DV]
+    filter: [SNP, INDEL]
+    ebm_settings: *ebm_settings
+    features: *all_log_features
+    interactions: 10
