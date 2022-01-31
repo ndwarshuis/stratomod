@@ -1,0 +1,54 @@
+---
+title: "Input Dataframe Summary"
+output: "pdf_document"
+---
+
+```{r, echo=FALSE, message=FALSE}
+library(tidyverse)
+
+format_perc <- function(x) {
+    sprintf("%.1f", x)
+}
+
+format_exp <- function(x) {
+    sprintf("%.1e", x)
+}
+
+read_tsv <- function(path) {
+    read.csv(path, sep = "\t", na.strings = c(".")) %>%
+        as_tibble()
+}
+
+generate_stats_table <- function(df) {
+    gather(df) %>%
+        group_by(key) %>%
+        summarize(min = min(value, na.rm = TRUE),
+                  max = max(value, na.rm = TRUE),
+                  med = median(value, na.rm = TRUE),
+                  mean = mean(value, na.rm = TRUE),
+                  stdev = mean(value, na.rm = TRUE),
+                  range = max - min,
+                  n_NA = sum(is.na(value)),
+                  perc_NA = 100 * n_NA / n()) %>%
+        rename(feature = key) %>%
+        mutate(perc_NA = sprintf("%.1f", perc_NA)) %>%
+        mutate(across(c(min, max, med, mean, stdev, range), format_exp))
+}
+
+df <- read_tsv(snakemake@input[[1]])
+
+df_x <- df %>%
+    select(-label) %>%
+    select(-CHROM, -POS, -POS.length.REF., -FILTER, -GT, -GQ)
+
+```
+
+# Summary table
+
+```{r, results="asis", echo=FALSE}
+
+df_x %>%
+    generate_stats_table() %>%
+    knitr::kable()
+
+```
