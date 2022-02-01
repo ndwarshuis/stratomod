@@ -35,6 +35,26 @@ generate_stats_table <- function(df) {
         mutate(across(c(min, max, med, mean, stdev, range), format_exp))
 }
 
+make_cor_plot <- function(df) {
+    cor(df) %>%
+        as_tibble(rownames = "var1") %>%
+        gather(-var1, key = var2, value = coeff) %>%
+        ggplot(aes(var1, var2, fill = coeff)) + geom_tile() +
+        scale_fill_gradient2(low = "red",
+                             mid = "black",
+                             high = "green",
+                             limits = c(-1, 1)) +
+        xlab(NULL) +
+        ylab(NULL) +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1),
+              legend.position = "bottom")
+}
+
+make_colocalization_plot <- function(df) {
+    mutate(df, across(everything(), ~ if_else(is.na(.x), 0, 1))) %>%
+        make_cor_plot()
+}
+
 df <- read_tsv(snakemake@input[[1]])
 
 df_x <- df %>%
@@ -50,5 +70,35 @@ df_x <- df %>%
 df_x %>%
     generate_stats_table() %>%
     knitr::kable()
+
+```
+
+# Colocalization Matrix
+
+```{r, echo=FALSE}
+
+no_missing <- df_x %>%
+    gather() %>%
+    group_by(key) %>%
+    summarize(value = any(is.na(value))) %>%
+    filter(value == FALSE) %>%
+    pull(key)
+
+```
+
+All missing values are converted to 0, and all present values are converted to
+1, and the resulting correlation matrix is computed.
+
+Interpretation:
+* coeff = 1 means perfect colocalization (each value either missing or present)
+* coeff = -1 means mutually exclusive
+
+The following features had no missing values: `r paste(no_missing, sep=", ")`
+
+```{r, echo=FALSE, fig.width = 7, fig.height = 7}
+
+df_x %>%
+    select(-all_of(no_missing)) %>%
+    make_colocalization_plot()
 
 ```
