@@ -19,7 +19,7 @@ read_tsv <- function(path) {
         as_tibble()
 }
 
-generate_stats_table <- function(df) {
+make_stats_table <- function(df) {
     gather(df) %>%
         group_by(key) %>%
         summarize(min = min(value, na.rm = TRUE),
@@ -33,6 +33,14 @@ generate_stats_table <- function(df) {
         rename(feature = key) %>%
         mutate(perc_NA = sprintf("%.1f", perc_NA)) %>%
         mutate(across(c(min, max, med, mean, stdev, range), format_exp))
+}
+
+make_feature_distribution <- function(x) {
+    ggplot() +
+        aes(x) +
+        geom_density() +
+        xlab(NULL) +
+        ylab(NULL)
 }
 
 make_cor_plot <- function(df) {
@@ -84,7 +92,7 @@ perc_TP <- sprintf("%.2f", 100 * N_TP / N)
 ```{r, results="asis", echo=FALSE}
 
 df_x %>%
-    generate_stats_table() %>%
+    make_stats_table() %>%
     knitr::kable()
 
 ```
@@ -116,5 +124,29 @@ The following features had no missing values: `r paste(no_missing, sep=", ")`
 df_x %>%
     select(-all_of(no_missing)) %>%
     make_colocalization_plot()
+
+```
+
+# Feature distributions
+
+Plots of all features with missing values removed.
+
+```{r, echo=FALSE, results="asis", fig.width=4, fig.height=4}
+
+print_plot <- function(x, name) {
+    cat(sprintf("## %s\n", name))
+
+    .x <- discard(x, is.na)
+
+    if (max(.x) - min(.x) == 0) {
+        cat(sprintf("Feature has one value: %.1f", max(.x)))
+    } else {
+        print(make_feature_distribution(.x))
+    }
+
+    cat("\n\n")
+}
+
+iwalk(df_x, ~ print_plot(.x, .y))
 
 ```
