@@ -15,17 +15,6 @@ def lookup_ebm_run(wildcards):
 git_tag = get_git_tag()
 
 ebm_dir = results_dir / "ebm" / ("%s-{input_key}-{filter_key}-{run_key}" % git_tag)
-ebm_output_files = [
-    ebm_dir / f
-    for f in [
-        "model.pickle",
-        "train_x.pickle",
-        "train_y.pickle",
-        "test_x.pickle",
-        "test_y.pickle",
-        "config.yml",
-    ]
-]
 
 ################################################################################
 # add annotations
@@ -112,7 +101,17 @@ rule train_ebm:
     input:
         rules.postprocess_output.output,
     output:
-        ebm_output_files,
+        **{
+            n: str((ebm_dir / n).with_suffix(".pickle"))
+            for n in [
+                "model",
+                "train_x",
+                "train_y",
+                "test_x",
+                "test_y",
+            ]
+        },
+        config=ebm_dir / "config.yml",
     params:
         config=lambda wildcards: json.dumps(lookup_ebm_run(wildcards)),
         out_dir=str(ebm_dir),
@@ -124,3 +123,14 @@ rule train_ebm:
         -c '{params.config}' \
         -o {params.out_dir}
         """
+
+
+rule summarize_ebm:
+    input:
+        **rules.train_ebm.output,
+    output:
+        ebm_dir / "model_summary.pdf",
+    conda:
+        str(envs_dir / "ebm.yml")
+    script:
+        str(scripts_dir / "rmarkdown" / "model_summary.Rmd")

@@ -1,0 +1,44 @@
+---
+title: "Model Summary"
+output: "pdf_document"
+---
+
+```{r, include=FALSE}
+library(reticulate)
+
+# python doesn't know how to read the snakemake object, so give it a little bump
+ebm <- snakemake@input[["model"]]
+test_x <- snakemake@input[["test_x"]]
+test_y <- snakemake@input[["test_y"]]
+```
+
+```{python, include=FALSE}
+import pickle 
+from dash import html
+from interpret import set_visualize_provider
+from interpret.provider import InlineProvider
+
+import pandas as pd
+from sklearn.model_selection import train_test_split
+
+from interpret.glassbox import ExplainableBoostingClassifier
+from interpret import show
+
+with open(r.ebm, 'rb') as f:
+     ebm = pickle.load(f)
+
+with open(r.test_x, 'rb') as f:
+     X_test = pickle.load(f)
+
+with open(r.test_y, 'rb') as f:
+     y_test = pickle.load(f)
+     
+```
+
+# Model accuracy
+
+```{python, include=FALSE}
+accuracy = "%.2f%%" % (100 * ebm.score(X_test, y_test))
+```
+
+accuracy: `r py$accuracy`

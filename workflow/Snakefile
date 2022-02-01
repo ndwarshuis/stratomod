@@ -67,7 +67,7 @@ def all_ebm_files():
         ]
     )
     return expand(
-        rules.train_ebm.output,
+        rules.summarize_ebm.output,
         zip,
         run_key=[*run_keys],
         input_key=[*input_keys],
