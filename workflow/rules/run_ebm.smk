@@ -31,6 +31,9 @@ ebm_output_files = [
 # add annotations
 
 
+annotated_input_dir = results_dir / "annotated_input" / "{input_key}"
+
+
 rule add_annotations:
     input:
         variants=rules.concat_tsv_files.output,
@@ -51,7 +54,7 @@ rule add_annotations:
             ),
         ],
     output:
-        results_dir / "annotated_input" / "{input_key}" / "{filter_key}.tsv",
+        annotated_input_dir / "{filter_key}.tsv",
     conda:
         str(envs_dir / "bedtools.yml")
     shell:
@@ -61,6 +64,21 @@ rule add_annotations:
         -t {input.tsvs} \
         -o {output}
         """
+
+
+################################################################################
+# make summary table
+
+
+rule make_input_summary:
+    input:
+        rules.add_annotations.output,
+    output:
+        annotated_input_dir / "{filter_key}_summary.pdf",
+    conda:
+        str(envs_dir / "rmarkdown.yml")
+    script:
+        str(scripts_dir / "rmarkdown" / "input_summary.Rmd")
 
 
 ################################################################################
