@@ -1,5 +1,5 @@
 ---
-title: "Input Dataframe Summary"
+title: "Dataframe Summary"
 output: "pdf_document"
 ---
 
@@ -61,9 +61,25 @@ df_x <- df %>%
     select(-label) %>%
     select(-CHROM, -POS, -POS.length.REF., -FILTER, -GT, -GQ)
 
+df_y <- df$label
+
 ```
 
-# Summary table
+# Dataframe Overview
+
+```{r, echo=FALSE}
+N <- length(df_y)
+P <- length(names(df_x))
+N_TP <- length(keep(df_y, ~ .x == "tp"))
+perc_TP <- sprintf("%.2f", 100 * N_TP / N)
+```
+
+* N Rows: `r N`
+* N Features: `r P`
+* N True Positives: `r N_TP`
+* Perc True Postives: `r perc_TP`
+
+# Feature Summary table
 
 ```{r, results="asis", echo=FALSE}
 
