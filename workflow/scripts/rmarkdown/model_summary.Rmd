@@ -5,6 +5,7 @@ output: "pdf_document"
 
 ```{r, include=FALSE}
 library(reticulate)
+library(tidyverse)
 
 # python doesn't know how to read the snakemake object, so give it a little bump
 ebm <- snakemake@input[["model"]]
@@ -12,33 +13,72 @@ test_x <- snakemake@input[["test_x"]]
 test_y <- snakemake@input[["test_y"]]
 ```
 
-```{python, include=FALSE}
+```{python, include = FALSE}
 import pickle 
+import pandas as pd
 from dash import html
+from sklearn import metrics
+from sklearn.model_selection import train_test_split
 from interpret import set_visualize_provider
 from interpret.provider import InlineProvider
-
-import pandas as pd
-from sklearn.model_selection import train_test_split
-
 from interpret.glassbox import ExplainableBoostingClassifier
 from interpret import show
 
-with open(r.ebm, 'rb') as f:
-     ebm = pickle.load(f)
+def read_pickle(path):
+    with open(path, 'rb') as f:
+        return pickle.load(f)
+    
+ebm = read_pickle(r.ebm)
+X_test = read_pickle(r.test_x)
+y_test = read_pickle(r.test_y)
 
-with open(r.test_x, 'rb') as f:
-     X_test = pickle.load(f)
-
-with open(r.test_y, 'rb') as f:
-     y_test = pickle.load(f)
-     
 ```
 
-# Model accuracy
+# Model Statistics
 
-```{python, include=FALSE}
-accuracy = "%.2f%%" % (100 * ebm.score(X_test, y_test))
+```{python, include = FALSE}
+
+def format_metric(x):
+    return "%.2f%%" % (100 * x)
+
+accuracy = format_metric(ebm.score(X_test, y_test))
+
+y_pred = ebm.predict_proba(X_test)[::, 1]
+report = metrics.classification_report(
+    (y_test == "tp").astype(int),
+    y_pred > 0.5,
+    target_names = ["fp", "tp"],
+    output_dict = True,
+)
+rtp = report["tp"]
+precision = format_metric(rtp["precision"])
+recall = format_metric(rtp["recall"])
+f1 = format_metric(rtp["f1-score"])
+
 ```
 
-accuracy: `r py$accuracy`
+- Accuracy: `r py$accuracy`
+- Precision: `r py$precision`
+- Recall: `r py$recall`
+- F1: `r py$f1`
+
+## ROC Curve
+
+```{python, include = FALSE}
+import matplotlib.pyplot as plt
+
+auc = format_metric(metrics.roc_auc_score(y_test, y_pred))
+fpr, tpr, _ = metrics.roc_curve(y_test, y_pred, pos_label = "tp")
+auc_data = pd.DataFrame({"fpr": fpr, "tpr": tpr})
+
+```
+
+AUC: `r py$auc`
+
+```{r, echo = FALSE}
+# use ggplot since matplotlib seems to ignore where rmarkdown tells it to go
+ggplot(py$auc_data, aes(fpr, tpr)) +
+    geom_line() +
+    scale_x_continuous(name = "Specificity", limits = c(0, 1)) +
+    scale_y_continuous(name = "Sensitivity", limits = c(0, 1))
+```
