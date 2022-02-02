@@ -16,6 +16,7 @@ test_y <- snakemake@input[["test_y"]]
 ```{python, include = FALSE}
 import pickle 
 import pandas as pd
+import numpy as np
 from dash import html
 from sklearn import metrics
 from sklearn.model_selection import train_test_split
@@ -81,4 +82,92 @@ ggplot(py$auc_data, aes(fpr, tpr)) +
     geom_line() +
     scale_x_continuous(name = "Specificity", limits = c(0, 1)) +
     scale_y_continuous(name = "Sensitivity", limits = c(0, 1))
+```
+
+# Global Score Plot
+
+```{python, include = FALSE}
+ebm_global = ebm.explain_global()
+
+def get_plot_dict(global_data):
+    return {
+        k: v
+        for k, v in global_data.items()
+        if k in ["names", "scores"]
+    }
+
+global_df = pd.DataFrame(get_plot_dict(ebm_global.data()))
+
+```
+
+```{r, echo = FALSE}
+ggplot(py$global_df, aes(scores, reorder(names, scores))) +
+    geom_col() +
+    xlab("Score") +
+    ylab(NULL)
+
+```
+
+# Univariate plots
+
+```{python, include = FALSE}
+
+def array_repeat_last(arr):
+    return np.append(arr, [arr[-1]])
+
+def feature_plot_dict(vartype, feature_data):
+    if vartype == "continuous":
+        return {
+            k: array_repeat_last(v) if k == "scores" else v
+            for k, v in feature_data.items()
+            if k in ["names", "scores"]
+        }
+    elif vartype == "categorical":
+        return get_plot_dict(feature_data)
+    # TODO add interactions
+    else:
+        assert False ("wrong vartype, dummy: %s" % vartype)
+
+sel = ebm_global.selector
+
+feature_dfs = {
+    n: (t, pd.DataFrame(feature_plot_dict(t, ebm_global.data(i))))
+    for i, (n, t) in enumerate(map(tuple, sel[["Name", "Type"]].to_numpy()))
+    if t in ["continuous", "categorical"]
+}
+
+```
+
+```{r, echo = FALSE, results = "asis", fig.width = 6, fig.height = 3}
+
+make_continuous_plot <- function(df, name) {
+    ggplot(df, aes(names, scores)) +
+        geom_step() +
+        xlab(name) +
+        ylab("Score")
+}
+
+make_categorical_plot <- function(df, name) {
+    ggplot(df, aes(factor(names), scores)) +
+        geom_col() +
+        xlab(name) +
+        ylab("Score")
+}
+
+print_plot <- function(vartype, df, name) {
+    if (vartype == "continuous") {
+        p <- make_continuous_plot(df, name)
+    } else if (vartype == "categorical") {
+        p <- make_categorical_plot(df, name)
+    } else {
+        p <- sprintf("wrong plot type, dummy; got %s", vartype)
+    }
+
+    cat(sprintf("## %s\n", name))
+    print(p)
+    cat("\n\n")
+}
+
+iwalk(py$feature_dfs, ~ print_plot(.x[[1]], py_to_r(.x[[2]]), .y))
+
 ```
