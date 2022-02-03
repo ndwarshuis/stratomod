@@ -1,0 +1,152 @@
+---
+title: "Dataframe Summary"
+output: "pdf_document"
+---
+
+```{r, echo=FALSE, message=FALSE}
+library(tidyverse)
+
+format_perc <- function(x) {
+    sprintf("%.1f", x)
+}
+
+format_exp <- function(x) {
+    sprintf("%.1e", x)
+}
+
+read_tsv <- function(path) {
+    read.csv(path, sep = "\t", na.strings = c(".")) %>%
+        as_tibble()
+}
+
+make_stats_table <- function(df) {
+    gather(df) %>%
+        group_by(key) %>%
+        summarize(min = min(value, na.rm = TRUE),
+                  max = max(value, na.rm = TRUE),
+                  med = median(value, na.rm = TRUE),
+                  mean = mean(value, na.rm = TRUE),
+                  stdev = mean(value, na.rm = TRUE),
+                  range = max - min,
+                  n_NA = sum(is.na(value)),
+                  perc_NA = 100 * n_NA / n()) %>%
+        rename(feature = key) %>%
+        mutate(perc_NA = sprintf("%.1f", perc_NA)) %>%
+        mutate(across(c(min, max, med, mean, stdev, range), format_exp))
+}
+
+make_feature_distribution <- function(x) {
+    ggplot() +
+        aes(x) +
+        geom_density() +
+        xlab(NULL) +
+        ylab(NULL)
+}
+
+make_cor_plot <- function(df) {
+    cor(df) %>%
+        as_tibble(rownames = "var1") %>%
+        gather(-var1, key = var2, value = coeff) %>%
+        ggplot(aes(var1, var2, fill = coeff)) + geom_tile() +
+        scale_fill_gradient2(low = "red",
+                             mid = "black",
+                             high = "green",
+                             limits = c(-1, 1)) +
+        xlab(NULL) +
+        ylab(NULL) +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1),
+              legend.position = "bottom")
+}
+
+make_colocalization_plot <- function(df) {
+    mutate(df, across(everything(), ~ if_else(is.na(.x), 0, 1))) %>%
+        make_cor_plot()
+}
+
+df <- read_tsv(snakemake@input[[1]])
+
+df_x <- df %>%
+    select(-label) %>%
+    select(-CHROM, -POS, -POS.length.REF., -FILTER, -GT, -GQ)
+
+df_y <- df$label
+
+```
+
+# Dataframe Overview
+
+```{r, echo=FALSE}
+N <- length(df_y)
+P <- length(names(df_x))
+N_TP <- length(keep(df_y, ~ .x == "tp"))
+perc_TP <- sprintf("%.2f", 100 * N_TP / N)
+```
+
+* N Rows: `r N`
+* N Features: `r P`
+* N True Positives: `r N_TP`
+* Perc True Postives: `r perc_TP`
+
+# Feature Summary table
+
+```{r, results="asis", echo=FALSE}
+
+df_x %>%
+    make_stats_table() %>%
+    knitr::kable()
+
+```
+
+# Colocalization Matrix
+
+```{r, echo=FALSE}
+
+no_missing <- df_x %>%
+    gather() %>%
+    group_by(key) %>%
+    summarize(value = any(is.na(value))) %>%
+    filter(value == FALSE) %>%
+    pull(key)
+
+```
+
+All missing values are converted to 0, and all present values are converted to
+1, and the resulting correlation matrix is computed.
+
+Interpretation:
+* coeff = 1 means perfect colocalization (each value either missing or present)
+* coeff = -1 means mutually exclusive
+
+The following features had no missing values: `r paste(no_missing, sep=", ")`
+
+```{r, echo=FALSE, fig.width = 7, fig.height = 7}
+
+df_x %>%
+    select(-all_of(no_missing)) %>%
+    make_colocalization_plot()
+
+```
+
+# Feature distributions
+
+Plots of all features with missing values removed.
+
+```{r, echo=FALSE, results="asis", fig.width=4, fig.height=4}
+
+print_plot <- function(x, name) {
+    cat(sprintf("## %s\n", name))
+
+    .x <- discard(x, is.na)
+
+    if (max(.x) - min(.x) == 0) {
+        cat(sprintf("Feature has one value: %.1f", max(.x)))
+    } else {
+        print(make_feature_distribution(.x))
+    }
+
+    cat("\n\n")
+}
+
+iwalk(df_x, ~ print_plot(.x, .y))
+
+```

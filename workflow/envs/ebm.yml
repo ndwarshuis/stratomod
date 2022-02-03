@@ -1,6 +1,8 @@
 channels:
   - conda-forge
 dependencies:
+  - r-tidyverse # this env will also be used for reports
+  - r-reticulate # to use python in Rmarkdown
   - pip=21.3.1 # conda complains without this
   - pyyaml=6.0 # for dumping the config in the EBM script
   - numba=0.54.1 # needed for interpret packages below
