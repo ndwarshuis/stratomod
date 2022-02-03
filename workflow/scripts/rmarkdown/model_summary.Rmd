@@ -124,16 +124,20 @@ def feature_plot_dict(vartype, feature_data):
         }
     elif vartype == "categorical":
         return get_plot_dict(feature_data)
-    # TODO add interactions
     else:
         assert False ("wrong vartype, dummy: %s" % vartype)
 
-sel = ebm_global.selector
+all_features = {
+    n: (t, i)
+    for i, (n, t) in enumerate(
+            map(tuple, ebm_global.selector[["Name", "Type"]].to_numpy())
+    )
+}
 
-feature_dfs = {
-    n: (t, pd.DataFrame(feature_plot_dict(t, ebm_global.data(i))))
-    for i, (n, t) in enumerate(map(tuple, sel[["Name", "Type"]].to_numpy()))
-    if t in ["continuous", "categorical"]
+univariate_dfs = {
+    name: (vartype, pd.DataFrame(feature_plot_dict(vartype, ebm_global.data(i))))
+    for name, (vartype, i) in all_features.items()
+    if vartype in ["continuous", "categorical"]
 }
 
 ```
@@ -154,7 +158,7 @@ make_categorical_plot <- function(df, name) {
         ylab("Score")
 }
 
-print_plot <- function(vartype, df, name) {
+print_uv_plot <- function(vartype, df, name) {
     if (vartype == "continuous") {
         p <- make_continuous_plot(df, name)
     } else if (vartype == "categorical") {
@@ -168,6 +172,131 @@ print_plot <- function(vartype, df, name) {
     cat("\n\n")
 }
 
-iwalk(py$feature_dfs, ~ print_plot(.x[[1]], py_to_r(.x[[2]]), .y))
+iwalk(py$univariate_dfs, ~ print_uv_plot(.x[[1]], py_to_r(.x[[2]]), .y))
+
+```
+
+# Bivariate plots
+
+```{python, include = FALSE}
+
+def lookup_feature_type(name):
+    return all_features[name][0]
+
+def build_scores_array(arr, left_type, right_type):
+    # any continuous dimension is going to be one less than the names length,
+    # so copy the last row/column to the end in these cases
+    if left_type == "continuous":
+        arr = np.vstack((arr, arr[-1, :]))
+    if right_type == "continuous":
+        arr = np.column_stack((arr, arr[:, -1]))
+    return arr
+
+def interaction_plot_df(name, data_index):
+    feature_data = ebm_global.data(data_index)
+    # left is first dimension, right is second
+    left_name, right_name = tuple(name.split(" x "))
+
+    left_type = lookup_feature_type(left_name)
+    right_type = lookup_feature_type(right_name)
+
+    left_index = pd.Index(feature_data["left_names"], name = "left")
+    right_index = pd.Index(feature_data["right_names"], name = "right")
+
+    arr = build_scores_array(feature_data["scores"], left_type, right_type)
+    df = (
+        pd.DataFrame(arr, index = left_index, columns = right_index)
+        .stack()
+        .rename("score")
+        .reset_index()
+    )
+
+    return {
+        "left": {
+            "name": left_name,
+            "type": left_type
+        },
+        "right": {
+            "name": right_name,
+            "type": right_type
+        },
+        "df": df,
+    }
+    
+bivariate_dfs = {
+    name: interaction_plot_df(name, i)
+    for name, (vartype, i) in all_features.items()
+    if vartype == "interaction"
+}
+
+```
+
+```{r, echo = FALSE, results = "asis", fig.width = 6, fig.height = 3.5}
+
+cont_cont_plot <- function(df, left_name, right_name) {
+    # poor-mans 2d step heatmap plot thing
+    df %>%
+        group_by(right) %>%
+        mutate(left_upper = lead(left)) %>%
+        ungroup() %>%
+        group_by(left) %>%
+        mutate(right_upper = lead(right)) %>%
+        ungroup() %>%
+        filter(!is.na(left_upper)) %>%
+        filter(!is.na(right_upper)) %>%
+        ggplot() +
+        geom_rect(aes(xmin = left,
+                      xmax = left_upper,
+                      ymin = right,
+                      ymax = right_upper,
+                      fill = score)) +
+        xlab(left_name) +
+        ylab(right_name) +
+        scale_fill_gradient2(low = "red",
+                             mid = "black",
+                             high = "green",
+                             midpoint = 0)
+}
+
+cont_cat_plot <- function(df, cat, cont, cat_name, cont_name) {
+    ggplot(df, aes_string(cont, "score", color = factor(cat))) +
+        geom_step() +
+        xlab(cont_name) +
+        scale_fill_discrete(name = cat_name)
+}
+
+cat_cat_plot <- function(df, left_name, right_name) {
+    ggplot(df, aes(left, score, fill = factor(right))) +
+        geom_col(position = "dodge") +
+        xlab(left_name) +
+        scale_fill_discrete(name = right_name)
+}
+
+print_bv_plot <- function(L, R, df) {
+    .df <- py_to_r(df)
+
+    if (L$type == "continuous" && R$type == "continuous") {
+        p <- cont_cont_plot(.df, L$name, R$name)
+    } else if (L$type == "categorical" && R$type == "continuous") {
+        p <- cont_cat_plot(.df, "left", "right", L$name, R$name)
+    } else if (L$type == "continuous" && R$type == "categorical") {
+        p <- cont_cat_plot(.df, "right", "left", R$name, L$name)
+    } else if (L$type == "categorical" && R$type == "categorical") {
+        p <- cat_cat_plot(.df, R$name, L$name)
+    } else {
+        p <- sprintf("Types are wrong, dummy: %s and/or %s", L$type, R$type)
+    }
+    cat(sprintf("## %s x %s\n\n", L$name, R$name))
+    print(p)
+    cat("\n\n")
+}
+
+dfs <- py$bivariate_dfs
+
+if (length(dfs) == 0) {
+    cat("None\n\n")
+} else {
+    walk(dfs, ~ print_bv_plot(.x[["left"]], .x[["right"]], .x[["df"]]))
+}
 
 ```
