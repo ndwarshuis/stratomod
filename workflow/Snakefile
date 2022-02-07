@@ -47,9 +47,8 @@ results_dir = Path(conf_paths["results"])
 # import subworkflows
 
 
-include: "rules/download_resources.smk"
 include: "rules/annotations/get_annotations.smk"
-include: "rules/label_vcf.smk"
+include: "rules/labels/get_labels.smk"
 include: "rules/run_ebm.smk"
 
 

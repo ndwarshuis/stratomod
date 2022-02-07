@@ -5,6 +5,10 @@ inputs_dir = resources_dir / "inputs"
 label_dir = results_dir / "labels" / "{input_key}"
 rtg_dir = label_dir / "rtg"
 
+
+include: "download_resources.smk"
+
+
 ################################################################################
 # VCF preprocessing
 
@@ -53,20 +57,21 @@ def lookup_input(wildcards, *args):
     return lookup_config(config, "inputs", wildcards.input_key, *args)
 
 
-def get_bench_files(wildcards):
-    return dict(
-        (k, expand(v.output, bench_key=lookup_input(wildcards, "benchmark")))
-        for k, v in [
-            ("truth_vcf", rules.get_bench_vcf),
-            ("truth_bed", rules.get_bench_bed),
-            ("truth_tbi", rules.get_bench_tbi),
+def get_truth_inputs(wildcards):
+    out = rules.get_bench.output
+    return {
+        key: expand(path, bench_key=lookup_input(wildcards, "benchmark"))
+        for key, path in [
+            ("truth_vcf", out.vcf),
+            ("truth_bed", out.bed),
+            ("truth_tbi", out.tbi),
         ]
-    )
+    }
 
 
 rule get_vcf_labels:
     input:
-        unpack(get_bench_files),
+        unpack(get_truth_inputs),
         query_vcf=rules.preprocess_vcf.output,
         sdf=lambda wildcards: expand(
             rules.get_ref_sdf.output,
