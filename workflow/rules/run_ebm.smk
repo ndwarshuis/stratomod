@@ -135,16 +135,20 @@ rule train_ebm:
         },
         config=ebm_dir / "config.yml",
     params:
-        config=lambda wildcards: json.dumps(lookup_ebm_run(wildcards)),
+        config=lambda wildcards: lookup_ebm_run(wildcards),
         out_dir=str(ebm_dir),
     conda:
         str(envs_dir / "ebm.yml")
-    shell:
-        """python workflow/scripts/run_ebm.py \
-        -i {input} \
-        -c '{params.config}' \
-        -o {params.out_dir}
-        """
+    script:
+        str(scripts_dir / "run_ebm.py")
+
+
+# shell:
+#     """python workflow/scripts/run_ebm.py \
+#     -i {input} \
+#     -c '{params.config}' \
+#     -o {params.out_dir}
+#     """
 
 
 rule summarize_ebm:
