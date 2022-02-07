@@ -102,14 +102,9 @@ rule postprocess_output:
     output:
         ebm_dir / "input.tsv",
     params:
-        config=lambda wildcards: json.dumps(lookup_ebm_run(wildcards)["features"]),
-    shell:
-        """
-        python workflow/scripts/postprocess.py \
-        -c '{params.config}' \
-        -i {input} \
-        -o {output}
-        """
+        config=lambda wildcards: lookup_ebm_run(wildcards)["features"],
+    script:
+        str(scripts_dir / "postprocess.py")
 
 
 ################################################################################
@@ -141,14 +136,6 @@ rule train_ebm:
         str(envs_dir / "ebm.yml")
     script:
         str(scripts_dir / "run_ebm.py")
-
-
-# shell:
-#     """python workflow/scripts/run_ebm.py \
-#     -i {input} \
-#     -c '{params.config}' \
-#     -o {params.out_dir}
-#     """
 
 
 rule summarize_ebm:
