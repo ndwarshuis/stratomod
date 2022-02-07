@@ -70,6 +70,28 @@ rule make_input_summary:
         str(scripts_dir / "rmarkdown" / "input_summary.Rmd")
 
 
+def all_input_summary_files():
+    input_keys, filter_keys = unzip(
+        set(
+            (i, f)
+            for k, v in config["ebm_runs"].items()
+            for f in v["filter"]
+            for i in v["inputs"]
+        )
+    )
+    return expand(
+        rules.make_input_summary.output,
+        zip,
+        input_key=[*input_keys],
+        filter_key=[*filter_keys],
+    )
+
+
+rule all_summary:
+    input:
+        all_input_summary_files(),
+
+
 ################################################################################
 # postprocess output
 
@@ -134,3 +156,26 @@ rule summarize_ebm:
         str(envs_dir / "ebm.yml")
     script:
         str(scripts_dir / "rmarkdown" / "model_summary.Rmd")
+
+
+def all_ebm_files():
+    run_keys, input_keys, filter_keys = unzip(
+        [
+            (k, i, f)
+            for k, v in config["ebm_runs"].items()
+            for f in v["filter"]
+            for i in v["inputs"]
+        ]
+    )
+    return expand(
+        rules.summarize_ebm.output,
+        zip,
+        run_key=[*run_keys],
+        input_key=[*input_keys],
+        filter_key=[*filter_keys],
+    )
+
+
+rule all_ebm:
+    input:
+        all_ebm_files(),
