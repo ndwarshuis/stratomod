@@ -97,28 +97,10 @@ df_x %>%
 
 ```
 
-# Colocalization Matrix
-
-```{r, echo=FALSE}
-
-df_x_binary <- df_x %>%
-    mutate(across(everything(), ~ if_else(is.na(.x), 0, 1)))
-
-singleval <- df_x_binary %>%
-    gather() %>%
-    group_by(key) %>%
-    summarize(value = length(unique(value)) > 1) %>%
-    filter(value == FALSE) %>%
-    pull(key)
-
-```
+# Colocalization Matrices
 
 All missing values are converted to 0, and all present values are converted to
 1, and the resulting correlation matrix is computed.
-
-The following features were removed as they contained only 1 unique value
-(likely because they either were 100% present or 100% missing): 
-`r paste(singleval, sep=", ")`
 
 Interpretation:
 
@@ -126,11 +108,58 @@ Interpretation:
 - coeff = -1 means mutually exclusive
 
 
-```{r, echo=FALSE, fig.width = 7, fig.height = 7}
+```{r, echo=FALSE}
 
-df_x_binary %>%
-    select(-all_of(singleval)) %>%
-    make_cor_plot()
+print_coloc <- function(df) {
+    df_bin <- mutate(df, across(everything(), ~ if_else(is.na(.x), 0, 1)))
+
+    singleval <- df_bin %>%
+        gather() %>%
+        group_by(key) %>%
+        summarize(value = length(unique(value)) > 1) %>%
+        filter(value == FALSE) %>%
+        pull(key)
+
+    cat("These features were removed as they had 1 unique value:\n\n")
+
+    singleval %>%
+        as.list() %>%
+        walk(~ cat(sprintf("- %s\n", .x)))
+
+    cat("\n")
+
+    df_bin %>%
+        select(-all_of(singleval)) %>%
+        make_cor_plot() %>%
+        print()
+
+    cat("\n\n")
+}
+
+```
+
+
+## Combined Labels
+
+```{r, echo=FALSE, results = "asis", fig.width = 7, fig.height = 7}
+
+print_coloc(df_x)
+
+```
+
+## TP Label
+
+```{r, echo=FALSE, results = "asis", fig.width = 7, fig.height = 7}
+
+filter(df_x, df_y == "tp") %>% print_coloc()
+
+```
+
+## FP Label
+
+```{r, echo=FALSE, results = "asis", fig.width = 7, fig.height = 7}
+
+filter(df_x, df_y == "fp") %>% print_coloc()
 
 ```
 
