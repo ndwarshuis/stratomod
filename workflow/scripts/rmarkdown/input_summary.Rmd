@@ -87,11 +87,35 @@ perc_TP <- sprintf("%.2f", 100 * N_TP / N)
 * N True Positives: `r N_TP`
 * Perc True Postives: `r perc_TP`
 
-# Feature Summary table
+# Feature Summary Tables
 
-```{r, results="asis", echo=FALSE}
+## Combined Labels
+
+```{r, results = "asis", echo = FALSE}
 
 df_x %>%
+    make_stats_table() %>%
+    knitr::kable()
+
+```
+
+## TP Label
+
+```{r, results = "asis", echo = FALSE}
+
+df_x %>%
+    filter(df_y == "tp") %>%
+    make_stats_table() %>%
+    knitr::kable()
+
+```
+
+## FP Label
+
+```{r, results = "asis", echo = FALSE}
+
+df_x %>%
+    filter(df_y == "fp") %>%
     make_stats_table() %>%
     knitr::kable()
 
@@ -108,7 +132,7 @@ Interpretation:
 - coeff = -1 means mutually exclusive
 
 
-```{r, echo=FALSE}
+```{r, include = FALSE}
 
 print_coloc <- function(df) {
     df_bin <- mutate(df, across(everything(), ~ if_else(is.na(.x), 0, 1)))
@@ -137,7 +161,6 @@ print_coloc <- function(df) {
 }
 
 ```
-
 
 ## Combined Labels
 
