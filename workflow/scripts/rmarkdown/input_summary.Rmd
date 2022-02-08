@@ -1,6 +1,6 @@
 ---
 title: "Dataframe Summary"
-output: "pdf_document"
+output: "html_document"
 ---
 
 ```{r, echo=FALSE, message=FALSE}
