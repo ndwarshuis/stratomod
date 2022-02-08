@@ -40,9 +40,9 @@ make_stats_table <- function(df) {
         mutate(across(c(min, max, med, mean, stdev, range), format_exp))
 }
 
-make_feature_distribution <- function(x) {
+make_feature_distribution <- function(x, labels) {
     ggplot() +
-        aes(x) +
+        aes(x, color = labels) +
         geom_density() +
         xlab(NULL) +
         ylab(NULL)
@@ -172,14 +172,17 @@ Plots of all features with missing values removed.
 print_plot <- function(x, name) {
     cat(sprintf("## %s\n", name))
 
-    .x <- discard(x, is.na)
+    .df <- tibble(x = x, y = df_y) %>%
+        filter(!is.na(x))
+    .x <- .df$x
+    .y <- .df$y
 
     if (length(.x) == 0) {
         cat("Feature has no values")
     } else if (max(.x) - min(.x) == 0) {
         cat(sprintf("Feature has one value: %.1f", max(.x)))
     } else {
-        print(make_feature_distribution(.x))
+        print(make_feature_distribution(.x, .y))
     }
 
     cat("\n\n")
