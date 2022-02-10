@@ -54,6 +54,8 @@ def make_parser():
 def read_simple_repeats(path):
     df = read_tsv(path, header=None)[list(ALL_COLUMNS.values())]
     df.columns = list(ALL_COLUMNS)
+    df["AT"] = df["A"] + df["T"]
+    df["GC"] = df["G"] + df["C"]
     return sort_bed_numerically(df)
 
 
