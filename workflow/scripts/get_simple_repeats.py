@@ -1,8 +1,7 @@
-from itertools import repeat, chain, product
+from itertools import product
 from more_itertools import unzip
 from pybedtools import BedTool as bt
 from common.tsv import read_tsv, write_tsv
-from common.cli import make_io_parser, printerr
 from common.bed import sort_bed_numerically
 
 # columns from here: https://genome.ucsc.edu/cgi-bin/hgTables?db=hg38&hgta_group=rep&hgta_track=simpleRepeat&hgta_table=simpleRepeat&hgta_doSchema=describe+table+schema
@@ -36,21 +35,6 @@ MERGE_STATS = ["max", "min", "median"]
 LEN_FEATURE = "region_length"
 
 
-def make_parser():
-    parser = make_io_parser(
-        "merge simple repeat annotations dataframe",
-        "the source dataframe",
-        "the merged dataframe",
-    )
-    parser.add_argument(
-        "-g",
-        "--genome_file",
-        required=True,
-        help="the path the genome file (required to add slop)",
-    )
-    return parser
-
-
 def read_simple_repeats(path):
     df = read_tsv(path, header=None)[list(ALL_COLUMNS.values())]
     df.columns = list(ALL_COLUMNS)
@@ -64,8 +48,8 @@ def merge_simple_repeats(gfile, df):
     drop_n = 3
     stat_cols = df.columns.tolist()[drop_n:]
 
-    printerr("Computing stats for columns: %s\n" % ", ".join(stat_cols))
-    printerr("Stats to compute: %s\n" % ", ".join(MERGE_STATS))
+    print("Computing stats for columns: %s\n" % ", ".join(stat_cols))
+    print("Stats to compute: %s\n" % ", ".join(MERGE_STATS))
 
     cols, opts, headers = unzip(
         (i + drop_n + 1, m, "%s_%s" % (s, m))
@@ -78,11 +62,11 @@ def merge_simple_repeats(gfile, df):
     full_cols = [drop_n + 1] + list(cols)
     full_headers = list(BED_COLUMNS) + ["count"] + list(headers)
 
-    printerr("Merging repeat regions.")
+    print("Merging repeat regions.")
     # TODO there might be a way to make pybedtools echo what it is doing, but
     # for now this is a sanity check that this crazy command is executed
     # correctly
-    printerr(
+    print(
         "Using command: 'bedtools merge -i <file> -c %s -o %s'"
         % (", ".join(map(str, full_cols)), ", ".join(full_opts))
     )
@@ -101,10 +85,10 @@ def merge_simple_repeats(gfile, df):
 
 
 def main():
-    args = make_parser().parse_args()
-    repeat_df = read_simple_repeats(args.input)
-    merged_repeat_df = merge_simple_repeats(args.genome_file, repeat_df)
-    write_tsv(args.output, merged_repeat_df, header=True)
+    i = snakemake.input
+    repeat_df = read_simple_repeats(i.src[0])
+    merged_repeat_df = merge_simple_repeats(i.genome[0], repeat_df)
+    write_tsv(snakemake.output[0], merged_repeat_df, header=True)
 
 
 main()
