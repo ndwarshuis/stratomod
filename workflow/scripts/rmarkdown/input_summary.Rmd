@@ -42,12 +42,28 @@ make_stats_table <- function(df) {
         mutate(across(c(min, max, med, mean, stdev, range), format_exp))
 }
 
+infer_transform <- function(x) {
+    lower <- min(x)
+    upper <- max(x)
+    if (0 <= lower && upper <= 1) {
+        tibble(identity = x)
+    } else if (0 < lower) {
+        tibble(identity = x, trans_log10 = log10(x))
+    } else {
+        tibble(identity = x, trans_arsinh = asinh(x))
+    }
+}
+
 make_feature_distribution <- function(x, labels) {
-    ggplot() +
-        aes(x, color = labels) +
+    infer_transform(x) %>%
+        mutate(label = labels) %>%
+        gather(-label, key = key, value = value) %>%
+        ggplot() +
+        aes(value, color = label) +
         geom_density() +
         xlab(NULL) +
-        ylab(NULL)
+        ylab(NULL) +
+        facet_wrap(~key, scales = "free")
 }
 
 df <- read_tsv(snakemake@input[[1]])
@@ -215,7 +231,7 @@ filter(df_x, df_y == "fp") %>% print_cor_plots(perfect_overlaps)
 
 Plots of all features with missing values removed.
 
-```{r, echo=FALSE, results="asis", fig.width=4, fig.height=4}
+```{r, echo=FALSE, results="asis", fig.width=8, fig.height=4}
 
 print_plot <- function(x, name) {
     cat(sprintf("## %s\n", name))
