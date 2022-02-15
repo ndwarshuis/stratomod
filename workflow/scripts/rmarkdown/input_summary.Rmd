@@ -231,13 +231,28 @@ filter(df_x, df_y == "fp") %>% print_cor_plots(perfect_overlaps)
 
 Plots of all features with missing values removed.
 
+The following transforms were used:
+
+- log10: `log(x, 10)`
+- arsinh: `arsinh(x)`
+
+Transforms were used depending on the domain of the input vector:
+
+- 0 to 1 (inclusive): no transform
+- greater than 0: log10
+- all reals: arsinh
+
 ```{r, echo=FALSE, results="asis", fig.width=8, fig.height=4}
 
 print_plot <- function(x, name) {
-    cat(sprintf("## %s\n", name))
+    cat(sprintf("## %s\n\n", name))
+
 
     .df <- tibble(x = x, y = df_y) %>%
         filter(!is.na(x))
+    
+    cat(sprintf("number of data points: %d\n\n", nrow(.df)))
+
     .x <- .df$x
     .y <- .df$y
 
