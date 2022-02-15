@@ -5,6 +5,8 @@ output: "html_document"
 
 ```{r, echo=FALSE, message=FALSE}
 library(tidyverse)
+## gross...
+source("workflow/scripts/rmarkdown/common/colocalization.r")
 
 format_perc <- function(x) {
     sprintf("%.1f", x)
@@ -46,21 +48,6 @@ make_feature_distribution <- function(x, labels) {
         geom_density() +
         xlab(NULL) +
         ylab(NULL)
-}
-
-make_cor_plot <- function(df) {
-    cor(df) %>%
-        as_tibble(rownames = "var1") %>%
-        gather(-var1, key = var2, value = coeff) %>%
-        ggplot(aes(var1, var2, fill = coeff)) + geom_tile() +
-        scale_fill_gradient2(low = "red",
-                             mid = "black",
-                             high = "green",
-                             limits = c(-1, 1)) +
-        xlab(NULL) +
-        ylab(NULL) +
-        theme(axis.text.x = element_text(angle = 90, hjust = 1),
-              legend.position = "bottom")
 }
 
 df <- read_tsv(snakemake@input[[1]])
@@ -123,66 +110,104 @@ df_x %>%
 
 # Colocalization Matrices
 
-All missing values are converted to 0, and all present values are converted to
-1, and the resulting correlation matrix is computed.
+Convert all features into binary values (TRUE is "not missing") then calculate
+the "assymmetric jaccard index" for all feature pairs.
 
-Interpretation:
+Formula for assymetric jaccard index for sets $A$ and $B$:
 
-- coeff = 1 means perfect colocalization (each value either missing or present)
-- coeff = -1 means mutually exclusive
+$$j = \frac{\lvert A \cap B \rvert}{\lvert A \rvert}$$
 
+Plot interpretation: Given feature $A$ on the x axis and feature $B$ on the
+y axis, $B$ overlaps with $A$ according to the value of their intersecting
+cell.
 
 ```{r, include = FALSE}
 
-print_coloc <- function(df) {
-    df_bin <- mutate(df, across(everything(), ~ if_else(is.na(.x), 0, 1)))
+ajaccard_combinations <- function(df_bool, comb_df) {
+}
 
-    singleval <- df_bin %>%
-        gather() %>%
-        group_by(key) %>%
-        summarize(value = length(unique(value)) > 1) %>%
-        filter(value == FALSE) %>%
-        pull(key)
+print_coloc <- function(df_bool, comb_df) {
+    mutate(comb_df, asymm_jaccard = ajaccard(df_bool, var.x, var.y)) %>%
+        make_xy_tile_plot("var.x",
+                          "var.y",
+                          "asymm_jaccard",
+                          "starting set",
+                          "overlapping set") %>%
+        print()
 
-    cat("These features were removed as they had 1 unique value:\n\n")
+    cat("\n\n")
+}
 
-    singleval %>%
-        as.list() %>%
-        walk(~ cat(sprintf("- %s\n", .x)))
+combinations <- df_x %>%
+    names() %>%
+    cross_tibble()
 
-    cat("\n")
+df_x_bool <- to_binary(df_x)
+df_x_tp_bool <- filter(df_x, df_y == "tp") %>% to_binary()
+df_x_fp_bool <- filter(df_x, df_y == "fp") %>% to_binary()
 
-    df_bin %>%
-        select(-all_of(singleval)) %>%
+```
+
+```{r, echo=F, results = "asis", fig.width = 10, fig.height = 10}
+
+cat("## TP and FP\n\n")
+
+print_coloc(df_x_bool, combinations)
+
+cat("## TP only\n\n")
+
+print_coloc(df_x_tp_bool, combinations)
+
+cat("## FP only\n\n")
+
+print_coloc(df_x_fp_bool, combinations)
+
+```
+
+# Correlation matrices
+
+Find all features where the jaccard index (the real one, not our weird made-up
+assymetric version) is 1 (perfect overlap). Partition those features by those
+that are in combination with each other, and then compute the correlation matrix
+on these subsets after filtering missing values.
+
+```{r, include = FALSE}
+
+## ASSUME these will be the same for TP/FP/both
+perfect_overlaps <- df_x_bool %>%
+    perfect_overlapping_sets(combinations, "var.x", "var.y")
+
+print_subset_cor_plot <- function(df, subset) {
+    df %>%
+        select(all_of(subset)) %>%
+        drop_na() %>%
         make_cor_plot() %>%
         print()
+}
+
+print_cor_plots <- function(df, subsets) {
+    cat(sprintf("number of rows: %s\n\n", nrow(df)))
+
+    walk(as.list(subsets), ~ print_subset_cor_plot(df, .x))
 
     cat("\n\n")
 }
 
 ```
 
-## Combined Labels
-
 ```{r, echo=FALSE, results = "asis", fig.width = 7, fig.height = 7}
 
-print_coloc(df_x)
+cat("## TP and FP\n\n")
 
-```
+print_cor_plots(df_x, perfect_overlaps)
 
-## TP Label
+cat("## TP only\n\n")
 
-```{r, echo=FALSE, results = "asis", fig.width = 7, fig.height = 7}
+filter(df_x, df_y == "tp") %>% print_cor_plots(perfect_overlaps)
 
-filter(df_x, df_y == "tp") %>% print_coloc()
+cat("## FP only\n\n")
 
-```
-
-## FP Label
-
-```{r, echo=FALSE, results = "asis", fig.width = 7, fig.height = 7}
-
-filter(df_x, df_y == "fp") %>% print_coloc()
+filter(df_x, df_y == "fp") %>% print_cor_plots(perfect_overlaps)
 
 ```
 
