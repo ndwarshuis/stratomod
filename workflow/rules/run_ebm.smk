@@ -63,7 +63,7 @@ rule make_input_summary:
     input:
         rules.add_annotations.output,
     output:
-        annotated_input_dir / "{filter_key}_summary.pdf",
+        annotated_input_dir / "{filter_key}_summary.html",
     conda:
         str(envs_dir / "rmarkdown.yml")
     script:

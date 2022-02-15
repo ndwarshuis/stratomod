@@ -1,10 +1,12 @@
 ---
 title: "Dataframe Summary"
-output: "pdf_document"
+output: "html_document"
 ---
 
 ```{r, echo=FALSE, message=FALSE}
 library(tidyverse)
+## gross...
+source("workflow/scripts/rmarkdown/common/colocalization.r")
 
 format_perc <- function(x) {
     sprintf("%.1f", x)
@@ -19,11 +21,16 @@ read_tsv <- function(path) {
         as_tibble()
 }
 
+eval_nowarn <- function(f, xs) {
+    .xs <- discard(xs, is.na)
+    ifelse(length(.xs) == 0, NA, f(.xs))
+}
+
 make_stats_table <- function(df) {
     gather(df) %>%
         group_by(key) %>%
-        summarize(min = min(value, na.rm = TRUE),
-                  max = max(value, na.rm = TRUE),
+        summarize(min = eval_nowarn(min, value),
+                  max = eval_nowarn(max, value),
                   med = median(value, na.rm = TRUE),
                   mean = mean(value, na.rm = TRUE),
                   stdev = mean(value, na.rm = TRUE),
@@ -35,32 +42,12 @@ make_stats_table <- function(df) {
         mutate(across(c(min, max, med, mean, stdev, range), format_exp))
 }
 
-make_feature_distribution <- function(x) {
+make_feature_distribution <- function(x, labels) {
     ggplot() +
-        aes(x) +
+        aes(x, color = labels) +
         geom_density() +
         xlab(NULL) +
         ylab(NULL)
-}
-
-make_cor_plot <- function(df) {
-    cor(df) %>%
-        as_tibble(rownames = "var1") %>%
-        gather(-var1, key = var2, value = coeff) %>%
-        ggplot(aes(var1, var2, fill = coeff)) + geom_tile() +
-        scale_fill_gradient2(low = "red",
-                             mid = "black",
-                             high = "green",
-                             limits = c(-1, 1)) +
-        xlab(NULL) +
-        ylab(NULL) +
-        theme(axis.text.x = element_text(angle = 90, hjust = 1),
-              legend.position = "bottom")
-}
-
-make_colocalization_plot <- function(df) {
-    mutate(df, across(everything(), ~ if_else(is.na(.x), 0, 1))) %>%
-        make_cor_plot()
 }
 
 df <- read_tsv(snakemake@input[[1]])
@@ -87,9 +74,11 @@ perc_TP <- sprintf("%.2f", 100 * N_TP / N)
 * N True Positives: `r N_TP`
 * Perc True Postives: `r perc_TP`
 
-# Feature Summary table
+# Feature Summary Tables
 
-```{r, results="asis", echo=FALSE}
+## Combined Labels
+
+```{r, results = "asis", echo = FALSE}
 
 df_x %>%
     make_stats_table() %>%
@@ -97,33 +86,128 @@ df_x %>%
 
 ```
 
-# Colocalization Matrix
+## TP Label
 
-```{r, echo=FALSE}
+```{r, results = "asis", echo = FALSE}
 
-no_missing <- df_x %>%
-    gather() %>%
-    group_by(key) %>%
-    summarize(value = any(is.na(value))) %>%
-    filter(value == FALSE) %>%
-    pull(key)
+df_x %>%
+    filter(df_y == "tp") %>%
+    make_stats_table() %>%
+    knitr::kable()
 
 ```
 
-All missing values are converted to 0, and all present values are converted to
-1, and the resulting correlation matrix is computed.
+## FP Label
 
-Interpretation:
-* coeff = 1 means perfect colocalization (each value either missing or present)
-* coeff = -1 means mutually exclusive
-
-The following features had no missing values: `r paste(no_missing, sep=", ")`
-
-```{r, echo=FALSE, fig.width = 7, fig.height = 7}
+```{r, results = "asis", echo = FALSE}
 
 df_x %>%
-    select(-all_of(no_missing)) %>%
-    make_colocalization_plot()
+    filter(df_y == "fp") %>%
+    make_stats_table() %>%
+    knitr::kable()
+
+```
+
+# Colocalization Matrices
+
+Convert all features into binary values (TRUE is "not missing") then calculate
+the "assymmetric jaccard index" for all feature pairs.
+
+Formula for assymetric jaccard index for sets $A$ and $B$:
+
+$$j = \frac{\lvert A \cap B \rvert}{\lvert A \rvert}$$
+
+Plot interpretation: Given feature $A$ on the x axis and feature $B$ on the
+y axis, $B$ overlaps with $A$ according to the value of their intersecting
+cell.
+
+```{r, include = FALSE}
+
+ajaccard_combinations <- function(df_bool, comb_df) {
+}
+
+print_coloc <- function(df_bool, comb_df) {
+    mutate(comb_df, asymm_jaccard = ajaccard(df_bool, var.x, var.y)) %>%
+        make_xy_tile_plot("var.x",
+                          "var.y",
+                          "asymm_jaccard",
+                          "starting set",
+                          "overlapping set") %>%
+        print()
+
+    cat("\n\n")
+}
+
+combinations <- df_x %>%
+    names() %>%
+    cross_tibble()
+
+df_x_bool <- to_binary(df_x)
+df_x_tp_bool <- filter(df_x, df_y == "tp") %>% to_binary()
+df_x_fp_bool <- filter(df_x, df_y == "fp") %>% to_binary()
+
+```
+
+```{r, echo=F, results = "asis", fig.width = 10, fig.height = 10}
+
+cat("## TP and FP\n\n")
+
+print_coloc(df_x_bool, combinations)
+
+cat("## TP only\n\n")
+
+print_coloc(df_x_tp_bool, combinations)
+
+cat("## FP only\n\n")
+
+print_coloc(df_x_fp_bool, combinations)
+
+```
+
+# Correlation matrices
+
+Find all features where the jaccard index (the real one, not our weird made-up
+assymetric version) is 1 (perfect overlap). Partition those features by those
+that are in combination with each other, and then compute the correlation matrix
+on these subsets after filtering missing values.
+
+```{r, include = FALSE}
+
+## ASSUME these will be the same for TP/FP/both
+perfect_overlaps <- df_x_bool %>%
+    perfect_overlapping_sets(combinations, "var.x", "var.y")
+
+print_subset_cor_plot <- function(df, subset) {
+    df %>%
+        select(all_of(subset)) %>%
+        drop_na() %>%
+        make_cor_plot() %>%
+        print()
+}
+
+print_cor_plots <- function(df, subsets) {
+    cat(sprintf("number of rows: %s\n\n", nrow(df)))
+
+    walk(as.list(subsets), ~ print_subset_cor_plot(df, .x))
+
+    cat("\n\n")
+}
+
+```
+
+```{r, echo=FALSE, results = "asis", fig.width = 7, fig.height = 7}
+
+cat("## TP and FP\n\n")
+
+print_cor_plots(df_x, perfect_overlaps)
+
+cat("## TP only\n\n")
+
+filter(df_x, df_y == "tp") %>% print_cor_plots(perfect_overlaps)
+
+cat("## FP only\n\n")
+
+filter(df_x, df_y == "fp") %>% print_cor_plots(perfect_overlaps)
 
 ```
 
@@ -136,12 +220,17 @@ Plots of all features with missing values removed.
 print_plot <- function(x, name) {
     cat(sprintf("## %s\n", name))
 
-    .x <- discard(x, is.na)
+    .df <- tibble(x = x, y = df_y) %>%
+        filter(!is.na(x))
+    .x <- .df$x
+    .y <- .df$y
 
-    if (max(.x) - min(.x) == 0) {
+    if (length(.x) == 0) {
+        cat("Feature has no values")
+    } else if (max(.x) - min(.x) == 0) {
         cat(sprintf("Feature has one value: %.1f", max(.x)))
     } else {
-        print(make_feature_distribution(.x))
+        print(make_feature_distribution(.x, .y))
     }
 
     cat("\n\n")

@@ -1,5 +1,15 @@
 rmsk_src_dir = annotations_src_dir / "repeat_masker"
 rmsk_results_dir = annotations_tsv_dir / "repeat_masker"
+rmsk_result_prefix = "repeat_masker"
+
+# TODO move this to the config
+rmsk_classes = {
+    "SINE": [],
+    "LINE": ["L1", "L2", "CR1", "RTE-X", "RTE-BovB", "Penelope", "Dong-R4"],
+    "LTR": [],
+    "Satellite": [],
+}
+
 
 # download the genoName, genoStart, genoEnd, repClass columns for this table
 rule get_repeat_masker_src:
@@ -8,33 +18,26 @@ rule get_repeat_masker_src:
     params:
         url="https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/rmsk.txt.gz",
     shell:
-        """
-        curl {params.url} | \
-        gunzip -c | \
-        cut -f6,7,8,12 \
-        > {output}
-        """
+        "curl {params.url} | gunzip -c > {output}"
 
-rmsk_classes = ["SINE", "LINE", "LTR", "Satellite"]
 
 # NOTE sorting/filtering chromosomes is done internally by this script
 rule get_repeat_masker_classes:
     input:
         rules.get_repeat_masker_src.output,
     output:
-        expand(
-            rmsk_results_dir / "repeat_masker_{cls}.tsv",
-            cls=rmsk_classes,
-        ),
+        [
+            rmsk_results_dir / ("%s_%s.tsv" % (rmsk_result_prefix, cls))
+            for cls in rmsk_classes
+        ],
+        [
+            rmsk_results_dir / ("%s_%s_%s.tsv" % (rmsk_result_prefix, cls, fam))
+            for cls, fams in rmsk_classes.items()
+            for fam in fams
+        ],
     conda:
         str(envs_dir / "bedtools.yml")
     params:
-        outdir=lambda _, output: Path(output[0]).parent,
-        classes=",".join(rmsk_classes),
-    shell:
-        """
-        python workflow/scripts/get_rmsk_classes.py \
-        -i {input} \
-        -o {params.outdir} \
-        -c {params.classes}
-        """
+        prefix=rmsk_result_prefix,
+    script:
+        str(scripts_dir / "get_rmsk_classes.py")
