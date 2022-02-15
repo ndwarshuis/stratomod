@@ -9,7 +9,7 @@ library(tidyverse)
 source("workflow/scripts/rmarkdown/common/colocalization.r")
 
 format_perc <- function(x) {
-    sprintf("%.1f", x)
+    signif(x, 3)
 }
 
 format_exp <- function(x) {
@@ -35,10 +35,10 @@ make_stats_table <- function(df) {
                   mean = mean(value, na.rm = TRUE),
                   stdev = mean(value, na.rm = TRUE),
                   range = max - min,
-                  n_NA = sum(is.na(value)),
-                  perc_NA = 100 * n_NA / n()) %>%
+                  n_present = sum(!is.na(value)),
+                  perc_present = 100 * n_present / n()) %>%
         rename(feature = key) %>%
-        mutate(perc_NA = sprintf("%.1f", perc_NA)) %>%
+        mutate(perc_present = format_perc(perc_present)) %>%
         mutate(across(c(min, max, med, mean, stdev, range), format_exp))
 }
 
