@@ -9,7 +9,7 @@ library(tidyverse)
 source("workflow/scripts/rmarkdown/common/colocalization.r")
 
 format_perc <- function(x) {
-    signif(x, 3)
+    sprintf("%.4f", x)
 }
 
 format_exp <- function(x) {
@@ -39,7 +39,8 @@ make_stats_table <- function(df) {
                   perc_present = 100 * n_present / n()) %>%
         rename(feature = key) %>%
         mutate(perc_present = format_perc(perc_present)) %>%
-        mutate(across(c(min, max, med, mean, stdev, range), format_exp))
+        mutate(across(c(min, max, med, mean, stdev, range), format_exp)) %>%
+        knitr::kable(align = "r")
 }
 
 infer_transform <- function(x) {
@@ -97,8 +98,7 @@ perc_TP <- sprintf("%.2f", 100 * N_TP / N)
 ```{r, results = "asis", echo = FALSE}
 
 df_x %>%
-    make_stats_table() %>%
-    knitr::kable()
+    make_stats_table()
 
 ```
 
@@ -108,8 +108,7 @@ df_x %>%
 
 df_x %>%
     filter(df_y == "tp") %>%
-    make_stats_table() %>%
-    knitr::kable()
+    make_stats_table()
 
 ```
 
@@ -119,8 +118,7 @@ df_x %>%
 
 df_x %>%
     filter(df_y == "fp") %>%
-    make_stats_table() %>%
-    knitr::kable()
+    make_stats_table()
 
 ```
 
