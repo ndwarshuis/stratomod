@@ -5,6 +5,8 @@ output: "html_document"
 
 ```{r, echo=FALSE, message=FALSE}
 library(tidyverse)
+library(infotheo)
+
 ## gross...
 source("workflow/scripts/rmarkdown/common/colocalization.r")
 
@@ -75,6 +77,8 @@ df_x <- df %>%
 
 df_y <- df$label
 
+features <- names(df_x)
+
 ```
 
 # Dataframe Overview
@@ -119,6 +123,94 @@ df_x %>%
 df_x %>%
     filter(df_y == "fp") %>%
     make_stats_table()
+
+```
+
+# Feature ranking
+
+For each feature, compute the mutual information between the feature and the
+label, then normalize by the entropy of the label. The resulting value can be
+interpreted as the amount of information of the label that is also in the
+feature (although the feature may have additional information outside the label
+since many features are not binary).
+
+Do this for all features when either filtering out missing values or replacing
+missing values with 0.
+
+```{r include = FALSE}
+
+information <- function(df, var1, var2) {
+    .df <- df %>%
+        select(all_of(c(var1, var2))) %>%
+        drop_na()
+    if (nrow(.df) > 0) {
+        mi <- .df %>%
+            discretize() %>%
+            mutinformation()
+        H1 <- mi[1, 1]
+        H2 <- mi[2, 2]
+        I <- mi[1, 2]
+    } else {
+        H1 <- NA
+        H2 <- NA
+        I <- NA
+    }
+    list(H1 = H1,
+         H2 = H2,
+         ## mutual information
+         I = I,
+         ## mutual information normalized to joint entropy
+         Inorm = I / (H1 + H2 - I),
+         ## mutual information normalized to the first feature
+         I_H1 = I / H1,
+         ## variation of information (if a metric is needed)
+         VI = H1 + H2 - 2 * I)
+}
+
+info_df <- function(features, df_info) {
+    features %>%
+        as.list() %>%
+        map(~ information(df_info, "label", .x)) %>%
+        tibble(i = ., param = features) %>%
+        unnest_wider(i) %>%
+        drop_na()
+}
+
+info_plot <- function(df) {
+    ggplot(df, aes(reorder(param, desc(I_H1)), I_H1)) +
+        geom_col() +
+        xlab(NULL) +
+        ylab("Mutual Inf. (Normalized to Label)") +
+        theme(axis.text.x = element_text(hjust = 1, angle = 90))
+}
+
+print_info_plot <- function(df_info, features) {
+    info_df(features, df_info) %>%
+        info_plot() %>%
+        print()
+}
+
+df_info_na <- df_x %>%
+    mutate(label = df_y == "tp")
+
+df_info_filled <- df_info_na %>%
+    mutate(across(everything(), ~ if_else(is.na(.x), 0.0, as.double(.x))))
+
+```
+
+## Replace missing with 0
+
+```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 5}
+
+print_info_plot(df_info_filled, features)
+
+```
+
+## Filter missing
+
+```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 5}
+
+print_info_plot(df_info_na, features)
 
 ```
 
