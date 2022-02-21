@@ -42,6 +42,7 @@ make_stats_table <- function(df) {
         rename(feature = key) %>%
         mutate(perc_present = format_perc(perc_present)) %>%
         mutate(across(c(min, max, med, mean, stdev, range), format_exp)) %>%
+        arrange(desc(as.numeric(perc_present))) %>%
         knitr::kable(align = "r")
 }
 
@@ -96,6 +97,8 @@ perc_TP <- sprintf("%.2f", 100 * N_TP / N)
 * Perc True Postives: `r perc_TP`
 
 # Feature Summary Tables
+
+Ranked by descending percent presence
 
 ## Combined Labels
 
