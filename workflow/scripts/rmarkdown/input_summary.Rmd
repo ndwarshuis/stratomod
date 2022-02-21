@@ -53,7 +53,7 @@ infer_transform <- function(x) {
     } else if (0 < lower) {
         tibble(identity = x, trans_log10 = log10(x))
     } else {
-        tibble(identity = x, trans_arsinh = asinh(x))
+        tibble(identity = x, trans_arsinh = asinh(x - median(x)))
     }
 }
 
