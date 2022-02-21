@@ -188,7 +188,7 @@ info_plot <- function(df) {
         geom_col() +
         xlab(NULL) +
         ylab("Mutual Inf. (Normalized to Label)") +
-        theme(axis.text.x = element_text(hjust = 1, angle = 90))
+        theme(axis.text.x = element_text(hjust = 1, vjust = 0.5, angle = 90))
 }
 
 print_info_plot <- function(df_info, features) {

@@ -39,7 +39,7 @@ make_xy_tile_plot <- function(df, x, y, metric, xlab = NULL, ylab = NULL) {
         geom_tile() +
         xlab(xlab) +
         ylab(ylab) +
-        theme(axis.text.x = element_text(angle = 90, hjust = 1),
+        theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
               legend.position = "bottom")
 }
 
