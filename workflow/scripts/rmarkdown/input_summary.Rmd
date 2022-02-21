@@ -137,15 +137,22 @@ since many features are not binary).
 Do this for all features when either filtering out missing values or replacing
 missing values with 0.
 
-```{r include = FALSE}
+```{r include = FALSE, message = FALSE }
 
 information <- function(df, var1, var2) {
     .df <- df %>%
         select(all_of(c(var1, var2))) %>%
         drop_na()
-    if (nrow(.df) > 0) {
+    n <- nrow(.df)
+    if (n > 0) {
+        nbreaks <- sqrt(n) %>% ifelse(. > 2, ., 2)
         mi <- .df %>%
-            discretize() %>%
+            ## the discretize function doesn't seem to work the way I want, so
+            ## just use 'cut' since I know what that does
+            ## discretize() %>%
+            mutate(across(everything(),
+                          ~ cut(.x, breaks = nbreaks, labels = FALSE) %>%
+                              as.vector())) %>%
             mutinformation()
         H1 <- mi[1, 1]
         H2 <- mi[2, 2]
@@ -191,7 +198,7 @@ print_info_plot <- function(df_info, features) {
 }
 
 df_info_na <- df_x %>%
-    mutate(label = df_y == "tp")
+    mutate(label = as.integer(df_y == "tp"))
 
 df_info_filled <- df_info_na %>%
     mutate(across(everything(), ~ if_else(is.na(.x), 0.0, as.double(.x))))
