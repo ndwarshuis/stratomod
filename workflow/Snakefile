@@ -28,7 +28,16 @@ def validate_interactions(config):
                 assert_present(run_name, list(run_values["features"]), ints)
 
 
+def validate_inputs(config):
+    inputs = set(config["inputs"])
+    for k, v in config["ebm_runs"].items():
+        assert set(v["inputs"]) <= inputs, (
+            "Run config %s contains invalid input keys" % k
+        )
+
+
 validate(config, "schemas/config-schema.yml")
+validate_inputs(config)
 validate_interactions(config)
 
 
@@ -54,6 +63,7 @@ include: "rules/run_ebm.smk"
 
 ################################################################################
 # main target
+
 
 rule all:
     input:
