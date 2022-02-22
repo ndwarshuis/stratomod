@@ -1,17 +1,21 @@
 # TODO this isn't being used yet
 # the VCF file to annotate and analyze via EBMs and associated metadata
 inputs:
-  HG002_DV:
-    # TODO add option to either verify the input with an MD5 or use a url
-    # vcf: HG002.hiseqx.pcr-free.40x.dedup.grch38_chr1_22.vcf
-    vcf: query.vcf.gz
+  # TODO add option to either verify the input with an MD5 or use a url
+  # vcf: HG002.hiseqx.pcr-free.40x.dedup.grch38_chr1_22.vcf
+  HG002_Illumina_DV:
+    vcf: illumina-query.vcf.gz
+    ref: GRCh38
+    benchmark: v4.2.1
+  HG002_Hifi_DV:
+    vcf: hifi-query.vcf.gz
     ref: GRCh38
     benchmark: v4.2.1
 
 # settings for each ebm run
 ebm_runs:
   no_DP_VAF_v1:
-    inputs: [HG002_DV]
+    inputs: [HG002_Illumina_DV, HG002_Hifi_DV]
     filter: [SNP, INDEL]
     ebm_settings: &ebm_settings
       split_parameters:
@@ -52,100 +56,11 @@ ebm_runs:
       mappability_low:
         feature_type: categorical
 
-  no_DP_VAF_log_v1:
-    inputs: [HG002_DV]
-    filter: [SNP, INDEL]
-    ebm_settings: *ebm_settings
-    features: &base_log_features
-      # segdups
-      alignL_max:
-        fill_na: -1
-        log_transform: true
-      fracMatchIndel_max:
-        fill_na: -1
-      alignL_count:
-        fill_na: -1
-        log_transform: true
-      # homopolymers
-      AT_homopolymer_length:
-        fill_na: -1
-        log_transform: true
-      GC_homopolymer_length:
-        fill_na: -1
-        log_transform: true
-      period_min:
-        fill_na: -1
-        log_transform: true
-      copyNum_max:
-        fill_na: -1
-        log_transform: true
-      perMatch_median:
-        fill_na: -1
-        log_transform: true
-      region_length:
-        fill_na: -1
-        log_transform: true
-      # repeat masker
-      SINE:
-        fill_na: -1
-        log_transform: true
-      LINE:
-        fill_na: -1
-        log_transform: true
-      LTR:
-        fill_na: -1
-        log_transform: true
-      Satellite:
-        fill_na: -1
-        log_transform: true
-      # mappability
-      mappability_high:
-        feature_type: categorical
-      mappability_low:
-        feature_type: categorical
-
   all_v1:
-    inputs: [HG002_DV]
+    inputs: [HG002_Illumina_DV, HG002_Hifi_DV]
     filter: [INDEL, SNP]
     ebm_settings: *ebm_settings
     features: &all_features
       <<: *base_features
       DP: {}
       VAF: {}
-
-  all_log_v1:
-    inputs: [HG002_DV]
-    filter: [INDEL, SNP]
-    ebm_settings: *ebm_settings
-    features: &all_log_features
-      <<: *base_log_features
-      DP: {}
-      VAF: {}
-
-  no_DP_VAF_int_v1:
-    inputs: [HG002_DV]
-    filter: [INDEL, SNP]
-    ebm_settings: *ebm_settings
-    features: *base_features
-    interactions: 10
-
-  no_DP_VAF_log_int_v1:
-    inputs: [HG002_DV]
-    filter: [SNP, INDEL]
-    ebm_settings: *ebm_settings
-    features: *base_log_features
-    interactions: 10
-
-  all_int_v1:
-    inputs: [HG002_DV]
-    filter: [SNP, INDEL]
-    ebm_settings: *ebm_settings
-    features: *all_features
-    interactions: 10
-
-  all_log_int_v1:
-    inputs: [HG002_DV]
-    filter: [SNP, INDEL]
-    ebm_settings: *ebm_settings
-    features: *all_log_features
-    interactions: 10
