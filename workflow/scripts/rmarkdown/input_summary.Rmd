@@ -1,0 +1,375 @@
+---
+title: "Dataframe Summary"
+output: "html_document"
+---
+
+```{r, echo=FALSE, message=FALSE}
+library(tidyverse)
+library(infotheo)
+
+## gross...
+source("workflow/scripts/rmarkdown/common/colocalization.r")
+
+format_perc <- function(x) {
+    sprintf("%.4f", x)
+}
+
+format_exp <- function(x) {
+    sprintf("%.1e", x)
+}
+
+read_tsv <- function(path) {
+    read.csv(path, sep = "\t", na.strings = c(".")) %>%
+        as_tibble()
+}
+
+eval_nowarn <- function(f, xs) {
+    .xs <- discard(xs, is.na)
+    ifelse(length(.xs) == 0, NA, f(.xs))
+}
+
+make_stats_table <- function(df) {
+    gather(df) %>%
+        group_by(key) %>%
+        summarize(min = eval_nowarn(min, value),
+                  max = eval_nowarn(max, value),
+                  med = median(value, na.rm = TRUE),
+                  mean = mean(value, na.rm = TRUE),
+                  stdev = mean(value, na.rm = TRUE),
+                  range = max - min,
+                  n_present = sum(!is.na(value)),
+                  perc_present = 100 * n_present / n()) %>%
+        rename(feature = key) %>%
+        mutate(perc_present = format_perc(perc_present)) %>%
+        mutate(across(c(min, max, med, mean, stdev, range), format_exp)) %>%
+        arrange(desc(as.numeric(perc_present))) %>%
+        knitr::kable(align = "r")
+}
+
+infer_transform <- function(x) {
+    lower <- min(x)
+    upper <- max(x)
+    if (0 <= lower && upper <= 1) {
+        tibble(identity = x)
+    } else if (0 < lower) {
+        tibble(identity = x, trans_log10 = log10(x))
+    } else {
+        tibble(identity = x, trans_arsinh = asinh(x - median(x)))
+    }
+}
+
+make_feature_distribution <- function(x, labels) {
+    infer_transform(x) %>%
+        mutate(label = labels) %>%
+        gather(-label, key = key, value = value) %>%
+        ggplot() +
+        aes(value, color = label) +
+        geom_density() +
+        xlab(NULL) +
+        ylab(NULL) +
+        facet_wrap(~key, scales = "free")
+}
+
+df <- read_tsv(snakemake@input[[1]])
+
+df_x <- df %>%
+    select(-label) %>%
+    select(-CHROM, -POS, -POS.length.REF., -FILTER, -GT, -GQ)
+
+df_y <- df$label
+
+features <- names(df_x)
+
+```
+
+# Dataframe Overview
+
+```{r, echo=FALSE}
+N <- length(df_y)
+P <- length(names(df_x))
+N_TP <- length(keep(df_y, ~ .x == "tp"))
+perc_TP <- sprintf("%.2f", 100 * N_TP / N)
+```
+
+* N Rows: `r N`
+* N Features: `r P`
+* N True Positives: `r N_TP`
+* Perc True Postives: `r perc_TP`
+
+# Feature Summary Tables
+
+Ranked by descending percent presence
+
+## Combined Labels
+
+```{r, results = "asis", echo = FALSE}
+
+df_x %>%
+    make_stats_table()
+
+```
+
+## TP Label
+
+```{r, results = "asis", echo = FALSE}
+
+df_x %>%
+    filter(df_y == "tp") %>%
+    make_stats_table()
+
+```
+
+## FP Label
+
+```{r, results = "asis", echo = FALSE}
+
+df_x %>%
+    filter(df_y == "fp") %>%
+    make_stats_table()
+
+```
+
+# Feature ranking
+
+For each feature, compute the mutual information between the feature and the
+label, then normalize by the entropy of the label. The resulting value can be
+interpreted as the amount of information of the label that is also in the
+feature (although the feature may have additional information outside the label
+since many features are not binary).
+
+Do this for all features when either filtering out missing values or replacing
+missing values with 0.
+
+```{r include = FALSE, message = FALSE }
+
+information <- function(df, var1, var2) {
+    .df <- df %>%
+        select(all_of(c(var1, var2))) %>%
+        drop_na()
+    n <- nrow(.df)
+    if (n > 0) {
+        nbreaks <- sqrt(n) %>% ifelse(. > 2, ., 2)
+        mi <- .df %>%
+            ## the discretize function doesn't seem to work the way I want, so
+            ## just use 'cut' since I know what that does
+            ## discretize() %>%
+            mutate(across(everything(),
+                          ~ cut(.x, breaks = nbreaks, labels = FALSE) %>%
+                              as.vector())) %>%
+            mutinformation()
+        H1 <- mi[1, 1]
+        H2 <- mi[2, 2]
+        I <- mi[1, 2]
+    } else {
+        H1 <- NA
+        H2 <- NA
+        I <- NA
+    }
+    list(H1 = H1,
+         H2 = H2,
+         ## mutual information
+         I = I,
+         ## mutual information normalized to joint entropy
+         Inorm = I / (H1 + H2 - I),
+         ## mutual information normalized to the first feature
+         I_H1 = I / H1,
+         ## variation of information (if a metric is needed)
+         VI = H1 + H2 - 2 * I)
+}
+
+info_df <- function(features, df_info) {
+    features %>%
+        as.list() %>%
+        map(~ information(df_info, "label", .x)) %>%
+        tibble(i = ., param = features) %>%
+        unnest_wider(i) %>%
+        drop_na()
+}
+
+info_plot <- function(df) {
+    ggplot(df, aes(reorder(param, desc(I_H1)), I_H1)) +
+        geom_col() +
+        xlab(NULL) +
+        ylab("Mutual Inf. (Normalized to Label)") +
+        theme(axis.text.x = element_text(hjust = 1, vjust = 0.5, angle = 90))
+}
+
+print_info_plot <- function(df_info, features) {
+    info_df(features, df_info) %>%
+        info_plot() %>%
+        print()
+}
+
+df_info_na <- df_x %>%
+    mutate(label = as.integer(df_y == "tp"))
+
+df_info_filled <- df_info_na %>%
+    mutate(across(everything(), ~ if_else(is.na(.x), 0.0, as.double(.x))))
+
+```
+
+## Replace missing with 0
+
+```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 5}
+
+print_info_plot(df_info_filled, features)
+
+```
+
+## Filter missing
+
+```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 5}
+
+print_info_plot(df_info_na, features)
+
+```
+
+# Colocalization Matrices
+
+Convert all features into binary values (TRUE is "not missing") then calculate
+the "assymmetric jaccard index" for all feature pairs.
+
+Formula for assymetric jaccard index for sets $A$ and $B$:
+
+$$j = \frac{\lvert A \cap B \rvert}{\lvert A \rvert}$$
+
+Plot interpretation: Given feature $A$ on the x axis and feature $B$ on the
+y axis, $B$ overlaps with $A$ according to the value of their intersecting
+cell.
+
+```{r, include = FALSE}
+
+ajaccard_combinations <- function(df_bool, comb_df) {
+}
+
+print_coloc <- function(df_bool, comb_df) {
+    mutate(comb_df, asymm_jaccard = ajaccard(df_bool, var.x, var.y)) %>%
+        make_xy_tile_plot("var.x",
+                          "var.y",
+                          "asymm_jaccard",
+                          "starting set",
+                          "overlapping set") %>%
+        print()
+
+    cat("\n\n")
+}
+
+combinations <- df_x %>%
+    names() %>%
+    cross_tibble()
+
+df_x_bool <- to_binary(df_x)
+df_x_tp_bool <- filter(df_x, df_y == "tp") %>% to_binary()
+df_x_fp_bool <- filter(df_x, df_y == "fp") %>% to_binary()
+
+```
+
+```{r, echo=F, results = "asis", fig.width = 10, fig.height = 10}
+
+cat("## TP and FP\n\n")
+
+print_coloc(df_x_bool, combinations)
+
+cat("## TP only\n\n")
+
+print_coloc(df_x_tp_bool, combinations)
+
+cat("## FP only\n\n")
+
+print_coloc(df_x_fp_bool, combinations)
+
+```
+
+# Correlation matrices
+
+Find all features where the jaccard index (the real one, not our weird made-up
+assymetric version) is 1 (perfect overlap). Partition those features by those
+that are in combination with each other, and then compute the correlation matrix
+on these subsets after filtering missing values.
+
+```{r, include = FALSE}
+
+## ASSUME these will be the same for TP/FP/both
+perfect_overlaps <- df_x_bool %>%
+    perfect_overlapping_sets(combinations, "var.x", "var.y")
+
+print_subset_cor_plot <- function(df, subset) {
+    df %>%
+        select(all_of(subset)) %>%
+        drop_na() %>%
+        make_cor_plot() %>%
+        print()
+}
+
+print_cor_plots <- function(df, subsets) {
+    cat(sprintf("number of rows: %s\n\n", nrow(df)))
+
+    walk(as.list(subsets), ~ print_subset_cor_plot(df, .x))
+
+    cat("\n\n")
+}
+
+```
+
+```{r, echo=FALSE, results = "asis", fig.width = 7, fig.height = 7}
+
+cat("## TP and FP\n\n")
+
+print_cor_plots(df_x, perfect_overlaps)
+
+cat("## TP only\n\n")
+
+filter(df_x, df_y == "tp") %>% print_cor_plots(perfect_overlaps)
+
+cat("## FP only\n\n")
+
+filter(df_x, df_y == "fp") %>% print_cor_plots(perfect_overlaps)
+
+```
+
+# Feature distributions
+
+Plots of all features with missing values removed.
+
+The following transforms were used:
+
+- log10: `log(x, 10)`
+- arsinh: `arsinh(x)`
+
+Transforms were used depending on the domain of the input vector:
+
+- 0 to 1 (inclusive): no transform
+- greater than 0: log10
+- all reals: arsinh
+
+```{r, echo=FALSE, results="asis", fig.width=8, fig.height=4}
+
+print_plot <- function(x, name) {
+    cat(sprintf("## %s\n\n", name))
+
+
+    .df <- tibble(x = x, y = df_y) %>%
+        filter(!is.na(x))
+
+    .tp <- filter(.df, y == "tp")
+    .fp <- filter(.df, y == "fp")
+    
+    cat(sprintf("number of TP/FP points: %d/%d\n\n", nrow(.tp), nrow(.fp)))
+
+    .x <- .df$x
+    .y <- .df$y
+
+    if (length(.x) == 0) {
+        cat("Feature has no values")
+    } else if (max(.x) - min(.x) == 0) {
+        cat(sprintf("Feature has one value: %.1f", max(.x)))
+    } else {
+        print(make_feature_distribution(.x, .y))
+    }
+
+    cat("\n\n")
+}
+
+iwalk(df_x, ~ print_plot(.x, .y))
+
+```

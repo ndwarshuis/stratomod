@@ -28,7 +28,16 @@ def validate_interactions(config):
                 assert_present(run_name, list(run_values["features"]), ints)
 
 
+def validate_inputs(config):
+    inputs = set(config["inputs"])
+    for k, v in config["ebm_runs"].items():
+        assert set(v["inputs"]) <= inputs, (
+            "Run config %s contains invalid input keys" % k
+        )
+
+
 validate(config, "schemas/config-schema.yml")
+validate_inputs(config)
 validate_interactions(config)
 
 
@@ -37,6 +46,7 @@ validate_interactions(config)
 
 # this is necessary as envs are apparently resolved locally in each rule file
 envs_dir = Path("workflow/envs").resolve()
+scripts_dir = Path("workflow/scripts").resolve()
 
 conf_paths = config["paths"]
 resources_dir = Path(conf_paths["resources"])
@@ -46,31 +56,16 @@ results_dir = Path(conf_paths["results"])
 # import subworkflows
 
 
-include: "rules/download_resources.smk"
 include: "rules/annotations/get_annotations.smk"
-include: "rules/label_vcf.smk"
+include: "rules/labels/get_labels.smk"
 include: "rules/run_ebm.smk"
 
 
 ################################################################################
 # main target
 
-run_keys, input_keys, filter_keys = unzip(
-    [
-        (k, i, f)
-        for k, v in config["ebm_runs"].items()
-        for f in v["filter"]
-        for i in v["inputs"]
-    ]
-)
-
 
 rule all:
     input:
-        expand(
-            rules.train_ebm.output,
-            zip,
-            run_key=[*run_keys],
-            input_key=[*input_keys],
-            filter_key=[*filter_keys],
-        ),
+        rules.all_summary.input,
+        rules.all_ebm.input,

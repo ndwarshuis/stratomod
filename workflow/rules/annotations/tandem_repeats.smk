@@ -19,10 +19,5 @@ rule get_simple_reps:
         tandem_repeats_results_dir / "merged_simreps.tsv",
     conda:
         str(envs_dir / "bedtools.yml")
-    shell:
-        """
-        python workflow/scripts/get_simple_repeats.py \
-        -i {input.src} \
-        -g {input.genome} \
-        -o {output}
-        """
+    script:
+        str(scripts_dir / "get_simple_repeats.py") 

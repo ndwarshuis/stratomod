@@ -1,17 +1,13 @@
-import argparse
 import random
 import pickle
-import json
 import yaml
 from os.path import join
 from dash import html
 from interpret import set_visualize_provider
 from interpret.provider import InlineProvider
-import pandas as pd
 from sklearn.model_selection import train_test_split
 from interpret.glassbox import ExplainableBoostingClassifier
 from common.tsv import read_tsv
-from common.cli import add_input_arg, add_config_arg
 
 MODEL_FILE = "model.pickle"
 TRAIN_X_FILE = "train_x.pickle"
@@ -19,20 +15,6 @@ TEST_X_FILE = "test_x.pickle"
 TRAIN_Y_FILE = "train_y.pickle"
 TEST_Y_FILE = "test_y.pickle"
 CONFIG_FILE = "config.yml"
-
-
-def make_parser():
-    parser = argparse.ArgumentParser(description="Train an EBM model.")
-    add_input_arg("the training dataframe", parser)
-    parser.add_argument(
-        "-o",
-        "--output_dir",
-        type=str,
-        required=True,
-        help="the output directory in which the trained results will be written",
-    )
-    add_config_arg("the configuration to use for training", parser)
-    return parser
 
 
 def write_pickle(path, obj):
@@ -93,12 +75,12 @@ def dump_config(config, outdir):
 
 
 def main():
-    args = make_parser().parse_args()
-    config = json.loads(args.config)
-    df = read_tsv(args.input)
+    params = snakemake.params
+    ifile = snakemake.input[0]
+    df = read_tsv(ifile)
     # TODO don't hardcode the label
-    train_ebm(config, "label", args.output_dir, df)
-    dump_config(config, args.output_dir)
+    train_ebm(params.config, "label", params.out_dir, df)
+    dump_config(params.config, params.out_dir)
 
 
 main()
