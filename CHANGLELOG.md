@@ -1,3 +1,7 @@
+# 1.1.1-2
+
+- fix colors/ranges on correlation plots
+
 # 1.1.0-2
 
 - add input dataframe summaries
