@@ -49,7 +49,8 @@ make_cor_plot <- function(df) {
         cor() %>%
         as_tibble(rownames = "var1") %>%
         gather(-var1, key = var2, value = r) %>%
-        make_xy_tile_plot("var1", "var2", "r")
+        make_xy_tile_plot("var1", "var2", "r") +
+        scale_fill_gradient2(low = "red", mid = "black", high = "green")
 }
 
 ## Given a 'df' and two variables 'var1' and 'var2' return the subsets whose
