@@ -14,53 +14,42 @@ inputs:
 
 # settings for each ebm run
 ebm_runs:
-  no_DP_VAF_v1:
+  small_set_v1:
     inputs: [HG002_Illumina_DV, HG002_Hifi_DV]
     filter: [SNP, INDEL]
     ebm_settings: &ebm_settings
       split_parameters:
         test_size: 0.2
     features: &base_features
-      # segdups
-      alignL_max:
-        fill_na: -1
-      fracMatchIndel_max:
-        fill_na: -1
-      alignL_count:
-        fill_na: -1
+      # core
+      VAF: {}
+      DP: {}
+      indel_length: {}
       # homopolymers
-      AT_homopolymer_length:
-        fill_na: -1
-      GC_homopolymer_length:
-        fill_na: -1
-      period_min:
-        fill_na: -1
-      copyNum_max:
-        fill_na: -1
-      perMatch_median:
-        fill_na: -1
-      region_length:
+      AT_homopolymer_length: {}
+      GC_homopolymer_length: {}
+      # tandem repeats
+      period_max: {}
+      copyNum_max: {}
+      perMatch_min: {}
+      score_max: {}
+      AT_med:
         fill_na: -1
       # repeat masker
-      SINE:
-        fill_na: -1
-      LINE:
-        fill_na: -1
-      LTR:
-        fill_na: -1
-      Satellite:
-        fill_na: -1
+      SINE: {}
+
+  large_set_v1:
+    inputs: [HG002_Illumina_DV, HG002_Hifi_DV]
+    filter: [INDEL, SNP]
+    ebm_settings: *ebm_settings
+    features:
+      <<: *base_features
       # mappability
       mappability_high:
         feature_type: categorical
       mappability_low:
         feature_type: categorical
-
-  all_v1:
-    inputs: [HG002_Illumina_DV, HG002_Hifi_DV]
-    filter: [INDEL, SNP]
-    ebm_settings: *ebm_settings
-    features: &all_features
-      <<: *base_features
-      DP: {}
-      VAF: {}
+      # segdups
+      alignL_max: {}
+      fracMatchIndel_mean: {}
+      fracMatchIndel_count: {}
