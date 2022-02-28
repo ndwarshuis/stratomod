@@ -1,3 +1,9 @@
+# 1.1.1-3
+
+- remove all log transform stuff from config (we probably don't need this)
+- remove all intersections from config (too complex at this point)
+- add precision FDA VCF as input to compare with the Illumna VCF
+
 # 1.1.1-2
 
 - fix colors/ranges on correlation plots
