@@ -142,7 +142,7 @@ rule summarize_ebm:
     input:
         **rules.train_ebm.output,
     output:
-        ebm_dir / "model_summary.pdf",
+        ebm_dir / "model_summary.html",
     conda:
         str(envs_dir / "ebm.yml")
     script:
