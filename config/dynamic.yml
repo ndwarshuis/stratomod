@@ -33,7 +33,7 @@ ebm_runs:
       copyNum_max: {}
       perMatch_min: {}
       score_max: {}
-      AT_med:
+      AT_median:
         fill_na: -1
       # repeat masker
       SINE: {}
