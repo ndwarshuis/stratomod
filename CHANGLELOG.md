@@ -1,3 +1,7 @@
+# 1.1.2-3
+
+- fix html output for models
+
 # 1.1.1-3
 
 - remove all log transform stuff from config (we probably don't need this)
