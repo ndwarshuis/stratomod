@@ -1,3 +1,7 @@
+# 1.2.0-3
+
+- add transformed univariate model plots
+
 # 1.1.2-3
 
 - fix html output for models
