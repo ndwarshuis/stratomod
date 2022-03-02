@@ -7,6 +7,8 @@ output: "html_document"
 library(reticulate)
 library(tidyverse)
 
+source("workflow/scripts/rmarkdown/common/plots.r")
+
 # python doesn't know how to read the snakemake object, so give it a little bump
 ebm <- snakemake@input[["model"]]
 test_x <- snakemake@input[["test_x"]]
@@ -142,13 +144,17 @@ univariate_dfs = {
 
 ```
 
-```{r, echo = FALSE, results = "asis", fig.width = 6, fig.height = 3}
+```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 4}
 
 make_continuous_plot <- function(df, name) {
-    ggplot(df, aes(names, scores)) +
+    infer_transform(df$names) %>%
+        mutate(scores = df$scores) %>%
+        gather(-scores, key = trans, value = x) %>%
+        ggplot(aes(x, scores)) +
         geom_step() +
         xlab(name) +
-        ylab("Score")
+        ylab("Score") +
+        facet_wrap(~trans, scales = "free")
 }
 
 make_categorical_plot <- function(df, name) {
