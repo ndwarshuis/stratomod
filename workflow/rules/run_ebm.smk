@@ -142,11 +142,13 @@ rule summarize_ebm:
     input:
         **rules.train_ebm.output,
     output:
-        ebm_dir / "model_summary.html",
+        model = ebm_dir / "model.json",
+        predictions = ebm_dir / "predictions.csv",
     conda:
         str(envs_dir / "ebm.yml")
     script:
-        str(scripts_dir / "rmarkdown" / "model_summary.Rmd")
+        # str(scripts_dir / "rmarkdown" / "model_summary.Rmd")
+        str(scripts_dir / "decompose_model.py")
 
 
 def all_ebm_files():
