@@ -5,6 +5,8 @@ inputs_dir = resources_dir / "inputs"
 label_dir = results_dir / "labels" / "{input_key}"
 rtg_dir = label_dir / "rtg"
 
+labels = ["fp", "fn", "tp"]
+
 
 include: "download_resources.smk"
 
@@ -80,8 +82,7 @@ rule get_vcf_labels:
         # not used on CLI but still needed
         query_tbi=rules.index_vcf.output,
     output:
-        tp=rtg_dir / "tp.vcf.gz",
-        fp=rtg_dir / "fp.vcf.gz",
+        [rtg_dir / ("%s.vcf.gz" % lbl) for lbl in labels]
     conda:
         str(envs_dir / "rtg.yml")
     params:
@@ -127,22 +128,26 @@ rule parse_label_vcf:
         --output {output}
         """
 
-
 rule concat_tsv_files:
     input:
-        **{
-            k: expand(rules.parse_label_vcf.output, label=k, allow_missing=True)
-            for k in ["tp", "fp"]
-        },
+        expand(rules.parse_label_vcf.output, label=labels, allow_missing=True)
     output:
         label_dir / "{filter_key}_labeled.tsv",
-    shell:
-        """
-        tail -n+2 {input.tp} | \
-        cat {input.fp} - | \
-        python workflow/scripts/sort_and_filter_bed.py --header \
-        > {output}
-        """
+    run:
+        import pandas as pd
+        import workflow.scripts.common.tsv
+        import workflow.scripts.common.bed
+        # use pandas here since it will more reliably account for headers
+        df = pd.concat([read_tsv(i, header=0) for i in input])
+        write_tsv(output, sort_bed_numerically(df))
+    # shell:
+    #     """
+    #     tail -n+2 {input[0]} | \
+    #     cat {input[1]} - | \
+    #     cat {input[2]} - | \
+    #     python workflow/scripts/sort_and_filter_bed.py --header \
+    #     > {output}
+    #     """
 
 
 ## TODO add filtering rules here if we wish
