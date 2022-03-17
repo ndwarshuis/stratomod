@@ -10,6 +10,10 @@ from interpret.provider import InlineProvider
 from interpret.glassbox import ExplainableBoostingClassifier
 from interpret import show
 
+# TODO some of these imports probably aren't actually needed
+# TODO also, there is no reason this can't be done immediately after training
+# just to avoid the pickle thing
+
 
 def read_pickle(path):
     with open(path, "rb") as f:
@@ -116,9 +120,14 @@ def get_model_dict(ebm):
     }
 
 
-def write_predictions(ebm, X_test):
-    y_pred = pd.DataFrame(ebm.predict_proba(X_test)[::, 1])
-    y_pred.to_csv(snakemake.output["predictions"])
+def write_predictions(ebm, X_test, y_test):
+    y_pred = pd.DataFrame(
+        {
+            "prob": ebm.predict_proba(X_test)[::, 1],
+            "label": y_test["label"],
+        }
+    )
+    y_pred.to_csv(snakemake.output["predictions"], index=False)
 
 
 def write_model_json(ebm):
@@ -128,8 +137,9 @@ def write_model_json(ebm):
 
 def main():
     ebm = read_pickle(snakemake.input["model"])
-    X_test = read_pickle(snakemake.input["test_x"])
-    write_predictions(ebm, X_test)
+    X_test = pd.read_csv(snakemake.input["test_x"])
+    y_test = pd.read_csv(snakemake.input["test_y"])
+    write_predictions(ebm, X_test, y_test)
     write_model_json(ebm)
 
 

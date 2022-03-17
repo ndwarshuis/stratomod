@@ -1,7 +1,6 @@
 import random
 import pickle
 import yaml
-from os.path import join
 from dash import html
 from interpret import set_visualize_provider
 from interpret.provider import InlineProvider
@@ -9,17 +8,19 @@ from sklearn.model_selection import train_test_split
 from interpret.glassbox import ExplainableBoostingClassifier
 from common.tsv import read_tsv
 
-MODEL_FILE = "model.pickle"
-TRAIN_X_FILE = "train_x.pickle"
-TEST_X_FILE = "test_x.pickle"
-TRAIN_Y_FILE = "train_y.pickle"
-TEST_Y_FILE = "test_y.pickle"
-CONFIG_FILE = "config.yml"
 
-
-def write_pickle(path, obj):
-    with open(path, "wb") as f:
+def write_model(obj):
+    with open(snakemake.output["model"], "wb") as f:
         pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+
+
+def write_csv(key, df):
+    df.to_csv(snakemake.output[key], header=True, index=False)
+
+
+def dump_config(config):
+    with open(snakemake.output["config"], "w") as f:
+        yaml.dump(config, f)
 
 
 def get_interactions(df_columns, iconfig):
@@ -29,7 +30,7 @@ def get_interactions(df_columns, iconfig):
     return [[df_columns.index(n) for n in names] for names in iconfig]
 
 
-def train_ebm(config, label, outdir, df):
+def train_ebm(config, label, df):
     features = config["features"]
     misc_params = config["ebm_settings"]["misc_parameters"]
 
@@ -62,25 +63,19 @@ def train_ebm(config, label, outdir, df):
     )
     ebm.fit(X_train, y_train)
 
-    write_pickle(join(outdir, MODEL_FILE), ebm)
-    write_pickle(join(outdir, TRAIN_X_FILE), X_train)
-    write_pickle(join(outdir, TRAIN_Y_FILE), y_train)
-    write_pickle(join(outdir, TEST_X_FILE), X_test)
-    write_pickle(join(outdir, TEST_Y_FILE), y_test)
-
-
-def dump_config(config, outdir):
-    with open(join(outdir, CONFIG_FILE), "w") as f:
-        yaml.dump(config, f)
+    write_model(ebm)
+    write_csv("train_x", X_train)
+    write_csv("train_y", y_train)
+    write_csv("test_x", X_test)
+    write_csv("test_y", y_test)
 
 
 def main():
     params = snakemake.params
-    ifile = snakemake.input[0]
-    df = read_tsv(ifile)
+    df = read_tsv(snakemake.input[0])
     # TODO don't hardcode the label
-    train_ebm(params.config, "label", params.out_dir, df)
-    dump_config(params.config, params.out_dir)
+    train_ebm(params.config, "label", df)
+    dump_config(params.config)
 
 
 main()
