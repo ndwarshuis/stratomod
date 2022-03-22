@@ -60,13 +60,12 @@ def lookup_input(wildcards, *args):
 
 
 def get_truth_inputs(wildcards):
-    out = rules.get_bench.output
     return {
         key: expand(path, bench_key=lookup_input(wildcards, "benchmark"))
         for key, path in [
-            ("truth_vcf", out.vcf),
-            ("truth_bed", out.bed),
-            ("truth_tbi", out.tbi),
+            ("truth_vcf", rules.fix_bench_vcf.output),
+            ("truth_bed", rules.get_bench.output.bed),
+            ("truth_tbi", rules.get_bench.output.tbi),
         ]
     }
 

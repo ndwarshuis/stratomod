@@ -75,3 +75,19 @@ rule get_bench:
         for key, path in output.items():
             url = lookup_benchmark(wildcards, "%s_url" % key)
             shell("curl -o %s %s" % (path, url))
+
+# the v4.2.1 bench version has an error where the format field don't line up
+rule fix_bench_vcf:
+    input:
+        rules.get_bench.output.vcf
+    output:
+        bench_dir / "{bench_key}_fixed.vcf"
+    conda:
+        str(envs_dir / "samtools.yml")
+    shell:
+        """
+        gunzip -c {input} | \
+        sed -e 's/GT:AD:PS/GT:PS/' | \
+        bgzip -c > {output}
+        """
+
