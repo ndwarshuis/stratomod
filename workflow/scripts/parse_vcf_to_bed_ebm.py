@@ -19,6 +19,11 @@ f_out.write(
 )
 f_out.flush()
 
+
+def lookup_maybe(d, k):
+    return d[k] if k in d else "NaN"
+
+
 # TODO different VCFs have different fields, we want to have DP and VAF almost
 # always, can (almost always) just use the AD field to get the VAF
 for line in lines:
@@ -48,13 +53,19 @@ for line in lines:
     if args.type == "SNP" and not (ref_length == alt_length == 1):
         continue
     indel_length = alt_length - ref_length
-    filter = split_line[6]
-    sample = split_line[9]
-    sample_split = sample.split(":")
-    GT = sample_split[0]
-    GQ = sample_split[1]
-    DP = sample_split[2]
-    VAF = sample_split[4]
+    filt = split_line[6]
+    fmt = split_line[8].split(":")
+    # rstrip the newline off at the end
+    sample = split_line[9].rstrip().split(":")
+    if len(fmt) != len(sample):
+        print(
+            "WARNING: FORMAT/SAMPLE have different cardinality: {} {} {}".format(
+                chrom, start, end
+            )
+        )
+        continue
+
+    named_sample = {f: s for f, s in zip(fmt, sample)}
     pos_plus_length_ref = int(pos) + len(alt)
     to_write_out = (
         chrom
@@ -63,15 +74,15 @@ for line in lines:
         + "\t"
         + str(pos_plus_length_ref)
         + "\t"
-        + filter
+        + filt
         + "\t"
-        + GT
+        + lookup_maybe(named_sample, "GT")
         + "\t"
-        + GQ
+        + lookup_maybe(named_sample, "GQ")
         + "\t"
-        + DP
+        + lookup_maybe(named_sample, "DP")
         + "\t"
-        + VAF
+        + lookup_maybe(named_sample, "VAF")
         + "\t"
         + str(indel_length)
         + "\t"

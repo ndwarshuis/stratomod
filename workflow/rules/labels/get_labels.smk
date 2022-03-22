@@ -132,21 +132,8 @@ rule concat_tsv_files:
         expand(rules.parse_label_vcf.output, label=labels, allow_missing=True)
     output:
         label_dir / "{filter_key}_labeled.tsv",
-    run:
-        import pandas as pd
-        import workflow.scripts.common.tsv
-        import workflow.scripts.common.bed
-        # use pandas here since it will more reliably account for headers
-        df = pd.concat([read_tsv(i, header=0) for i in input])
-        write_tsv(output, sort_bed_numerically(df))
-    # shell:
-    #     """
-    #     tail -n+2 {input[0]} | \
-    #     cat {input[1]} - | \
-    #     cat {input[2]} - | \
-    #     python workflow/scripts/sort_and_filter_bed.py --header \
-    #     > {output}
-    #     """
+    script:
+        str(scripts_dir / "concat_tsv.py")
 
 
 ## TODO add filtering rules here if we wish
