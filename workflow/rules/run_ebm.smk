@@ -119,32 +119,43 @@ rule train_ebm:
         rules.postprocess_output.output,
     output:
         **{
-            n: str((ebm_dir / n).with_suffix(".pickle"))
+            n: str((ebm_dir / n).with_suffix(".csv"))
             for n in [
-                "model",
                 "train_x",
                 "train_y",
                 "test_x",
                 "test_y",
             ]
         },
+        model=ebm_dir / "model.pickle",
         config=ebm_dir / "config.yml",
     params:
         config=lambda wildcards: lookup_ebm_run(wildcards),
-        out_dir=str(ebm_dir),
     conda:
         str(envs_dir / "ebm.yml")
     script:
         str(scripts_dir / "run_ebm.py")
 
 
-rule summarize_ebm:
+rule decompose_ebm:
     input:
         **rules.train_ebm.output,
     output:
-        ebm_dir / "model_summary.html",
+        model=ebm_dir / "model.json",
+        predictions=ebm_dir / "predictions.csv",
     conda:
         str(envs_dir / "ebm.yml")
+    script:
+        str(scripts_dir / "decompose_model.py")
+
+
+rule summarize_ebm:
+    input:
+        **rules.decompose_ebm.output,
+    output:
+        ebm_dir / "summary.html",
+    conda:
+        str(envs_dir / "rmarkdown.yml")
     script:
         str(scripts_dir / "rmarkdown" / "model_summary.Rmd")
 

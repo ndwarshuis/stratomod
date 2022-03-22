@@ -1,3 +1,7 @@
+# 1.3.0-3
+
+- make ebm reporting more modular
+
 # 1.2.0-3
 
 - add transformed univariate model plots
