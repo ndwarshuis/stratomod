@@ -1,6 +1,7 @@
 from os.path import dirname
 
 bench_dir = resources_dir / "bench"
+fixed_bench_dir = results_dir / "bench"
 ref_dir = resources_dir / "reference"
 
 
@@ -77,17 +78,19 @@ rule get_bench:
             shell("curl -o %s %s" % (path, url))
 
 # the v4.2.1 bench version has an error where the format field don't line up
-rule fix_bench_vcf:
+rule fix_bench:
     input:
         rules.get_bench.output.vcf
     output:
-        bench_dir / "{bench_key}_fixed.vcf"
+        vcf=fixed_bench_dir / "{bench_key}.vcf.gz",
+        tbi=fixed_bench_dir / "{bench_key}.vcf.gz.tbi"
     conda:
         str(envs_dir / "samtools.yml")
     shell:
         """
         gunzip -c {input} | \
         sed -e 's/GT:AD:PS/GT:PS/' | \
-        bgzip -c > {output}
+        bgzip -c > {output.vcf}
+        
+        tabix -p vcf {output.vcf}
         """
-
