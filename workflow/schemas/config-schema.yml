@@ -49,6 +49,16 @@ properties:
             description: the vcf to use for this input
             type: string
 
+          chr_filter:
+            description: |
+              A list of chromosomes filter when running all analyses. Empty
+              list means include all chromosomes.
+            type: array
+            uniqueItems: true
+            items:
+              type: string
+            default: []
+
 ################################################################################
 # resources
 

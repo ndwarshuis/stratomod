@@ -1,11 +1,26 @@
+from functools import partial
 from scripts.common.config import lookup_config
 
 inputs_dir = resources_dir / "inputs"
 
 label_dir = results_dir / "labels" / "{input_key}"
+alt_bench_dir = results_dir / "bench" / "{input_key}"
 rtg_dir = label_dir / "rtg"
 
 labels = ["fp", "fn", "tp"]
+
+
+def lookup_input(wildcards, *args):
+    return lookup_config(config, "inputs", wildcards.input_key, *args)
+
+
+def lookup_chr_filter(wildcards):
+    # make something that looks like 'chr1\b\|chr2\b...'
+    return "\\|".join([f + "\\b" for f in lookup_input(wildcards, "chr_filter")])
+
+
+def lookup_input_bench(path, wildcards):
+    return expand(path, bench_key=lookup_input(wildcards, "benchmark"))
 
 
 include: "download_resources.smk"
@@ -44,6 +59,51 @@ rule index_vcf:
         "tabix -p vcf {input}"
 
 
+rule filter_query_vcf:
+    input:
+        rules.preprocess_vcf.output,
+    output:
+        vcf=label_dir / "query_filtered.vcf.gz",
+        tbi=label_dir / "query_filtered.vcf.gz.tbi",
+    params:
+        filt=lookup_chr_filter,
+    conda:
+        str(envs_dir / "samtools.yml")
+    shell:
+        """
+        gunzip -c {input} | \
+        sed -n '/^\(#\|{params.filt}\)/p' | \
+        bgzip -c > {output.vcf}
+
+        tabix -p vcf {output.vcf}
+        """
+
+
+################################################################################
+# bench preprocessing
+
+
+use rule filter_query_vcf as filter_bench_vcf with:
+    input:
+        partial(lookup_input_bench, rules.get_bench_vcf.output),
+    output:
+        vcf=alt_bench_dir / "filtered.vcf.gz",
+        tbi=alt_bench_dir / "filtered.vcf.gz.tbi",
+
+
+rule filter_bench_bed:
+    input:
+        partial(lookup_input_bench, rules.get_bench_bed.output),
+    output:
+        alt_bench_dir / "filtered.bed",
+    params:
+        filt=lookup_chr_filter,
+    shell:
+        """
+        sed -n '/^\(#\|{params.filt}\)/p' {input} > {output}
+        """
+
+
 ################################################################################
 # VCF -> tsv
 
@@ -55,33 +115,57 @@ rule index_vcf:
 # for this
 
 
-def lookup_input(wildcards, *args):
-    return lookup_config(config, "inputs", wildcards.input_key, *args)
-
-
 def get_truth_inputs(wildcards):
-    return {
-        key: expand(path, bench_key=lookup_input(wildcards, "benchmark"))
-        for key, path in [
-            ("truth_vcf", rules.fix_bench.output.vcf),
-            ("truth_bed", rules.get_bench.output.bed),
-            ("truth_tbi", rules.fix_bench.output.tbi),
+    # NOTE: tbi file not used in vcfeval CLI but still needed
+    paths = (
+        [
+            rules.get_bench_vcf.output,
+            rules.get_bench_bed.output,
+            rules.get_bench_tbi.output,
         ]
+        if len(lookup_input(wildcards, "chr_filter")) == 0
+        else [
+            rules.filter_bench_vcf.output.vcf,
+            rules.filter_bench_bed.output,
+            rules.filter_bench_vcf.output.tbi,
+        ]
+    )
+    return {
+        key: expand(
+            path,
+            input_key=wildcards.input_key,
+            bench_key=lookup_input(wildcards, "benchmark"),
+        )
+        for key, path in zip(["truth_vcf", "truth_bed", "truth_tbi"], paths)
     }
+
+
+def get_query_inputs(wildcards):
+    # NOTE: tbi file not used in vcfeval CLI but still needed
+    paths = (
+        [
+            rules.preprocess_vcf.output,
+            rules.index_vcf.output,
+        ]
+        if len(lookup_input(wildcards, "chr_filter")) == 0
+        else [
+            rules.filter_query_vcf.output.vcf,
+            rules.filter_query_vcf.output.tbi,
+        ]
+    )
+    return dict(zip(["query_vcf", "query_bed"], paths))
 
 
 rule get_vcf_labels:
     input:
         unpack(get_truth_inputs),
-        query_vcf=rules.preprocess_vcf.output,
+        unpack(get_query_inputs),
         sdf=lambda wildcards: expand(
             rules.get_ref_sdf.output,
             ref_key=lookup_input(wildcards, "ref"),
         ),
-        # not used on CLI but still needed
-        query_tbi=rules.index_vcf.output,
     output:
-        [rtg_dir / ("%s.vcf.gz" % lbl) for lbl in labels]
+        [rtg_dir / "{}.vcf.gz".format(lbl) for lbl in labels],
     conda:
         str(envs_dir / "rtg.yml")
     params:
@@ -127,9 +211,10 @@ rule parse_label_vcf:
         --output {output}
         """
 
+
 rule concat_tsv_files:
     input:
-        expand(rules.parse_label_vcf.output, label=labels, allow_missing=True)
+        expand(rules.parse_label_vcf.output, label=labels, allow_missing=True),
     output:
         label_dir / "{filter_key}_labeled.tsv",
     script:
