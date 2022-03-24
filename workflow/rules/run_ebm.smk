@@ -102,7 +102,8 @@ rule postprocess_output:
     output:
         ebm_dir / "input.tsv",
     params:
-        config=lambda wildcards: lookup_ebm_run(wildcards)["features"],
+        features=lambda wildcards: lookup_ebm_run(wildcards)["features"],
+        error_labels=lambda wildcards: lookup_ebm_run(wildcards)["error_labels"],
     script:
         str(scripts_dir / "postprocess.py")
 

@@ -42,6 +42,7 @@ ebm_runs:
     inputs: [HG002_Illumina_DV, HG002_Hifi_DV]
     filter: [INDEL, SNP]
     ebm_settings: *ebm_settings
+    error_labels: [fp, fn]
     features:
       <<: *base_features
       # mappability
