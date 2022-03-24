@@ -32,10 +32,13 @@ def left_outer_intersect(left, path):
     right = read_tsv(path)
     right_cols = right.columns.tolist()
     right_bed = bt.from_dataframe(right)
+    # prevent weird type errors when converted back to dataframe from bed
+    dtypes = {right_cols[0]: str}
+    na_vals = {c: "." for c in left_cols + right_cols[3:]}
     new_df = (
         bt.from_dataframe(left)
         .intersect(right_bed, loj=True)
-        .to_dataframe(names=left_cols + right_cols, na_values=".")
+        .to_dataframe(names=left_cols + right_cols, na_values=na_vals, dtype=dtypes)
     )
 
     print("Annotations added: {}\n".format(", ".join(right_cols[3:])))
