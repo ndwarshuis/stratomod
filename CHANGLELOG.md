@@ -1,3 +1,11 @@
+# 1.4.0-3
+
+- include FN and FP and include logic for mapping these to negative class
+
+# 1.3.0-3
+
+- make ebm reporting more modular
+
 # 1.2.0-3
 
 - add transformed univariate model plots

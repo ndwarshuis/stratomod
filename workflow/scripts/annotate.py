@@ -1,7 +1,7 @@
 from functools import reduce
 from pybedtools import BedTool as bt
 from common.tsv import read_tsv, write_tsv
-from common.cli import make_io_parser, printerr
+from common.cli import make_io_parser
 
 
 def make_parser():
@@ -21,7 +21,7 @@ def make_parser():
 
 
 def left_outer_intersect(left, path):
-    printerr("Adding annotations from %s" % path)
+    print("Adding annotations from %s" % path)
 
     # Use bedtools to perform left-outer join of two bed/tsv files. Since
     # bedtools will join all columns from the two input files, keep track of the
@@ -32,13 +32,16 @@ def left_outer_intersect(left, path):
     right = read_tsv(path)
     right_cols = right.columns.tolist()
     right_bed = bt.from_dataframe(right)
+    # prevent weird type errors when converted back to dataframe from bed
+    dtypes = {right_cols[0]: str}
+    na_vals = {c: "." for c in left_cols + right_cols[3:]}
     new_df = (
         bt.from_dataframe(left)
         .intersect(right_bed, loj=True)
-        .to_dataframe(names=left_cols + right_cols)
+        .to_dataframe(names=left_cols + right_cols, na_values=na_vals, dtype=dtypes)
     )
 
-    printerr("Annotations added: %s\n" % ", ".join(right_cols[3:]))
+    print("Annotations added: {}\n".format(", ".join(right_cols[3:])))
 
     return new_df.drop(columns=new_df.columns[left_width : left_width + 3])
 
@@ -51,7 +54,7 @@ def intersect_tsvs(ifile, ofile, tsv_paths):
 
 def main():
     args = make_parser().parse_args()
-    printerr("Adding annotations to %s\n" % args.input)
+    print("Adding annotations to {}\n".format(args.input))
     intersect_tsvs(args.input, args.output, args.tsvs)
 
 

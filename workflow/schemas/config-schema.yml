@@ -49,6 +49,16 @@ properties:
             description: the vcf to use for this input
             type: string
 
+          chr_filter:
+            description: |
+              A list of chromosomes filter when running all analyses. Empty
+              list means include all chromosomes.
+            type: array
+            uniqueItems: true
+            items:
+              type: string
+            default: []
+
 ################################################################################
 # resources
 
@@ -172,6 +182,21 @@ properties:
             items:
               type: string
               pattern: ^INDEL|SNP$
+
+          error_labels:
+            description: |
+              Labels in the annotated dataframe to consider as "errors" (which
+              in the model will be the negative/0 class). The label "tp" will
+              always mean "not error". By default, both "fn" and "fp" will
+              be combined to mean "error". Any label that is not "tp" or listed
+              in this parameter will be ignored.
+            type: array
+            minItems: 1
+            uniqueItems: true
+            items:
+              type: string
+              pattern: ^fn|fp$
+            default: [fn, fp]
 
           features:
             additionalProperties: false
