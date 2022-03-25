@@ -10,8 +10,7 @@ source("workflow/scripts/rmarkdown/common/plots.r")
 
 mod <- snakemake@input[["model"]] %>%
     jsonlite::read_json(simplifyVector = TRUE, simplifyDataFrame = FALSE)
-ypred <- read.csv(snakemake@input[["predictions"]]) %>%
-    mutate(label = label == "tp")
+ypred <- read.csv(snakemake@input[["predictions"]])
 
 to_tibble <- function(lst) {
     do.call(tibble, lst)
@@ -25,6 +24,20 @@ univariate <- mod$univariate %>%
 ```
 
 # Model Statistics
+
+## Overview
+
+* N: `r nrow(ypred)`
+* Perc. Pos: `r sum(ypred$label)/nrow(ypred)`
+
+## Prediction Distribution
+
+```{r, echo = FALSE, results = "asis", fig.width = 7, fig.height = 4}
+ggplot(ypred, aes(prob, color = factor(label))) +
+    geom_density() +
+    xlab("probability") +
+    scale_color_discrete(name = "label")
+```
 
 ## ROC Curve
 
