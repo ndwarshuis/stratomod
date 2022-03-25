@@ -1,20 +1,19 @@
 import pandas as pd
-from common.cli import printerr
 
 
 def print_unique(msg, col, df):
-    printerr("%s: %s" % (msg, ", ".join(df[col].unique().tolist())))
+    print("{}: {}".format(msg, ", ".join(df[col].unique().tolist())))
 
 
 def print_nrows(msg, df):
-    printerr("%s: %i" % (msg, df.shape[0]))
+    print("{}: {}".format(msg, df.shape[0]))
 
 
 def sort_bed_numerically(df):
     cols = df.columns.tolist()
     tmp = "tmp_n"
 
-    printerr("Filtering bed for complete chomosomes and numerically sorting")
+    print("Filtering bed for complete chomosomes and numerically sorting")
     print_nrows("Number of entries before filtering", df)
     print_unique("Unique chromosomes before filtering", cols[0], df)
 
