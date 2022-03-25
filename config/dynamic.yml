@@ -5,22 +5,20 @@ inputs:
     vcf: illumina-query.vcf.gz
     ref: GRCh38
     benchmark: v4.2.1
-    chr_filter: [chr21]
   HG002_Hifi_DV:
     vcf: hifi-query.vcf.gz
     ref: GRCh38
     benchmark: v4.2.1
-    chr_filter: [chr21]
 
 # settings for each ebm run
 ebm_runs:
-  small_set_v1:
+  fp_and_fn_v1: &base_settings
     inputs: [HG002_Illumina_DV, HG002_Hifi_DV]
     filter: [SNP, INDEL]
-    ebm_settings: &ebm_settings
+    ebm_settings:
       split_parameters:
         test_size: 0.2
-    features: &base_features
+    features:
       # core
       VAF: {}
       DP: {}
@@ -37,14 +35,7 @@ ebm_runs:
         fill_na: -1
       # repeat masker
       SINE: {}
-
-  large_set_v1:
-    inputs: [HG002_Illumina_DV, HG002_Hifi_DV]
-    filter: [INDEL, SNP]
-    ebm_settings: *ebm_settings
-    error_labels: [fp, fn]
-    features:
-      <<: *base_features
+      LINE: {}
       # mappability
       mappability_high:
         feature_type: categorical
@@ -54,3 +45,11 @@ ebm_runs:
       alignL_max: {}
       fracMatchIndel_mean: {}
       fracMatchIndel_count: {}
+
+  fp_only_v1:
+    <<: *base_settings
+    error_labels: [fp]
+
+  fn_only_v1:
+    <<: *base_settings
+    error_labels: [fn]
