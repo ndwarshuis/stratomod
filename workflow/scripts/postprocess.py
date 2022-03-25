@@ -7,6 +7,7 @@ from common.tsv import read_tsv, write_tsv
 # TODO don't hardcode this
 LABEL = "label"
 TP_LABEL = "tp"
+CHROM_COL = "CHROM"
 
 
 def process_series(opts, ser):
@@ -14,6 +15,14 @@ def process_series(opts, ser):
     fillval = opts["fill_na"]
     _ser = pd.to_numeric(ser, errors="coerce")
     return (np.log(_ser) if log_trans else _ser).fillna(fillval)
+
+
+def process_chr(ser):
+    return (
+        ser.replace({"chrX": "chr23", "chrY": "chr24"})
+        .str.extract(r"^chr(\d|1\d|2[0-4])$", expand=False)
+        .astype(int)
+    )
 
 
 def check_columns(wanted_cols, df_cols):
@@ -49,7 +58,10 @@ def collapse_labels(error_labels, df):
 
 def process_data(features, error_labels, df):
     for col, opts in features.items():
-        df[col] = process_series(opts, df[col])
+        if col == CHROM_COL:
+            df[col] = process_chr(df[col])
+        else:
+            df[col] = process_series(opts, df[col])
     # select columns after transforms to avoid pandas asking me to make a
     # deep copy (which will happen on a slice of a slice)
     return collapse_labels(error_labels, select_columns(features, df))
