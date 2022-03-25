@@ -28,7 +28,7 @@ univariate <- mod$univariate %>%
 ## Overview
 
 * N: `r nrow(ypred)`
-* Perc. Pos: `r sum(ypred)/nrow(ypred)`
+* Perc. Pos: `r sum(ypred$label)/nrow(ypred)`
 
 ## Prediction Distribution
 
