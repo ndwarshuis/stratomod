@@ -25,6 +25,20 @@ univariate <- mod$univariate %>%
 
 # Model Statistics
 
+## Overview
+
+* N: `r nrow(ypred)`
+* Perc. Pos: `r sum(ypred)/nrow(ypred)`
+
+## Prediction Distribution
+
+```{r, echo = FALSE, results = "asis", fig.width = 7, fig.height = 4}
+ggplot(ypred, aes(prob, color = factor(label))) +
+    geom_density() +
+    xlab("probability") +
+    scale_color_discrete(name = "label")
+```
+
 ## ROC Curve
 
 ```{r, include=FALSE}
