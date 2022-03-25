@@ -36,9 +36,10 @@ rule get_ref_sdf:
 
 
 def download_bench_vcf_cmd(wildcards, output):
-    # dirty hack to fix the v4.2.1 benchmark
+    # dirty hack to fix the v4.2.1 benchmark (this should filter out the MHC
+    # region on chr6, which we don't really want anyway)
     cmd = (
-        "curl {u} | gunzip -c | sed -e 's/GT:AD:PS/GT:PS/' | bgzip -c > {o}"
+        "curl {u} | gunzip -c | grep -v 'GT:AD:PS' | bgzip -c > {o}"
         if wildcards.bench_key == "v4.2.1"
         else "curl -o {o} {u}"
     )
@@ -66,9 +67,11 @@ rule get_bench_bed:
 
 
 rule get_bench_tbi:
+    input:
+        rules.get_bench_vcf.output,
     output:
         bench_dir / "{bench_key}.vcf.gz.tbi",
-    params:
-        url=partial(lookup_benchmark, "tbi_url"),
+    conda:
+        str(envs_dir / "samtools.yml")
     shell:
-        "curl -o {output} {params.url}"
+        "tabix -p vcf {input}"
