@@ -174,6 +174,8 @@ rule get_vcf_labels:
         output_dir=lambda _, output: Path(output[0]).parent,
     shell:
         """
+        rm -rf {params.tmp_dir}
+
         rtg vcfeval {params.extra} \
             -b {input.truth_vcf} \
             -e {input.truth_bed} \
