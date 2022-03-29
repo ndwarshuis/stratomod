@@ -1,0 +1,7 @@
+stages:
+  snakemake:
+    cmd: snakemake -p --verbose -r -j 1 --use-conda --cores 1
+    deps:
+    - config/dynamic.yml
+    outs:
+    - results/ebm

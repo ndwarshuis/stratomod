@@ -14,7 +14,7 @@ inputs:
 
 # settings for each ebm run
 ebm_runs:
-  small_set_v1:
+  small_set_v2:
     inputs: [HG002_Illumina_DV, HG002_Hifi_DV]
     filter: [SNP, INDEL]
     ebm_settings: &ebm_settings
@@ -37,20 +37,3 @@ ebm_runs:
         fill_na: -1
       # repeat masker
       SINE: {}
-
-  large_set_v1:
-    inputs: [HG002_Illumina_DV, HG002_Hifi_DV]
-    filter: [INDEL, SNP]
-    ebm_settings: *ebm_settings
-    error_labels: [fp, fn]
-    features:
-      <<: *base_features
-      # mappability
-      mappability_high:
-        feature_type: categorical
-      mappability_low:
-        feature_type: categorical
-      # segdups
-      alignL_max: {}
-      fracMatchIndel_mean: {}
-      fracMatchIndel_count: {}
