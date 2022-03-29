@@ -14,7 +14,7 @@ inputs:
 
 # settings for each ebm run
 ebm_runs:
-  small_set_v2:
+  small_set_v3:
     inputs: [HG002_Illumina_DV, HG002_Hifi_DV]
     filter: [SNP, INDEL]
     ebm_settings: &ebm_settings
