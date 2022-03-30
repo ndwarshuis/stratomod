@@ -7,7 +7,11 @@ stages:
       md5: f0c0fb7df39d83becc1627adbb680ee8
       size: 938
     outs:
+    - path: results/annotated_input
+      md5: ae83be756a34f40ae6ccc99a72ff0351.dir
+      size: 56351472
+      nfiles: 8
     - path: results/ebm
-      md5: 3ea0d987f8a9e5de02241a776713c697.dir
-      size: 17484790
+      md5: 2671b947a3fe45e68d84624b59a3c02b.dir
+      size: 17515224
       nfiles: 40

@@ -4,5 +4,7 @@ stages:
     deps:
     - config/dynamic.yml
     outs:
+    - results/annotated_input:
+        persist: true
     - results/ebm:
         persist: true
