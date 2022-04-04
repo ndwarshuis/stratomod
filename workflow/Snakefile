@@ -31,7 +31,7 @@ def validate_interactions(config):
 def validate_inputs(config):
     inputs = set(config["inputs"])
     for k, v in config["ebm_runs"].items():
-        assert set(v["inputs"]) <= inputs, (
+        assert set(j for i in v["inputs"] for j in i) <= inputs, (
             "Run config %s contains invalid input keys" % k
         )
 

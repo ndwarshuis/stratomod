@@ -1,3 +1,4 @@
+import yaml
 import pandas as pd
 import numpy as np
 from more_itertools import duplicates_everseen
@@ -8,6 +9,14 @@ from common.tsv import read_tsv, write_tsv
 LABEL = "label"
 TP_LABEL = "tp"
 CHROM_COL = "CHROM"
+
+
+def read_inputs(paths):
+    eps = [*enumerate(paths)]
+    return (
+        pd.concat([read_tsv(p).assign(**{"input": i}) for i, p in eps]),
+        {p: i for i, p in eps},
+    )
 
 
 def process_series(opts, ser):
@@ -68,10 +77,12 @@ def process_data(features, error_labels, df):
 
 
 def main():
-    raw = read_tsv(snakemake.input[0])
+    raw_df, mapped_paths = read_inputs(snakemake.input)
     ps = snakemake.params
-    processed = process_data(ps.features, ps.error_labels, raw)
-    write_tsv(snakemake.output[0], processed)
+    processed = process_data(ps.features, ps.error_labels, raw_df)
+    with open(snakemake.output["paths"], "w") as f:
+        yaml.dump(mapped_paths, f)
+    write_tsv(snakemake.output["df"], processed)
 
 
 main()

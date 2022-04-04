@@ -165,12 +165,23 @@ properties:
           - ebm_settings
         properties:
           inputs:
-            description: the input VCFs to use for this configuration
+            description: |
+              The input VCFs to use for this configuration as a list of lists.
+              Each member in the outer list will be one EBM run, and each member
+              in the inner list will be the keys for the VCF input results files
+              to concat together row-wise where the input file will be denoted
+              with the INPUT column in the final dataframe. Obviously is this
+              sort of concatentation is not desired, the inner list is a
+              singleton.
             type: array
             minItems: 1
             uniqueItems: true
             items:
-              type: string
+              type: array
+              minItems: 1
+              uniqueItems: true
+              items:
+                type: string
 
           filter:
             description: |
