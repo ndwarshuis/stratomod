@@ -99,7 +99,7 @@ for line in lines:
             args.label,
         ]
     )
-    f_out.write("%{}\n".format(to_write_out))
+    f_out.write(f"{to_write_out}\n")
     f_out.flush()
 
 
