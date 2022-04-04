@@ -10,6 +10,10 @@ resources:
       vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/latest/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
       tbi_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/latest/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz.tbi
       bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/latest/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed
+    draft_v0.005:
+      vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/data/AshkenazimTrio/analysis/T2T-HG002-XY-v2.7/20220324_v0.005_HG002XYvsGRCh38/preliminary-draft-small-variant-benchmark-files/GRCh38_T2T-XY-v2.7_dipcall-z2k.vcf.gz
+      tbi_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/data/AshkenazimTrio/analysis/T2T-HG002-XY-v2.7/20220324_v0.005_HG002XYvsGRCh38/preliminary-draft-small-variant-benchmark-files/GRCh38_T2T-XY-v2.7_dipcall-z2k.vcf.gz.tbi
+      bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/data/AshkenazimTrio/analysis/T2T-HG002-XY-v2.7/20220324_v0.005_HG002XYvsGRCh38/preliminary-draft-small-variant-benchmark-files/GRCh38_T2T-XY-v2.7_dipcall-z2k.excluded.bed
   references:
     GRCh38:
       sdf: https://s3.amazonaws.com/rtg-datasets/references/GRCh38.sdf.zip
