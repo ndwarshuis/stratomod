@@ -110,8 +110,7 @@ rule postprocess_output:
         df=ebm_dir / "input.tsv",
         paths=ebm_dir / "input_paths.yml",
     params:
-        features=lambda wildcards: lookup_ebm_run(wildcards)["features"],
-        error_labels=lambda wildcards: lookup_ebm_run(wildcards)["error_labels"],
+        config=lambda wildcards: lookup_ebm_run(wildcards),
     script:
         str(scripts_dir / "postprocess.py")
 
