@@ -8,8 +8,10 @@ from common.tsv import read_tsv, write_tsv
 # TODO don't hardcode this
 LABEL = "label"
 TP_LABEL = "tp"
+FN_LABEL = "fn"
 CHROM_COL = "CHROM"
 FILTER = "FILTER"
+FILTERED_VAL = "RefCall"
 
 
 def read_inputs(paths):
@@ -63,7 +65,7 @@ def mask_labels(include_filtered, df):
     # if we don't want to include filtered labels (from the perspective of
     # the truth set) they all become false negatives
     def mask(row):
-        return "fn" if row[FILTER] == "RefCall" else row[LABEL]
+        return FN_LABEL if row[FILTER] == FILTERED_VAL else row[LABEL]
 
     if include_filtered is False:
         # use convoluted apply to avoid slicing warnings
@@ -97,11 +99,11 @@ def process_data(features, error_labels, include_filtered, df):
 
 def main():
     raw_df, mapped_paths = read_inputs(snakemake.input)
-    ps = snakemake.params
+    ps = snakemake.params.config
     processed = process_data(
-        ps.features,
-        ps.error_labels,
-        ps.include_filtered,
+        ps["features"],
+        ps["error_labels"],
+        ps["include_filtered"],
         raw_df,
     )
     with open(snakemake.output["paths"], "w") as f:
