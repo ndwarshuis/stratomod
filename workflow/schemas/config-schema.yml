@@ -194,6 +194,19 @@ properties:
               type: string
               pattern: ^INDEL|SNP$
 
+          include_filtered:
+            description: |
+              If true, consider FILTER'ed entries in the query as positives
+              (which in turn could be either TP or FP depending on if they are
+              in the truth set). If false, FILTER'ed query entries are always
+              consiered FN. Note that this only affects the way the training
+              dataset for the EBMs is compiled. It does not affect the settings
+              used for vcfeval (which is always run with 'all-records'), and
+              thus the annotated dataframes will contain FP, FN, and TP
+              depending on what is in the truth or query independent of FILTER.
+            type: boolean
+            default: true
+
           error_labels:
             description: |
               Labels in the annotated dataframe to consider as "errors" (which

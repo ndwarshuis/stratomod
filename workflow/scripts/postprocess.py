@@ -9,6 +9,7 @@ from common.tsv import read_tsv, write_tsv
 LABEL = "label"
 TP_LABEL = "tp"
 CHROM_COL = "CHROM"
+FILTER = "FILTER"
 
 
 def read_inputs(paths):
@@ -53,9 +54,21 @@ def check_columns(wanted_cols, df_cols):
 
 
 def select_columns(features, df):
-    wanted_cols = [*features] + [LABEL]
+    wanted_cols = [*features, LABEL]
     check_columns(wanted_cols, df.columns.tolist())
     return df[wanted_cols]
+
+
+def mask_labels(include_filtered, df):
+    # if we don't want to include filtered labels (from the perspective of
+    # the truth set) they all become false negatives
+    def mask(row):
+        return "fn" if row[FILTER] == "RefCall" else row[LABEL]
+
+    if include_filtered is False:
+        # use convoluted apply to avoid slicing warnings
+        df[LABEL] = df.apply(mask, axis=1)
+    return df
 
 
 def collapse_labels(error_labels, df):
@@ -65,7 +78,7 @@ def collapse_labels(error_labels, df):
     )
 
 
-def process_data(features, error_labels, df):
+def process_data(features, error_labels, include_filtered, df):
     for col, opts in features.items():
         if col == CHROM_COL:
             df[col] = process_chr(df[col])
@@ -73,13 +86,24 @@ def process_data(features, error_labels, df):
             df[col] = process_series(opts, df[col])
     # select columns after transforms to avoid pandas asking me to make a
     # deep copy (which will happen on a slice of a slice)
-    return collapse_labels(error_labels, select_columns(features, df))
+    return collapse_labels(
+        error_labels,
+        select_columns(
+            features,
+            mask_labels(include_filtered, df),
+        ),
+    )
 
 
 def main():
     raw_df, mapped_paths = read_inputs(snakemake.input)
     ps = snakemake.params
-    processed = process_data(ps.features, ps.error_labels, raw_df)
+    processed = process_data(
+        ps.features,
+        ps.error_labels,
+        ps.include_filtered,
+        raw_df,
+    )
     with open(snakemake.output["paths"], "w") as f:
         yaml.dump(mapped_paths, f)
     write_tsv(snakemake.output["df"], processed)

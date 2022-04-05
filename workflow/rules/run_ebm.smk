@@ -112,6 +112,7 @@ rule postprocess_output:
     params:
         features=lambda wildcards: lookup_ebm_run(wildcards)["features"],
         error_labels=lambda wildcards: lookup_ebm_run(wildcards)["error_labels"],
+        include_filtered=lambda wildcards: lookup_ebm_run(wildcards)["include_filtered"],
     script:
         str(scripts_dir / "postprocess.py")
 
