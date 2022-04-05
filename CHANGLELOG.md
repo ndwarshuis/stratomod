@@ -1,3 +1,14 @@
+# 2.1.0-0
+
+- add QUAL score
+- add config option to control if filtered entries are counted in the query
+- add draft benchmark to static config
+
+# 2.0.0-0
+
+- add option to concatenate multiple input dataframes as needed for EBM training
+  set
+
 # 1.5.0-3
 
 - use DVC to track results

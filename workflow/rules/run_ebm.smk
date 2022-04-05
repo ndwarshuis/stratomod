@@ -1,6 +1,7 @@
 import re
 import json
 import subprocess as sp
+from more_itertools import flatten
 
 
 def get_git_tag():
@@ -14,7 +15,9 @@ def lookup_ebm_run(wildcards):
 
 git_tag = get_git_tag()
 
-ebm_dir = results_dir / "ebm" / ("%s-{input_key}-{filter_key}-{run_key}" % git_tag)
+ebm_dir = results_dir / "ebm" / ("%s-{input_keys}-{filter_key}-{run_key}" % git_tag)
+
+input_delim = "&"
 
 ################################################################################
 # add annotations
@@ -76,7 +79,7 @@ def all_input_summary_files():
             (i, f)
             for k, v in config["ebm_runs"].items()
             for f in v["filter"]
-            for i in v["inputs"]
+            for i in flatten(v["inputs"])
         )
     )
     return expand(
@@ -98,12 +101,16 @@ rule all_summary:
 
 rule postprocess_output:
     input:
-        rules.add_annotations.output,
+        lambda wildcards: expand(
+            rules.add_annotations.output,
+            allow_missing=True,
+            input_key=wildcards.input_keys.split(input_delim),
+        ),
     output:
-        ebm_dir / "input.tsv",
+        df=ebm_dir / "input.tsv",
+        paths=ebm_dir / "input_paths.yml",
     params:
-        features=lambda wildcards: lookup_ebm_run(wildcards)["features"],
-        error_labels=lambda wildcards: lookup_ebm_run(wildcards)["error_labels"],
+        config=lambda wildcards: lookup_ebm_run(wildcards),
     script:
         str(scripts_dir / "postprocess.py")
 
@@ -162,9 +169,9 @@ rule summarize_ebm:
 
 
 def all_ebm_files():
-    run_keys, input_keys, filter_keys = unzip(
+    run_keys, combined_input_keys, filter_keys = unzip(
         [
-            (k, i, f)
+            (k, input_delim.join(i), f)
             for k, v in config["ebm_runs"].items()
             for f in v["filter"]
             for i in v["inputs"]
@@ -174,7 +181,7 @@ def all_ebm_files():
         rules.summarize_ebm.output,
         zip,
         run_key=[*run_keys],
-        input_key=[*input_keys],
+        input_keys=[*combined_input_keys],
         filter_key=[*filter_keys],
     )
 
