@@ -1,3 +1,8 @@
+# 2.0.0-0
+
+- add option to concatenate multiple input dataframes as needed for EBM training
+  set
+
 # 1.5.0-3
 
 - use DVC to track results
