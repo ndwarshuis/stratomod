@@ -1,14 +1,14 @@
 # the VCF file to annotate and analyze via EBMs and associated metadata
 inputs:
   # TODO add option to either verify the input with an MD5 or use a url
-  HG002_Illumina_DV:
-    vcf: illumina-query.vcf.gz
-    ref: GRCh38
-    benchmark: v4.2.1
-  HG002_Hifi_DV:
-    vcf: hifi-query.vcf.gz
-    ref: GRCh38
-    benchmark: v4.2.1
+  # HG002_Illumina_DV:
+  #   vcf: illumina-query.vcf.gz
+  #   ref: GRCh38
+  #   benchmark: v4.2.1
+  # HG002_Hifi_DV:
+  #   vcf: hifi-query.vcf.gz
+  #   ref: GRCh38
+  #   benchmark: v4.2.1
   HG002_Hifi_Draft:
     vcf: hifi-query.vcf.gz
     ref: GRCh38
@@ -18,7 +18,7 @@ inputs:
 ebm_runs:
   hifi_v_draft_v3:
     inputs:
-      - [HG002_Hifi_DV]
+      - [HG002_Hifi_Draft]
     filter: [SNP, INDEL]
     ebm_settings: &ebm_settings
       split_parameters:
@@ -42,3 +42,12 @@ ebm_runs:
       # repeat masker
       SINE: {}
       LINE: {}
+      # mappability
+      mappability_high:
+        feature_type: categorical
+      mappability_low:
+        feature_type: categorical
+      # segdups
+      alignL_max: {}
+      fracMatchIndel_mean: {}
+      fracMatchIndel_count: {}
