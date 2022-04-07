@@ -16,13 +16,14 @@ inputs:
 
 # settings for each ebm run
 ebm_runs:
-  hifi_v_draft_v3:
+  hifi_v_draft_fp_v3:
     inputs:
       - [HG002_Hifi_Draft]
     filter: [SNP, INDEL]
     ebm_settings: &ebm_settings
       split_parameters:
         test_size: 0.2
+    error_labels: [fp]
     include_filtered: false
     features: &base_features
       # core
@@ -51,3 +52,14 @@ ebm_runs:
       alignL_max: {}
       fracMatchIndel_mean: {}
       fracMatchIndel_count: {}
+
+  hifi_v_draft_fn_v3:
+    inputs:
+      - [HG002_Hifi_Draft]
+    filter: [SNP, INDEL]
+    ebm_settings:
+      <<: *ebm_settings
+    error_labels: [fn]
+    include_filtered: false
+    features: 
+      <<: *base_features
