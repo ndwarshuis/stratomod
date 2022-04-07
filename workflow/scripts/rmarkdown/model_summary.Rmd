@@ -89,9 +89,13 @@ ggplot(global_df, aes(score, reorder(variable, score))) +
 
 make_continuous_plot <- function(df, name) {
     infer_transform(df$value) %>%
-        mutate(score = df$score) %>%
-        gather(-score, key = trans, value = x) %>%
+        mutate(score = df$score,
+               lower = score - df$stdev,
+               upper = score + df$stdev) %>%
+        gather(-score, -upper, -lower, key = trans, value = x) %>%
         ggplot(aes(x, score)) +
+        geom_step(aes(y = lower), color = "red") +
+        geom_step(aes(y = upper), color = "red") +
         geom_step() +
         xlab(name) +
         ylab("Score") +
@@ -101,6 +105,7 @@ make_continuous_plot <- function(df, name) {
 make_categorical_plot <- function(df, name) {
     ggplot(df, aes(factor(value), score)) +
         geom_col() +
+        geom_errorbar(aes(ymin = score - stdev, ymax = score + stdev)) +
         xlab(name) +
         ylab("Score")
 }
