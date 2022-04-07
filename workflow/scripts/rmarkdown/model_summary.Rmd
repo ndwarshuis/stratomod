@@ -105,7 +105,7 @@ make_continuous_plot <- function(df, name) {
 make_categorical_plot <- function(df, name) {
     ggplot(df, aes(factor(value), score)) +
         geom_col() +
-        geom_errorbar(aes(ymin = score - stdev, ymax = score + stdev)) +
+        geom_errorbar(aes(ymin = score - stdev, ymax = score + stdev), width = 0.1) +
         xlab(name) +
         ylab("Score")
 }
