@@ -1,0 +1,4 @@
+[core]
+    remote = giab-data
+['remote "giab-data"']
+    url = s3://giab-data/ebm-experiments

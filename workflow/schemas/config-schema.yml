@@ -49,6 +49,16 @@ properties:
             description: the vcf to use for this input
             type: string
 
+          chr_filter:
+            description: |
+              A list of chromosomes filter when running all analyses. Empty
+              list means include all chromosomes.
+            type: array
+            uniqueItems: true
+            items:
+              type: string
+            default: []
+
 ################################################################################
 # resources
 
@@ -155,12 +165,23 @@ properties:
           - ebm_settings
         properties:
           inputs:
-            description: the input VCFs to use for this configuration
+            description: |
+              The input VCFs to use for this configuration as a list of lists.
+              Each member in the outer list will be one EBM run, and each member
+              in the inner list will be the keys for the VCF input results files
+              to concat together row-wise where the input file will be denoted
+              with the INPUT column in the final dataframe. Obviously is this
+              sort of concatentation is not desired, the inner list is a
+              singleton.
             type: array
             minItems: 1
             uniqueItems: true
             items:
-              type: string
+              type: array
+              minItems: 1
+              uniqueItems: true
+              items:
+                type: string
 
           filter:
             description: |
@@ -172,6 +193,34 @@ properties:
             items:
               type: string
               pattern: ^INDEL|SNP$
+
+          include_filtered:
+            description: |
+              If true, consider FILTER'ed entries in the query as positives
+              (which in turn could be either TP or FP depending on if they are
+              in the truth set). If false, FILTER'ed query entries are always
+              consiered FN. Note that this only affects the way the training
+              dataset for the EBMs is compiled. It does not affect the settings
+              used for vcfeval (which is always run with 'all-records'), and
+              thus the annotated dataframes will contain FP, FN, and TP
+              depending on what is in the truth or query independent of FILTER.
+            type: boolean
+            default: true
+
+          error_labels:
+            description: |
+              Labels in the annotated dataframe to consider as "errors" (which
+              in the model will be the negative/0 class). The label "tp" will
+              always mean "not error". By default, both "fn" and "fp" will
+              be combined to mean "error". Any label that is not "tp" or listed
+              in this parameter will be ignored.
+            type: array
+            minItems: 1
+            uniqueItems: true
+            items:
+              type: string
+              pattern: ^fn|fp$
+            default: [fn, fp]
 
           features:
             additionalProperties: false

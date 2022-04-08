@@ -3,107 +3,80 @@ title: "Model Summary"
 output: "html_document"
 ---
 
-```{r, include=FALSE}
-library(reticulate)
+```{r, include=FALSE, message=FALSE}
 library(tidyverse)
 
 source("workflow/scripts/rmarkdown/common/plots.r")
 
-# python doesn't know how to read the snakemake object, so give it a little bump
-ebm <- snakemake@input[["model"]]
-test_x <- snakemake@input[["test_x"]]
-test_y <- snakemake@input[["test_y"]]
-```
+mod <- snakemake@input[["model"]] %>%
+    jsonlite::read_json(simplifyVector = TRUE, simplifyDataFrame = FALSE)
+ypred <- read.csv(snakemake@input[["predictions"]])
 
-```{python, include = FALSE}
-import pickle 
-import pandas as pd
-import numpy as np
-from dash import html
-from sklearn import metrics
-from sklearn.model_selection import train_test_split
-from interpret import set_visualize_provider
-from interpret.provider import InlineProvider
-from interpret.glassbox import ExplainableBoostingClassifier
-from interpret import show
+to_tibble <- function(lst) {
+    do.call(tibble, lst)
+}
 
-def read_pickle(path):
-    with open(path, 'rb') as f:
-        return pickle.load(f)
-    
-ebm = read_pickle(r.ebm)
-X_test = read_pickle(r.test_x)
-y_test = read_pickle(r.test_y)
+global_df <- to_tibble(mod$global)
+
+univariate <- mod$univariate %>%
+    map(~ list(meta = .x[c("name", "vartype")], df = to_tibble(.x[["df"]])))
 
 ```
 
 # Model Statistics
 
-```{python, include = FALSE}
+## Overview
 
-def format_metric(x):
-    return "%.2f%%" % (100 * x)
+* N: `r nrow(ypred)`
+* Perc. Pos: `r sum(ypred$label)/nrow(ypred)`
 
-accuracy = format_metric(ebm.score(X_test, y_test))
+## Prediction Distribution
 
-y_pred = ebm.predict_proba(X_test)[::, 1]
-report = metrics.classification_report(
-    (y_test == "tp").astype(int),
-    y_pred > 0.5,
-    target_names = ["fp", "tp"],
-    output_dict = True,
-)
-rtp = report["tp"]
-precision = format_metric(rtp["precision"])
-recall = format_metric(rtp["recall"])
-f1 = format_metric(rtp["f1-score"])
-
+```{r, echo = FALSE, results = "asis", fig.width = 7, fig.height = 4}
+ggplot(ypred, aes(prob, color = factor(label))) +
+    geom_density() +
+    xlab("probability") +
+    scale_color_discrete(name = "label")
 ```
-
-- Accuracy: `r py$accuracy`
-- Precision: `r py$precision`
-- Recall: `r py$recall`
-- F1: `r py$f1`
 
 ## ROC Curve
 
-```{python, include = FALSE}
-import matplotlib.pyplot as plt
+```{r, include=FALSE}
 
-auc = format_metric(metrics.roc_auc_score(y_test, y_pred))
-fpr, tpr, _ = metrics.roc_curve(y_test, y_pred, pos_label = "tp")
-auc_data = pd.DataFrame({"fpr": fpr, "tpr": tpr})
+AllP <- sum(ypred$label)
+AllN <- nrow(ypred) - AllP
+
+roc <- ypred %>%
+    arrange(prob) %>%
+    mutate(thresh_FN = cumsum(label),
+           thresh_TN = row_number() - thresh_FN,
+           thresh_TP = AllP - thresh_FN,
+           thresh_FP = AllN - thresh_TN,
+           TPR = thresh_TP / AllP,
+           TNR = thresh_TN / AllN,
+           FPR = 1 - TNR,
+           precision = thresh_TP / (thresh_TP + thresh_FP))
 
 ```
 
-AUC: `r py$auc`
+```{r, echo = FALSE, results = "asis", fig.width = 4, fig.height = 4}
+roc %>%
+    arrange(FPR, TPR) %>%
+    ggplot(aes(FPR, TPR)) +
+    geom_line()
 
-```{r, echo = FALSE}
-# use ggplot since matplotlib seems to ignore where rmarkdown tells it to go
-ggplot(py$auc_data, aes(fpr, tpr)) +
-    geom_line() +
-    scale_x_continuous(name = "Specificity", limits = c(0, 1)) +
-    scale_y_continuous(name = "Sensitivity", limits = c(0, 1))
+roc %>%
+    filter(!is.na(precision)) %>%
+    arrange(TPR, desc(precision)) %>%
+    ggplot(aes(TPR, precision)) +
+    geom_line()
 ```
 
 # Global Score Plot
 
-```{python, include = FALSE}
-ebm_global = ebm.explain_global()
-
-def get_plot_dict(global_data):
-    return {
-        k: v
-        for k, v in global_data.items()
-        if k in ["names", "scores"]
-    }
-
-global_df = pd.DataFrame(get_plot_dict(ebm_global.data()))
-
-```
 
 ```{r, echo = FALSE}
-ggplot(py$global_df, aes(scores, reorder(names, scores))) +
+ggplot(global_df, aes(score, reorder(variable, score))) +
     geom_col() +
     xlab("Score") +
     ylab(NULL)
@@ -112,45 +85,17 @@ ggplot(py$global_df, aes(scores, reorder(names, scores))) +
 
 # Univariate plots
 
-```{python, include = FALSE}
-
-def array_repeat_last(arr):
-    return np.append(arr, [arr[-1]])
-
-def feature_plot_dict(vartype, feature_data):
-    if vartype == "continuous":
-        return {
-            k: array_repeat_last(v) if k == "scores" else v
-            for k, v in feature_data.items()
-            if k in ["names", "scores"]
-        }
-    elif vartype == "categorical":
-        return get_plot_dict(feature_data)
-    else:
-        assert False ("wrong vartype, dummy: %s" % vartype)
-
-all_features = {
-    n: (t, i)
-    for i, (n, t) in enumerate(
-            map(tuple, ebm_global.selector[["Name", "Type"]].to_numpy())
-    )
-}
-
-univariate_dfs = {
-    name: (vartype, pd.DataFrame(feature_plot_dict(vartype, ebm_global.data(i))))
-    for name, (vartype, i) in all_features.items()
-    if vartype in ["continuous", "categorical"]
-}
-
-```
-
 ```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 4}
 
 make_continuous_plot <- function(df, name) {
-    infer_transform(df$names) %>%
-        mutate(scores = df$scores) %>%
-        gather(-scores, key = trans, value = x) %>%
-        ggplot(aes(x, scores)) +
+    infer_transform(df$value) %>%
+        mutate(score = df$score,
+               lower = score - df$stdev,
+               upper = score + df$stdev) %>%
+        gather(-score, -upper, -lower, key = trans, value = x) %>%
+        ggplot(aes(x, score)) +
+        geom_step(aes(y = lower), color = "red") +
+        geom_step(aes(y = upper), color = "red") +
         geom_step() +
         xlab(name) +
         ylab("Score") +
@@ -158,8 +103,9 @@ make_continuous_plot <- function(df, name) {
 }
 
 make_categorical_plot <- function(df, name) {
-    ggplot(df, aes(factor(names), scores)) +
+    ggplot(df, aes(factor(value), score)) +
         geom_col() +
+        geom_errorbar(aes(ymin = score - stdev, ymax = score + stdev), width = 0.1) +
         xlab(name) +
         ylab("Score")
 }
@@ -178,64 +124,13 @@ print_uv_plot <- function(vartype, df, name) {
     cat("\n\n")
 }
 
-iwalk(py$univariate_dfs, ~ print_uv_plot(.x[[1]], py_to_r(.x[[2]]), .y))
+walk(univariate, ~ print_uv_plot(.x$meta$vartype, .x$df, .x$meta$name))
 
 ```
 
 # Bivariate plots
 
-```{python, include = FALSE}
-
-def lookup_feature_type(name):
-    return all_features[name][0]
-
-def build_scores_array(arr, left_type, right_type):
-    # any continuous dimension is going to be one less than the names length,
-    # so copy the last row/column to the end in these cases
-    if left_type == "continuous":
-        arr = np.vstack((arr, arr[-1, :]))
-    if right_type == "continuous":
-        arr = np.column_stack((arr, arr[:, -1]))
-    return arr
-
-def interaction_plot_df(name, data_index):
-    feature_data = ebm_global.data(data_index)
-    # left is first dimension, right is second
-    left_name, right_name = tuple(name.split(" x "))
-
-    left_type = lookup_feature_type(left_name)
-    right_type = lookup_feature_type(right_name)
-
-    left_index = pd.Index(feature_data["left_names"], name = "left")
-    right_index = pd.Index(feature_data["right_names"], name = "right")
-
-    arr = build_scores_array(feature_data["scores"], left_type, right_type)
-    df = (
-        pd.DataFrame(arr, index = left_index, columns = right_index)
-        .stack()
-        .rename("score")
-        .reset_index()
-    )
-
-    return {
-        "left": {
-            "name": left_name,
-            "type": left_type
-        },
-        "right": {
-            "name": right_name,
-            "type": right_type
-        },
-        "df": df,
-    }
-    
-bivariate_dfs = {
-    name: interaction_plot_df(name, i)
-    for name, (vartype, i) in all_features.items()
-    if vartype == "interaction"
-}
-
-```
+not implenented
 
 ```{r, echo = FALSE, results = "asis", fig.width = 6, fig.height = 3.5}
 
@@ -279,16 +174,14 @@ cat_cat_plot <- function(df, left_name, right_name) {
 }
 
 print_bv_plot <- function(L, R, df) {
-    .df <- py_to_r(df)
-
     if (L$type == "continuous" && R$type == "continuous") {
-        p <- cont_cont_plot(.df, L$name, R$name)
+        p <- cont_cont_plot(df, L$name, R$name)
     } else if (L$type == "categorical" && R$type == "continuous") {
-        p <- cont_cat_plot(.df, "left", "right", L$name, R$name)
+        p <- cont_cat_plot(df, "left", "right", L$name, R$name)
     } else if (L$type == "continuous" && R$type == "categorical") {
-        p <- cont_cat_plot(.df, "right", "left", R$name, L$name)
+        p <- cont_cat_plot(df, "right", "left", R$name, L$name)
     } else if (L$type == "categorical" && R$type == "categorical") {
-        p <- cat_cat_plot(.df, R$name, L$name)
+        p <- cat_cat_plot(df, R$name, L$name)
     } else {
         p <- sprintf("Types are wrong, dummy: %s and/or %s", L$type, R$type)
     }
@@ -297,12 +190,12 @@ print_bv_plot <- function(L, R, df) {
     cat("\n\n")
 }
 
-dfs <- py$bivariate_dfs
+## dfs <- py$bivariate_dfs
 
-if (length(dfs) == 0) {
-    cat("None\n\n")
-} else {
-    walk(dfs, ~ print_bv_plot(.x[["left"]], .x[["right"]], .x[["df"]]))
-}
+## if (length(dfs) == 0) {
+##     cat("None\n\n")
+## } else {
+##     walk(dfs, ~ print_bv_plot(.x[["left"]], .x[["right"]], .x[["df"]]))
+## }
 
 ```

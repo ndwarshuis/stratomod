@@ -1,3 +1,35 @@
+# 2.2.1
+
+- update dvcignore
+
+# 2.2.0
+
+- add error bars to output plots
+- remove 'config' version tag and use pure semantic versioning for the pipeline
+
+# 2.1.0-0
+
+- add QUAL score
+- add config option to control if filtered entries are counted in the query
+- add draft benchmark to static config
+
+# 2.0.0-0
+
+- add option to concatenate multiple input dataframes as needed for EBM training
+  set
+
+# 1.5.0-3
+
+- use DVC to track results
+
+# 1.4.0-3
+
+- include FN and FP and include logic for mapping these to negative class
+
+# 1.3.0-3
+
+- make ebm reporting more modular
+
 # 1.2.0-3
 
 - add transformed univariate model plots

@@ -1,7 +1,25 @@
+import yaml
 import pandas as pd
 import numpy as np
 from more_itertools import duplicates_everseen
 from common.tsv import read_tsv, write_tsv
+
+
+# TODO don't hardcode this
+LABEL = "label"
+TP_LABEL = "tp"
+FN_LABEL = "fn"
+CHROM_COL = "CHROM"
+FILTER = "FILTER"
+FILTERED_VAL = "RefCall"
+
+
+def read_inputs(paths):
+    eps = [*enumerate(paths)]
+    return (
+        pd.concat([read_tsv(p).assign(**{"input": i}) for i, p in eps]),
+        {p: i for i, p in eps},
+    )
 
 
 def process_series(opts, ser):
@@ -9,6 +27,14 @@ def process_series(opts, ser):
     fillval = opts["fill_na"]
     _ser = pd.to_numeric(ser, errors="coerce")
     return (np.log(_ser) if log_trans else _ser).fillna(fillval)
+
+
+def process_chr(ser):
+    return (
+        ser.replace({"chrX": "chr23", "chrY": "chr24"})
+        .str.extract(r"^chr(\d|1\d|2[0-4])$", expand=False)
+        .astype(int)
+    )
 
 
 def check_columns(wanted_cols, df_cols):
@@ -29,26 +55,60 @@ def check_columns(wanted_cols, df_cols):
     ), "configuration features must be a subset of columns in input dataframe"
 
 
-def select_columns(config, df):
-    # TODO don't hardcode this
-    label = "label"
-    wanted_cols = list(config) + [label]
+def select_columns(features, df):
+    wanted_cols = [*features, LABEL]
     check_columns(wanted_cols, df.columns.tolist())
     return df[wanted_cols]
 
 
-def process_data(config, df):
-    for col, opts in config.items():
-        df[col] = process_series(opts, df[col])
+def mask_labels(include_filtered, df):
+    # if we don't want to include filtered labels (from the perspective of
+    # the truth set) they all become false negatives
+    def mask(row):
+        return FN_LABEL if row[FILTER] == FILTERED_VAL else row[LABEL]
+
+    if include_filtered is False:
+        # use convoluted apply to avoid slicing warnings
+        df[LABEL] = df.apply(mask, axis=1)
+    return df
+
+
+def collapse_labels(error_labels, df):
+    all_labels = [*error_labels, TP_LABEL]
+    return df[df[LABEL].apply(lambda x: x in all_labels)].assign(
+        **{LABEL: lambda x: (x[LABEL] == TP_LABEL).astype(int)}
+    )
+
+
+def process_data(features, error_labels, include_filtered, df):
+    for col, opts in features.items():
+        if col == CHROM_COL:
+            df[col] = process_chr(df[col])
+        else:
+            df[col] = process_series(opts, df[col])
     # select columns after transforms to avoid pandas asking me to make a
     # deep copy (which will happen on a slice of a slice)
-    return select_columns(config, df)
+    return collapse_labels(
+        error_labels,
+        select_columns(
+            features,
+            mask_labels(include_filtered, df),
+        ),
+    )
 
 
 def main():
-    raw = read_tsv(snakemake.input[0])
-    processed = process_data(snakemake.params.config, raw)
-    write_tsv(snakemake.output[0], processed)
+    raw_df, mapped_paths = read_inputs(snakemake.input)
+    ps = snakemake.params.config
+    processed = process_data(
+        ps["features"],
+        ps["error_labels"],
+        ps["include_filtered"],
+        raw_df,
+    )
+    with open(snakemake.output["paths"], "w") as f:
+        yaml.dump(mapped_paths, f)
+    write_tsv(snakemake.output["df"], processed)
 
 
 main()

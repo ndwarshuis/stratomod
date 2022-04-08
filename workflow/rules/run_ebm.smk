@@ -1,6 +1,7 @@
 import re
 import json
 import subprocess as sp
+from more_itertools import flatten
 
 
 def get_git_tag():
@@ -14,7 +15,9 @@ def lookup_ebm_run(wildcards):
 
 git_tag = get_git_tag()
 
-ebm_dir = results_dir / "ebm" / ("%s-{input_key}-{filter_key}-{run_key}" % git_tag)
+ebm_dir = results_dir / "ebm" / ("%s-{input_keys}-{filter_key}-{run_key}" % git_tag)
+
+input_delim = "&"
 
 ################################################################################
 # add annotations
@@ -76,7 +79,7 @@ def all_input_summary_files():
             (i, f)
             for k, v in config["ebm_runs"].items()
             for f in v["filter"]
-            for i in v["inputs"]
+            for i in flatten(v["inputs"])
         )
     )
     return expand(
@@ -98,11 +101,16 @@ rule all_summary:
 
 rule postprocess_output:
     input:
-        rules.add_annotations.output,
+        lambda wildcards: expand(
+            rules.add_annotations.output,
+            allow_missing=True,
+            input_key=wildcards.input_keys.split(input_delim),
+        ),
     output:
-        ebm_dir / "input.tsv",
+        df=ebm_dir / "input.tsv",
+        paths=ebm_dir / "input_paths.yml",
     params:
-        config=lambda wildcards: lookup_ebm_run(wildcards)["features"],
+        config=lambda wildcards: lookup_ebm_run(wildcards),
     script:
         str(scripts_dir / "postprocess.py")
 
@@ -119,40 +127,51 @@ rule train_ebm:
         rules.postprocess_output.output,
     output:
         **{
-            n: str((ebm_dir / n).with_suffix(".pickle"))
+            n: str((ebm_dir / n).with_suffix(".csv"))
             for n in [
-                "model",
                 "train_x",
                 "train_y",
                 "test_x",
                 "test_y",
             ]
         },
+        model=ebm_dir / "model.pickle",
         config=ebm_dir / "config.yml",
     params:
         config=lambda wildcards: lookup_ebm_run(wildcards),
-        out_dir=str(ebm_dir),
     conda:
         str(envs_dir / "ebm.yml")
     script:
         str(scripts_dir / "run_ebm.py")
 
 
-rule summarize_ebm:
+rule decompose_ebm:
     input:
         **rules.train_ebm.output,
     output:
-        ebm_dir / "model_summary.html",
+        model=ebm_dir / "model.json",
+        predictions=ebm_dir / "predictions.csv",
     conda:
         str(envs_dir / "ebm.yml")
+    script:
+        str(scripts_dir / "decompose_model.py")
+
+
+rule summarize_ebm:
+    input:
+        **rules.decompose_ebm.output,
+    output:
+        ebm_dir / "summary.html",
+    conda:
+        str(envs_dir / "rmarkdown.yml")
     script:
         str(scripts_dir / "rmarkdown" / "model_summary.Rmd")
 
 
 def all_ebm_files():
-    run_keys, input_keys, filter_keys = unzip(
+    run_keys, combined_input_keys, filter_keys = unzip(
         [
-            (k, i, f)
+            (k, input_delim.join(i), f)
             for k, v in config["ebm_runs"].items()
             for f in v["filter"]
             for i in v["inputs"]
@@ -162,7 +181,7 @@ def all_ebm_files():
         rules.summarize_ebm.output,
         zip,
         run_key=[*run_keys],
-        input_key=[*input_keys],
+        input_keys=[*combined_input_keys],
         filter_key=[*filter_keys],
     )
 
