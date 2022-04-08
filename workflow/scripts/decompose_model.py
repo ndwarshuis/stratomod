@@ -25,7 +25,7 @@ def array_to_list(arr, repeat_last):
     return al + [al[-1]] if repeat_last else al
 
 
-def get_univariate_df(vartype, feature_data):
+def get_univariate_df(vartype, feature_data, stdev):
     def proc_scores(scores):
         if vartype == "continuous":
             return array_to_list(scores, True)
@@ -37,6 +37,9 @@ def get_univariate_df(vartype, feature_data):
     return {
         "value": feature_data["names"],
         "score": proc_scores(feature_data["scores"]),
+        # For some reason, the standard deviations array has an extra 0 in
+        # in the front and thus is one longer than the scores array.
+        "stdev": proc_scores(stdev[1:]),
     }
 
 
@@ -50,7 +53,7 @@ def build_scores_array(arr, left_type, right_type):
     return arr
 
 
-def get_bivariate_df(all_features, ebm_global, name, data_index):
+def get_bivariate_df(all_features, ebm_global, name, data_index, stdevs):
     def lookup_feature_type(name):
         return all_features[name][0]
 
@@ -64,19 +67,28 @@ def get_bivariate_df(all_features, ebm_global, name, data_index):
     left_index = pd.Index(feature_data["left_names"], name="left_value")
     right_index = pd.Index(feature_data["right_names"], name="right_value")
 
-    arr = build_scores_array(feature_data["scores"], left_type, right_type)
-    df = (
-        pd.DataFrame(arr, index=left_index, columns=right_index)
-        .stack()
-        .rename("score")
-        .reset_index()
-        .to_dict(orient="list")
-    )
+    def stack_array(arr, name):
+        return (
+            pd.DataFrame(
+                build_scores_array(arr, left_type, right_type),
+                index=left_index,
+                columns=right_index,
+            )
+            .stack()
+            .rename(name)
+            .reset_index()
+            .to_dict(orient="list")
+        )
 
     return {
         "left": {"name": left_name, "type": left_type},
         "right": {"name": right_name, "type": right_type},
-        "df": df,
+        "score_df": stack_array(feature_data["scores"], "score"),
+        # the standard deviations are in an array that has 1 larger shape than
+        # the scores array in both directions where the first row/column is all
+        # zeros. Not sure why it is all zeros, but in order to make it line up
+        # with the scores array we need to shave off the first row/column.
+        "stdev_df": stack_array(stdevs[data_index][1:, 1:], "stdev"),
     }
 
 
@@ -85,21 +97,21 @@ def get_global_scores(ebm_global):
     return {"variable": glob["names"], "score": glob["scores"]}
 
 
-def get_univariate_list(ebm_global, all_features):
+def get_univariate_list(ebm_global, all_features, stdevs):
     return [
         {
             "name": name,
             "vartype": vartype,
-            "df": get_univariate_df(vartype, ebm_global.data(i)),
+            "df": get_univariate_df(vartype, ebm_global.data(i), stdevs[i]),
         }
         for name, (vartype, i) in all_features.items()
         if vartype in ["continuous", "categorical"]
     ]
 
 
-def get_bivariate_list(ebm_global, all_features):
+def get_bivariate_list(ebm_global, all_features, stdevs):
     return [
-        get_bivariate_df(all_features, ebm_global, name, i)
+        get_bivariate_df(all_features, ebm_global, name, i, stdevs)
         for name, (vartype, i) in all_features.items()
         if vartype == "interaction"
     ]
@@ -107,6 +119,7 @@ def get_bivariate_list(ebm_global, all_features):
 
 def get_model_dict(ebm):
     ebm_global = ebm.explain_global()
+    stdevs = ebm.term_standard_deviations_
     all_features = {
         n: (t, i)
         for i, (n, t) in enumerate(
@@ -115,8 +128,8 @@ def get_model_dict(ebm):
     }
     return {
         "global": get_global_scores(ebm_global),
-        "univariate": get_univariate_list(ebm_global, all_features),
-        "bivariate": get_bivariate_list(ebm_global, all_features),
+        "univariate": get_univariate_list(ebm_global, all_features, stdevs),
+        "bivariate": get_bivariate_list(ebm_global, all_features, stdevs),
     }
 
 

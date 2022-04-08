@@ -1,3 +1,12 @@
+# 2.2.1
+
+- update dvcignore
+
+# 2.2.0
+
+- add error bars to output plots
+- remove 'config' version tag and use pure semantic versioning for the pipeline
+
 # 2.1.0-0
 
 - add QUAL score
