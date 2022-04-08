@@ -1,3 +1,7 @@
+# 2.2.1
+
+- update dvcignore
+
 # 2.2.0
 
 - add error bars to output plots
