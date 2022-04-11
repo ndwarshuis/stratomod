@@ -21,6 +21,11 @@ global_df <- to_tibble(mod$global)
 univariate <- mod$univariate %>%
     map(~ list(meta = .x[c("name", "vartype")], df = to_tibble(.x[["df"]])))
 
+bivariate <- mod$bivariate %>%
+    map(~ list(left = .x$left,
+               right = .x$right,
+               df = to_tibble(.x$df)))
+
 ```
 
 # Model Statistics
@@ -130,27 +135,25 @@ walk(univariate, ~ print_uv_plot(.x$meta$vartype, .x$df, .x$meta$name))
 
 # Bivariate plots
 
-not implenented
-
 ```{r, echo = FALSE, results = "asis", fig.width = 6, fig.height = 3.5}
 
-cont_cont_plot <- function(df, left_name, right_name) {
+cont_cont_plot <- function(df, yvar, left_name, right_name) {
     # poor-mans 2d step heatmap plot thing
     df %>%
-        group_by(right) %>%
-        mutate(left_upper = lead(left)) %>%
+        group_by(right_value) %>%
+        mutate(left_upper = lead(left_value)) %>%
         ungroup() %>%
-        group_by(left) %>%
-        mutate(right_upper = lead(right)) %>%
+        group_by(left_value) %>%
+        mutate(right_upper = lead(right_value)) %>%
         ungroup() %>%
         filter(!is.na(left_upper)) %>%
         filter(!is.na(right_upper)) %>%
         ggplot() +
-        geom_rect(aes(xmin = left,
-                      xmax = left_upper,
-                      ymin = right,
-                      ymax = right_upper,
-                      fill = score)) +
+        geom_rect(aes_string(xmin = "left_value",
+                             xmax = "left_upper",
+                             ymin = "right_value",
+                             ymax = "right_upper",
+                             fill = yvar)) +
         xlab(left_name) +
         ylab(right_name) +
         scale_fill_gradient2(low = "red",
@@ -159,43 +162,75 @@ cont_cont_plot <- function(df, left_name, right_name) {
                              midpoint = 0)
 }
 
-cont_cat_plot <- function(df, cat, cont, cat_name, cont_name) {
-    ggplot(df, aes_string(cont, "score", color = factor(cat))) +
+print_cont_cont_plot <- function(df, left_name, right_name) {
+    cat("### Scores\n\n")
+    print(cont_cont_plot(df, "score", left_name, right_name))
+    cat("\n\n")
+    cat("### Stdevs\n\n")
+    print(cont_cont_plot(df, "stdev", left_name, right_name))
+}
+
+print_cont_cat_plot_inner <- function(df, cat_name, cont_name) {
+    cat_val <- as.character(df$c[[1]])
+    p <- ggplot(df, aes(x, score)) +
+        geom_step(aes(y = lower), color = "red") +
+        geom_step(aes(y = upper), color = "red") +
         geom_step() +
-        xlab(cont_name) +
-        scale_fill_discrete(name = cat_name)
-}
-
-cat_cat_plot <- function(df, left_name, right_name) {
-    ggplot(df, aes(left, score, fill = factor(right))) +
-        geom_col(position = "dodge") +
-        xlab(left_name) +
-        scale_fill_discrete(name = right_name)
-}
-
-print_bv_plot <- function(L, R, df) {
-    if (L$type == "continuous" && R$type == "continuous") {
-        p <- cont_cont_plot(df, L$name, R$name)
-    } else if (L$type == "categorical" && R$type == "continuous") {
-        p <- cont_cat_plot(df, "left", "right", L$name, R$name)
-    } else if (L$type == "continuous" && R$type == "categorical") {
-        p <- cont_cat_plot(df, "right", "left", R$name, L$name)
-    } else if (L$type == "categorical" && R$type == "categorical") {
-        p <- cat_cat_plot(df, R$name, L$name)
-    } else {
-        p <- sprintf("Types are wrong, dummy: %s and/or %s", L$type, R$type)
-    }
-    cat(sprintf("## %s x %s\n\n", L$name, R$name))
+        xlab(cont_name)
+    cat(sprintf("### %s = %s\n\n", cat_name, cat_val))
     print(p)
     cat("\n\n")
 }
 
-## dfs <- py$bivariate_dfs
+print_cont_cat_plot <- function(df, cat, cont, cat_name, cont_name) {
+    ## this 'all_of' thing is needed to silence a weird warning about
+    ## using vectors to select things (I disagree with it, but whatever)
+    .df <- rename(df, x = all_of(cont), c = all_of(cat)) %>%
+        mutate(lower = score - stdev,
+               upper = score + stdev) %>%
+        group_split(c) %>%
+        walk(~ print_cont_cat_plot_inner(.x, cat_name, cont_name))
+}
 
-## if (length(dfs) == 0) {
-##     cat("None\n\n")
-## } else {
-##     walk(dfs, ~ print_bv_plot(.x[["left"]], .x[["right"]], .x[["df"]]))
-## }
+print_cat_cat_plot <- function(df, left_name, right_name) {
+    p <- mutate(df, right_value = factor(right_value)) %>%
+        ggplot(aes(left_value, score, fill = right_value)) +
+        geom_col(position = "dodge") +
+        geom_errorbar(aes(ymin = score - stdev,
+                          ymax = score + stdev),
+                      width = 0.1,
+                      position = position_dodge(0.9)) +
+        xlab(left_name) +
+        scale_fill_discrete(name = right_name)
+    print(p)
+}
+
+print_bv_plot_inner <- function(L, R, df) {
+    if (L$type == "continuous" && R$type == "continuous") {
+        print_cont_cont_plot(df, L$name, R$name)
+    } else if (L$type == "categorical" && R$type == "continuous") {
+        print_cont_cat_plot(df, "left_value", "right_value", L$name, R$name)
+    } else if (L$type == "continuous" && R$type == "categorical") {
+        print_cont_cat_plot(df, "right_value", "left_value", R$name, L$name)
+    } else if (L$type == "categorical" && R$type == "categorical") {
+        print_cat_cat_plot(df, R$name, L$name)
+    } else {
+        sprintf("Types are wrong, dummy: %s and/or %s", L$type, R$type)
+    }
+}
+
+print_bv_plot <- function(L, R, df) {
+    cat(sprintf("## %s x %s\n\n", L$name, R$name))
+
+    print_bv_plot_inner(L, R, df)
+
+    cat("\n\n")
+}
+
+if (length(bivariate) == 0) {
+    cat("None\n\n")
+} else {
+    walk(bivariate, ~ print_bv_plot(.x$left, .x$right, .x$df))
+}
 
 ```

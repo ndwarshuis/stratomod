@@ -1,6 +1,7 @@
 import random
 import pickle
 import yaml
+from more_itertools import flatten
 from dash import html
 from interpret import set_visualize_provider
 from interpret.provider import InlineProvider
@@ -24,10 +25,19 @@ def dump_config(config):
 
 
 def get_interactions(df_columns, iconfig):
-    # ASSUME type is int | [[int]]
+    # ASSUME type is int | [str] | [[str]]
+    def expand_interactions(i):
+        if isinstance(i, str):
+            return [
+                [df_columns.index(i), c] for c, f in enumerate(df_columns) if f != i
+            ]
+        else:
+            return [[df_columns.index(feature) for feature in i]]
+
     if isinstance(iconfig, int):
         return iconfig
-    return [[df_columns.index(n) for n in names] for names in iconfig]
+    else:
+        return [*flatten(expand_interactions(i) for i in iconfig)]
 
 
 def train_ebm(config, label, df):

@@ -76,19 +76,24 @@ def get_bivariate_df(all_features, ebm_global, name, data_index, stdevs):
             )
             .stack()
             .rename(name)
-            .reset_index()
-            .to_dict(orient="list")
         )
 
+    # the standard deviations are in an array that has 1 larger shape than the
+    # scores array in both directions where the first row/column is all zeros.
+    # Not sure why it is all zeros, but in order to make it line up with the
+    # scores array we need to shave off the first row/column.
     return {
         "left": {"name": left_name, "type": left_type},
         "right": {"name": right_name, "type": right_type},
-        "score_df": stack_array(feature_data["scores"], "score"),
-        # the standard deviations are in an array that has 1 larger shape than
-        # the scores array in both directions where the first row/column is all
-        # zeros. Not sure why it is all zeros, but in order to make it line up
-        # with the scores array we need to shave off the first row/column.
-        "stdev_df": stack_array(stdevs[data_index][1:, 1:], "stdev"),
+        "df": pd.concat(
+            [
+                stack_array(feature_data["scores"], "score"),
+                stack_array(stdevs[data_index][1:, 1:], "stdev"),
+            ],
+            axis=1,
+        )
+        .reset_index()
+        .to_dict(orient="list"),
     }
 
 
