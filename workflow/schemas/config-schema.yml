@@ -245,19 +245,30 @@ properties:
 
           interactions:
             description: |
-              either a list of explicit interactions to use or an integer
-              representing the number of interactions to use automatically
+              The interaction terms to use in the model encoded as either an
+              integer or a list. If an integer, it represents an upper limit to
+              the number of interaction terms to choose (which could include any
+              features). If a list, each member must either be a string or a
+              sublist with two strings. The string should be a feature name and
+              indicates to include all interactions with this feature. A list
+              with two strings (each string indicates a feature) denotes one
+              explicit interaction between two features. To exlude interactions
+              entirely, supply either '0' or '[]'.
             default: 0
             anyOf:
               - type: number
                 minimum: 0
               - type: array
                 items:
-                  type: array
-                  minItems: 2
-                  uniqueItems: true
-                  items:
-                    type: string
+                  anyOf:
+                  - type: array
+                    minItems: 2
+                    maxItems: 2
+                    uniqueItems: true
+                    items:
+                      type: string
+                      pattern: ^[\w\.\-]+$
+                  - type: string
                     pattern: ^[\w\.\-]+$
                 
           ebm_settings:
