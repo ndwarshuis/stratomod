@@ -1,3 +1,8 @@
+# 2.2.2
+
+- add option to include all interactions with one feature
+- fix (almost) all things regarding interaction plots
+
 # 2.2.1
 
 - update dvcignore
