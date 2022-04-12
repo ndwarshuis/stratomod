@@ -9,23 +9,24 @@ configfile: "config/static.yml"
 configfile: "config/dynamic.yml"
 
 
-# TODO this might make more sense to include in the run_ebm script
 def validate_interactions(config):
-    def assert_present(run_name, feature_list, ints):
+    def assert_1(run_name, feature_list, feature):
+        assert (
+            feature in feature_list
+        ), f"Interaction {feature} not found in feature set for run {run_name}"
+
+    def assert_N(run_name, feature_list, ints):
         for i in ints:
-            assert (
-                i in feature_list
-            ), "Interaction %s not found in feature set for run %s" % (
-                i,
-                run_name,
-            )
+            assert_1(run_name, feature_list, i)
 
     for run_name, run_values in config["ebm_runs"].items():
-        if "interactions" in run_values and isinstance(
-            run_values["interactions"], list
-        ):
-            for ints in run_values["interactions"]:
-                assert_present(run_name, list(run_values["features"]), ints)
+        if "interactions" in run_values:
+            interactions = run_values["interactions"]
+            if isinstance(interactions, list):
+                for i in interactions:
+                    (assert_N if isinstance(i, list) else assert_1)(
+                        run_name, [*run_values["features"]], i
+                    )
 
 
 def validate_inputs(config):
