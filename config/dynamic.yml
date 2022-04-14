@@ -21,6 +21,8 @@ ebm_runs:
         test_size: 0.2
     error_labels: [fp]
     include_filtered: false
+    interactions:
+      - input
     features: &base_features
       # input file
       input:
@@ -59,6 +61,8 @@ ebm_runs:
     ebm_settings:
       <<: *ebm_settings
     error_labels: [fn]
+    interactions:
+      - input
     include_filtered: false
     features:
       <<: *base_features
