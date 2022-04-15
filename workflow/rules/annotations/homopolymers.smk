@@ -44,11 +44,5 @@ rule get_homopolymers:
         homopolymers_results_dir / "homopolymers_{bases}.tsv",
     conda:
         str(envs_dir / "bedtools.yml")
-    shell:
-        """
-        python workflow/scripts/get_homopoly.py \
-        -i {input.bed} \
-        -g {input.genome} \
-        -b {wildcards.bases} \
-        -o {output}
-        """
+    script:
+        str(scripts_dir / "get_homopoly.py")
