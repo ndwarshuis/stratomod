@@ -1,27 +1,11 @@
 from functools import reduce
+import numpy as np
 from pybedtools import BedTool as bt
 from common.tsv import read_tsv, write_tsv
-from common.cli import make_io_parser
-
-
-def make_parser():
-    parser = make_io_parser(
-        "add annotations to dataframe",
-        "the input dataframe",
-        "the annotated dataframe",
-    )
-    parser.add_argument(
-        "-t",
-        "--tsvs",
-        required=True,
-        nargs="+",
-        help="the paths to the TSV files to add as annotations (space separated)",
-    )
-    return parser
 
 
 def left_outer_intersect(left, path):
-    print("Adding annotations from %s" % path)
+    print(f"Adding annotations from {path}\n")
 
     # Use bedtools to perform left-outer join of two bed/tsv files. Since
     # bedtools will join all columns from the two input files, keep track of the
@@ -34,16 +18,30 @@ def left_outer_intersect(left, path):
     right_bed = bt.from_dataframe(right)
     # prevent weird type errors when converted back to dataframe from bed
     dtypes = {right_cols[0]: str}
+    # convert "." to NaN since "." is a string/object which will make pandas run
+    # slower than an actual panda
     na_vals = {c: "." for c in left_cols + right_cols[3:]}
     new_df = (
         bt.from_dataframe(left)
         .intersect(right_bed, loj=True)
         .to_dataframe(names=left_cols + right_cols, na_values=na_vals, dtype=dtypes)
     )
+    # Bedtools intersect will use -1 for NULL in the case of numeric columns. I
+    # suppose this makes sense since any "real" bed columns (according to the
+    # "spec") will always be positive integers or strings. Since -1 might be a
+    # real value and not a missing one in my case, use the chr field to figure
+    # out if a row is "missing" and fill NaNs accordingly
+    new_cols = new_df.columns[left_width:]
+    new_pky = new_cols[:3]
+    new_chr = new_pky[0]
+    new_data_cols = new_cols[3:]
+    new_df.loc[:, new_data_cols] = new_df[new_data_cols].where(
+        new_df[new_chr] != ".", np.nan
+    )
 
-    print("Annotations added: {}\n".format(", ".join(right_cols[3:])))
+    print("Annotations added: {}\n".format(", ".join(new_data_cols)))
 
-    return new_df.drop(columns=new_df.columns[left_width : left_width + 3])
+    return new_df.drop(columns=new_pky)
 
 
 def intersect_tsvs(ifile, ofile, tsv_paths):
@@ -53,9 +51,10 @@ def intersect_tsvs(ifile, ofile, tsv_paths):
 
 
 def main():
-    args = make_parser().parse_args()
-    print("Adding annotations to {}\n".format(args.input))
-    intersect_tsvs(args.input, args.output, args.tsvs)
+    tsvs = snakemake.input.tsvs
+    vcf = snakemake.input.variants[0]
+    print(f"Adding annotations to {vcf}\n")
+    intersect_tsvs(vcf, snakemake.output[0], tsvs)
 
 
 main()

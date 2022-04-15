@@ -1,3 +1,8 @@
+# 2.3.0
+
+- add AT/GC perfect homopoly fraction
+- fix annotations using -1 for missing values in some cases
+
 # 2.2.2
 
 - add option to include all interactions with one feature

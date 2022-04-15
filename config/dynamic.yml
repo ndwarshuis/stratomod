@@ -23,15 +23,23 @@ ebm_runs:
     ebm_settings: &ebm_settings
       split_parameters:
         test_size: 0.2
+    error_labels: [fp]
+    include_filtered: false
+    interactions:
+      - input
     features: &base_features
+      # input file
+      input:
+        feature_type: categorical
       # core
-      input: {}
       VAF: {}
       DP: {}
       indel_length: {}
       # homopolymers
       AT_homopolymer_length: {}
       GC_homopolymer_length: {}
+      AT_homopolymer_perfect_frac: {}
+      GC_homopolymer_perfect_frac: {}
       # tandem repeats
       period_max: {}
       copyNum_max: {}
@@ -41,3 +49,13 @@ ebm_runs:
         fill_na: -1
       # repeat masker
       SINE: {}
+      LINE: {}
+      # mappability
+      mappability_high:
+        feature_type: categorical
+      mappability_low:
+        feature_type: categorical
+      # segdups
+      alignL_max: {}
+      fracMatchIndel_mean: {}
+      fracMatchIndel_count: {}
