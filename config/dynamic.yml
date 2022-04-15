@@ -12,7 +12,7 @@ inputs:
 
 # settings for each ebm run
 ebm_runs:
-  vcf_interaction_fp_v1:
+  vcf_interaction_fp_v2:
     inputs:
       - [HG002_Illumina_DV, HG002_Hifi_DV]
     filter: [SNP, INDEL]
@@ -56,7 +56,7 @@ ebm_runs:
       fracMatchIndel_mean: {}
       fracMatchIndel_count: {}
 
-  vcf_interaction_fn_v1:
+  vcf_interaction_fn_v2:
     inputs:
       - [HG002_Illumina_DV, HG002_Hifi_DV]
     filter: [SNP, INDEL]
