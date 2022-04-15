@@ -34,6 +34,8 @@ ebm_runs:
       # homopolymers
       AT_homopolymer_length: {}
       GC_homopolymer_length: {}
+      AT_homopolymer_perfect_frac: {}
+      GC_homopolymer_perfect_frac: {}
       # tandem repeats
       period_max: {}
       copyNum_max: {}

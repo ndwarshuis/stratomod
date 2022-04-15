@@ -49,13 +49,8 @@ rule add_annotations:
         annotated_input_dir / "{filter_key}.tsv",
     conda:
         str(envs_dir / "bedtools.yml")
-    shell:
-        """
-        python workflow/scripts/annotate.py \
-        -i {input.variants} \
-        -t {input.tsvs} \
-        -o {output}
-        """
+    script:
+        str(scripts_dir / "annotate.py")
 
 
 ################################################################################
