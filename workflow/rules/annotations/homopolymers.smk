@@ -36,9 +36,24 @@ rule find_simple_repeats:
         """
 
 
+# This rule is here because I got tired of doing this step twice (once for AT
+# and once for GC)
+rule sort_and_filter_simple_repeats:
+    input:
+        rules.find_simple_repeats.output,
+    output:
+        homopolymers_results_dir / "simple_repeats_p3_sorted.bed",
+    shell:
+        """
+        cat {input} | \
+        python workflow/scripts/sort_and_filter_bed.py -c "#" \
+        > {output}
+        """
+
+
 rule get_homopolymers:
     input:
-        bed=rules.find_simple_repeats.output,
+        bed=rules.sort_and_filter_simple_repeats.output,
         genome=rules.get_genome.output,
     output:
         homopolymers_results_dir / "homopolymers_{bases}.tsv",
