@@ -1,3 +1,8 @@
+# 2.4.0
+
+- add AT/GC gap length/frac homopolymer features
+- only sort/filter the massive homopolymer raw dataframe once
+
 # 2.3.0
 
 - add AT/GC perfect homopoly fraction
