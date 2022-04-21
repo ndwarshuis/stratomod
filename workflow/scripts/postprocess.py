@@ -3,6 +3,9 @@ import pandas as pd
 import numpy as np
 from more_itertools import duplicates_everseen
 from common.tsv import read_tsv, write_tsv
+from common.cli import setup_logging
+
+logger = setup_logging(snakemake.log[0])
 
 
 # TODO don't hardcode this

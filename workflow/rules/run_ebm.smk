@@ -16,6 +16,7 @@ def lookup_ebm_run(wildcards):
 git_tag = get_git_tag()
 
 ebm_dir = results_dir / "ebm" / ("%s-{input_keys}-{filter_key}-{run_key}" % git_tag)
+ebm_log_dir = ebm_dir / "log"
 
 input_delim = "&"
 
@@ -30,6 +31,11 @@ rule add_annotations:
     input:
         variants=rules.concat_tsv_files.output,
         tsvs=[
+            expand(
+                rules.get_homopolymers.output,
+                bases=["AT", "GC"],
+                allow_missing=True,
+            ),
             rules.get_repeat_masker_classes.output,
             rules.get_simple_reps.output,
             rules.get_mappability_high_src.output,
@@ -39,16 +45,13 @@ rule add_annotations:
                 colname=list(segdups_cols),
                 allow_missing=True,
             ),
-            expand(
-                rules.get_homopolymers.output,
-                bases=["AT", "GC"],
-                allow_missing=True,
-            ),
         ],
     output:
         annotated_input_dir / "{filter_key}.tsv",
     conda:
         str(envs_dir / "bedtools.yml")
+    log:
+        annotated_input_dir / "{filter_key}.log",
     script:
         str(scripts_dir / "annotate.py")
 
@@ -106,6 +109,8 @@ rule postprocess_output:
         paths=ebm_dir / "input_paths.yml",
     params:
         config=lambda wildcards: lookup_ebm_run(wildcards),
+    log:
+        ebm_log_dir / "postprocess.log",
     script:
         str(scripts_dir / "postprocess.py")
 
@@ -136,6 +141,8 @@ rule train_ebm:
         config=lambda wildcards: lookup_ebm_run(wildcards),
     conda:
         str(envs_dir / "ebm.yml")
+    log:
+        ebm_log_dir / "model.log",
     script:
         str(scripts_dir / "run_ebm.py")
 
@@ -148,6 +155,8 @@ rule decompose_ebm:
         predictions=ebm_dir / "predictions.csv",
     conda:
         str(envs_dir / "ebm.yml")
+    log:
+        ebm_log_dir / "decompose.log",
     script:
         str(scripts_dir / "decompose_model.py")
 
