@@ -1,3 +1,7 @@
+# 2.4.1
+
+- add features overview file
+
 # 2.4.0
 
 - add AT/GC gap length/frac homopolymer features
