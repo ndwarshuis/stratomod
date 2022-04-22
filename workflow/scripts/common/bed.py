@@ -1,41 +1,42 @@
+import logging
 import pandas as pd
-from sys import stderr, stdout
 
 
-def print_unique(msg, col, df, dev):
-    unique = ", ".join(df[col].unique().tolist())
-    print(f"{msg}: {unique}", file=dev)
+def filter_chromosomes(df, col, chr_filter):
+    if len(chr_filter) > 0:
+        logging.info("Pre-filtering chromosomes: %s", ", ".join(chr_filter))
+        return df[df[col].isin(chr_filter)]
+    return df
 
 
-def print_nrows(msg, df, dev):
-    print(f"{msg}: {df.shape[0]}", file=dev)
-
-
-def sort_bed_numerically(df, filter_chr=True, print_stderr=False):
+def sort_bed_numerically(df, drop_chr=True):
     cols = df.columns.tolist()
     tmp = "tmp_n"
-    dev = stderr if print_stderr else stdout
+
+    def log_unique(msg, df):
+        logging.info("%s: %s", msg, ", ".join(df[cols[0]].unique().tolist()))
+
+    def log_nrows(msg, df):
+        logging.info("%s: %s", msg, df.shape[0])
 
     df[tmp] = (
         df[cols[0]]
         .replace({"chrX": "chr23", "chrY": "chr24"})
         .str.extract(r"^chr(\d|1\d|2[0-4])$", expand=False)
     )
-    if filter_chr is True:
-        print("Filtering bed for complete chomosomes", file=dev)
-        print_nrows("Number of entries before filtering", df, dev)
-        print_unique("Unique chromosomes before filtering", cols[0], df, dev)
+    if drop_chr is True:
+        logging.info("Filtering bed for complete chomosomes")
+        log_nrows("Number of entries before filtering", df)
+        log_unique("Unique chromosomes before filtering", df)
         df = df.dropna(axis=0, subset=[tmp])
-        print_unique("Unique chromosomes after filtering", cols[0], df, dev)
-        print_nrows("Number of entries before filtering", df, dev)
+        log_nrows("Number of entries before filtering", df)
+        log_unique("Unique chromosomes after filtering", df)
 
-    print("Numerically sorting bed", file=dev)
+    logging.info("Numerically sorting bed")
     df = (
         df.astype({tmp: int})
         .sort_values(by=[tmp, cols[1], cols[2]], axis=0, ignore_index=True)
         .drop(columns=[tmp])
     )
-
-    print("", file=dev)
 
     return df

@@ -1,3 +1,8 @@
+# 2.5.0
+
+- add logging to all (important steps)
+- add filtering to annotations code to make testing not take insanely long
+
 # 2.4.1
 
 - add features overview file

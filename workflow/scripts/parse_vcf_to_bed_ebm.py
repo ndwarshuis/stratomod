@@ -1,3 +1,4 @@
+import logging
 import argparse
 
 parser = argparse.ArgumentParser(description="Parse VCF to BED")
@@ -75,10 +76,11 @@ for line in lines:
     # rstrip the newline off at the end
     sample = split_line[9].rstrip().split(":")
     if len(fmt) != len(sample):
-        print(
-            "WARNING: FORMAT/SAMPLE have different cardinality: {} {} {}".format(
-                chrom, start, end
-            )
+        logging.warn(
+            "FORMAT/SAMPLE have different cardinality: %s %d %d",
+            chrom,
+            start,
+            end,
         )
         continue
 
