@@ -34,8 +34,6 @@ ebm_runs:
       # homopolymers
       AT_homopolymer_length: {}
       GC_homopolymer_length: {}
-      AT_homopolymer_imperfect_frac: {}
-      GC_homopolymer_imperfect_frac: {}
       AT_homopolymer_gap_frac: {}
       GC_homopolymer_gap_frac: {}
       # tandem repeats
