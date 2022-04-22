@@ -3,6 +3,9 @@ from pybedtools import BedTool as bt
 from pybedtools import cleanup
 from common.tsv import write_tsv, read_tsv
 from common.bed import sort_bed_numerically
+from common.cli import setup_logging
+
+logger = setup_logging(snakemake.log[0])
 
 START_COL = "start"
 END_COL = "end"
@@ -19,16 +22,16 @@ SLOP = 5
 
 
 def read_input(path):
-    print(f"Reading dataframe from {path}")
+    logger.info("Reading dataframe from %s", path)
     return read_tsv(path, header=None, comment="#", names=SIMPLE_REPEAT_BED_COLS)
 
 
 def filter_base(df, base):
-    print(f"Filtering bed file for {base}s")
+    logger.info("Filtering bed file for %ss", base)
     _df = df[df[BASE_COL] == f"unit={base}"].drop(columns=[BASE_COL])
     ldf = len(_df)
     assert ldf > 0, f"Filtered bed file for {base} has no rows"
-    print(f"Merging {ldf} rows for {base}s")
+    logger.info("Merging %s rows for %ss", ldf, base)
     # Calculate the length of each "pure" homopolymer (eg just "AAAAAAAA").
     # Note that this is summed in the merge below, and the final length based
     # on start/end won't necessarily be this sum because of the -d 1 parameter
@@ -52,12 +55,12 @@ def filter_bases(df, bases):
 
 
 def intersect_bases(dfs, bases, genome):
-    print(f"Concatenating and sorting merged beds for {bases}")
+    logger.info("Concatenating and sorting merged beds for %s", bases)
     # Assume this df is already filtered for chr1-21XY and thus we don't need
     # to do it again (save a few cpu cycles and print output)
-    sdf = sort_bed_numerically(pd.concat(dfs), filter_chr=False)
+    sdf = sort_bed_numerically(pd.concat(dfs), drop_chr=False)
 
-    print(f"Merging {bases} homopolymers and adding {SLOP}bp slop")
+    logger.info("Merging %s homopolymers and adding %sbp slop", bases, SLOP)
     # The perfect homopolymer length is column 4, and the gap length is column
     # 5; after this merge we want the sum of the perfect lengths and the max of
     # the gap lengths.
@@ -80,7 +83,7 @@ def intersect_bases(dfs, bases, genome):
     # put downloadmoreram.com out of business
     cleanup()
 
-    print("Adding homopolymer length/fraction features")
+    logger.info("Adding homopolymer length/fraction features")
     length_col = f"{bases}_homopolymer_length"
     frac_col = f"{bases}_homopolymer_imperfect_frac"
     frac_gap_col = f"{bases}_homopolymer_gap_frac"

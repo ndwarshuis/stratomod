@@ -1,9 +1,8 @@
-from more_itertools import flatten
+from scripts.common.config import lookup_global_chr_filter
 
 homopolymers_src_dir = annotations_src_dir / "homopolymers"
 homopolymers_results_dir = annotations_tsv_dir / "homopolymers"
-
-filtered_chrs = list(set(flatten(i["chr_filter"] for i in config["inputs"].values() if len(i) > 0)))
+filtered_chrs = lookup_global_chr_filter(config)
 
 
 rule download_no_alt_analysis:
@@ -15,22 +14,6 @@ rule download_no_alt_analysis:
         "curl {params.url} | gunzip -c > {output}"
 
 
-# The main reason this rule is here is because I got tired of waiting for
-# downstream steps to run for 30 minutes. If I filter to some small chromosome
-# it makes testing waaaaay nicer.
-rule filter_no_alt_analysis:
-    input:
-        rules.download_no_alt_analysis.output,
-    output:
-        homopolymers_src_dir / "GRCh38_no_alt_analysis_set_filtered.fa",
-    conda:
-        str(envs_dir / "biopython.yml")
-    params:
-        filt=filtered_chrs
-    script:
-        str(scripts_dir / "filter_fasta.py")
-
-
 rule download_find_regions_script:
     output:
         homopolymers_src_dir / "find_regions.py",
@@ -38,6 +21,22 @@ rule download_find_regions_script:
         url=config["resources"]["annotations"]["homopolymers"]["find_regions"],
     shell:
         "curl -o {output} {params.url}"
+
+
+# The main reason this rule is here is because I got tired of waiting for
+# downstream steps to run for 30 minutes. If I filter to some small chromosome
+# it makes testing waaaaay nicer.
+rule filter_no_alt_analysis:
+    input:
+        rules.download_no_alt_analysis.output,
+    output:
+        homopolymers_results_dir / "GRCh38_no_alt_analysis_set_filtered.fa",
+    conda:
+        str(envs_dir / "biopython.yml")
+    params:
+        filt=filtered_chrs,
+    script:
+        str(scripts_dir / "filter_fasta.py")
 
 
 def get_pasta():
@@ -53,7 +52,7 @@ def get_pasta():
 rule find_simple_repeats:
     input:
         script=rules.download_find_regions_script.output,
-        fasta=get_pasta()
+        fasta=get_pasta(),
     output:
         homopolymers_results_dir / "simple_repeats_p3.bed",
     conda:
@@ -73,11 +72,13 @@ rule sort_and_filter_simple_repeats:
         rules.find_simple_repeats.output,
     output:
         homopolymers_results_dir / "simple_repeats_p3_sorted.bed",
+    log:
+        homopolymers_results_dir / "sorted.log",
     shell:
         """
         cat {input} | \
         python workflow/scripts/sort_and_filter_bed.py -c "#" \
-        > {output}
+        2> {log} > {output}
         """
 
 
@@ -89,5 +90,7 @@ rule get_homopolymers:
         homopolymers_results_dir / "homopolymers_{bases}.tsv",
     conda:
         str(envs_dir / "bedtools.yml")
+    log:
+        homopolymers_results_dir / "homopolymers_{bases}.log",
     script:
         str(scripts_dir / "get_homopoly.py")

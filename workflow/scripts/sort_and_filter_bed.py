@@ -31,7 +31,7 @@ def main():
     )
     write_tsv(
         None,
-        sort_bed_numerically(df, print_stderr=True),
+        sort_bed_numerically(df),
         header=args.header,
     )
 

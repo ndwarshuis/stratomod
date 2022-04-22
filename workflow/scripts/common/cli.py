@@ -42,13 +42,14 @@ def make_io_parser(desc, idesc, odesc):
 
 # set up basic logger that prints to both console and a file (the log directive
 # from snakemake) and captures warnings so those don't go unnoticed
-def setup_logging(path):
+def setup_logging(path, console=False):
     import logging
 
     logging.basicConfig(filename=path, level=logging.INFO)
     logging.captureWarnings(True)
     logger = logging.getLogger()
-    logger.addHandler(logging.StreamHandler())
+    if console:
+        logger.addHandler(logging.StreamHandler())
     return logger
 
 
