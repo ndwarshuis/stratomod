@@ -1,3 +1,17 @@
+# 2.5.0
+
+- add logging to all (important steps)
+- add filtering to annotations code to make testing not take insanely long
+
+# 2.4.1
+
+- add features overview file
+
+# 2.4.0
+
+- add AT/GC gap length/frac homopolymer features
+- only sort/filter the massive homopolymer raw dataframe once
+
 # 2.3.0
 
 - add AT/GC perfect homopoly fraction

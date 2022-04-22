@@ -1,5 +1,8 @@
+from scripts.common.config import lookup_global_chr_filter
+
 tandem_repeats_src_dir = annotations_src_dir / "tandem_repeats"
 tandem_repeats_results_dir = annotations_tsv_dir / "tandem_repeats"
+
 
 # download this entire table as-is, we will select the right columns in a script
 rule get_simreps_src:
@@ -10,6 +13,7 @@ rule get_simreps_src:
     shell:
         "curl {params.url} | gunzip -c > {output}"
 
+
 # NOTE sorting is done internally by the script
 rule get_simple_reps:
     input:
@@ -19,5 +23,9 @@ rule get_simple_reps:
         tandem_repeats_results_dir / "merged_simreps.tsv",
     conda:
         str(envs_dir / "bedtools.yml")
+    params:
+        filt=lookup_global_chr_filter(config),
+    log:
+        tandem_repeats_results_dir / "simreps.log",
     script:
-        str(scripts_dir / "get_simple_repeats.py") 
+        str(scripts_dir / "get_simple_repeats.py")
