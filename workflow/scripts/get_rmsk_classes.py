@@ -23,7 +23,7 @@ RMSK_DF_COLS = RMSK_COLS + [CLASSCOL, FAMCOL]
 
 
 def read_rmsk_df(path):
-    df = read_tsv(path, header=None)[COLS].rename(columns=COLS)
+    df = read_tsv(path, header=None)[[*COLS]].rename(columns=COLS)
     return sort_bed_numerically(df)
 
 
