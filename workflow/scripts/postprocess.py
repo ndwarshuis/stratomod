@@ -3,11 +3,16 @@ import pandas as pd
 import numpy as np
 from more_itertools import duplicates_everseen
 from common.tsv import read_tsv, write_tsv
+from common.cli import setup_logging
+
+logger = setup_logging(snakemake.log[0])
 
 
 # TODO don't hardcode this
 LABEL = "label"
 TP_LABEL = "tp"
+TN_LABEL = "tn"
+FP_LABEL = "fp"
 FN_LABEL = "fn"
 CHROM_COL = "CHROM"
 FILTER = "FILTER"
@@ -65,7 +70,15 @@ def mask_labels(include_filtered, df):
     # if we don't want to include filtered labels (from the perspective of
     # the truth set) they all become false negatives
     def mask(row):
-        return FN_LABEL if row[FILTER] == FILTERED_VAL else row[LABEL]
+        if row[FILTER] == FILTERED_VAL:
+            if row[LABEL] == FP_LABEL:
+                return TN_LABEL
+            elif row[LABEL] == TP_LABEL:
+                return FN_LABEL
+            else:
+                return row[LABEL]
+        else:
+            return row[LABEL]
 
     if include_filtered is False:
         # use convoluted apply to avoid slicing warnings

@@ -2,10 +2,13 @@ from functools import reduce
 import numpy as np
 from pybedtools import BedTool as bt
 from common.tsv import read_tsv, write_tsv
+from common.cli import setup_logging
+
+logger = setup_logging(snakemake.log[0])
 
 
 def left_outer_intersect(left, path):
-    print(f"Adding annotations from {path}\n")
+    logger.info("Adding annotations from %s", path)
 
     # Use bedtools to perform left-outer join of two bed/tsv files. Since
     # bedtools will join all columns from the two input files, keep track of the
@@ -39,7 +42,7 @@ def left_outer_intersect(left, path):
         new_df[new_chr] != ".", np.nan
     )
 
-    print("Annotations added: {}\n".format(", ".join(new_data_cols)))
+    logger.info("Annotations added: %s\n", ", ".join(new_data_cols))
 
     return new_df.drop(columns=new_pky)
 
@@ -53,7 +56,7 @@ def intersect_tsvs(ifile, ofile, tsv_paths):
 def main():
     tsvs = snakemake.input.tsvs
     vcf = snakemake.input.variants[0]
-    print(f"Adding annotations to {vcf}\n")
+    logger.info("Adding annotations to %s\n", vcf)
     intersect_tsvs(vcf, snakemake.output[0], tsvs)
 
 

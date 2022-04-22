@@ -9,6 +9,10 @@ from interpret import set_visualize_provider
 from interpret.provider import InlineProvider
 from interpret.glassbox import ExplainableBoostingClassifier
 from interpret import show
+from common.cli import setup_logging
+
+setup_logging(snakemake.log[0])
+
 
 # TODO some of these imports probably aren't actually needed
 # TODO also, there is no reason this can't be done immediately after training

@@ -8,6 +8,9 @@ from interpret.provider import InlineProvider
 from sklearn.model_selection import train_test_split
 from interpret.glassbox import ExplainableBoostingClassifier
 from common.tsv import read_tsv
+from common.cli import setup_logging
+
+setup_logging(snakemake.log[0])
 
 
 def write_model(obj):

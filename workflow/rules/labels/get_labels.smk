@@ -165,23 +165,25 @@ rule get_vcf_labels:
             ref_key=lookup_input(wildcards, "ref"),
         ),
     output:
-        [rtg_dir / "{}.vcf.gz".format(lbl) for lbl in labels],
+        [rtg_dir / f"{lbl}.vcf.gz" for lbl in labels],
     conda:
         str(envs_dir / "rtg.yml")
     params:
         extra="--ref-overlap --all-records",
         tmp_dir="/tmp/vcfeval",
         output_dir=lambda _, output: Path(output[0]).parent,
+    log:
+        rtg_dir / "vcfeval.log",
     shell:
         """
         rm -rf {params.tmp_dir}
 
         rtg vcfeval {params.extra} \
-            -b {input.truth_vcf} \
-            -e {input.truth_bed} \
-            -c {input.query_vcf} \
-            -o {params.tmp_dir} \
-        -t {input.sdf}
+        -b {input.truth_vcf} \
+        -e {input.truth_bed} \
+        -c {input.query_vcf} \
+        -o {params.tmp_dir} \
+        -t {input.sdf} > {log} 2>&1
 
         mv {params.tmp_dir}/* {params.output_dir}
 
@@ -203,6 +205,8 @@ rule parse_label_vcf:
         rules.unzip_vcf_labels.output,
     output:
         label_dir / "{filter_key}_{label}.tsv",
+    log:
+        label_dir / "{filter_key}_{label}.log",
     shell:
         """
         python \
@@ -210,7 +214,7 @@ rule parse_label_vcf:
         --type {wildcards.filter_key} \
         --label {wildcards.label} \
         --input {input} \
-        --output {output}
+        --output {output} > {log} 2>&1
         """
 
 
