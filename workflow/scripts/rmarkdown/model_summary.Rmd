@@ -10,7 +10,8 @@ source("workflow/scripts/rmarkdown/common/plots.r")
 
 mod <- snakemake@input[["model"]] %>%
     jsonlite::read_json(simplifyVector = TRUE, simplifyDataFrame = FALSE)
-ypred <- read.csv(snakemake@input[["predictions"]])
+ypred <- readr::read_csv(snakemake@input[["predictions"]],
+                         col_types = cols(.default = "d"))
 
 to_tibble <- function(lst) {
     do.call(tibble, lst)

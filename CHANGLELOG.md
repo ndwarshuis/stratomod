@@ -1,3 +1,7 @@
+# 2.5.1
+
+- make Rmd files run faster with large files
+
 # 2.5.0
 
 - add logging to all (important steps)
