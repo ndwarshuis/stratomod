@@ -133,6 +133,16 @@ properties:
             type: string
             format: uri
 
+          simreps:
+            description: the url to the simreps database file
+            type: string
+            format: uri
+
+          genome:
+            description: the url to the genome database file
+            type: string
+            format: uri
+
           homopolymers:
             required:
               - find_regions

@@ -223,6 +223,8 @@ rule concat_tsv_files:
         expand(rules.parse_label_vcf.output, label=labels, allow_missing=True),
     output:
         label_dir / "{filter_key}_labeled.tsv",
+    conda:
+        str(envs_dir / "bedtools.yml")
     script:
         str(scripts_dir / "concat_tsv.py")
 

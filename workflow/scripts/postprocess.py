@@ -22,7 +22,7 @@ FILTERED_VAL = "RefCall"
 def read_inputs(paths):
     eps = [*enumerate(paths)]
     return (
-        pd.concat([read_tsv(p).assign(**{"input": i}) for i, p in eps]),
+        pd.concat([read_tsv(p).assign(**{"vcf_input": i}) for i, p in eps]),
         {p: i for i, p in eps},
     )
 

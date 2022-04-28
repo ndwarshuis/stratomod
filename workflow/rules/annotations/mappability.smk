@@ -16,7 +16,7 @@ rule get_mappability_high_src:
         mappability_src_dir / "mappability_high.tsv",
     params:
         url=config["resources"]["annotations"]["mappability"]["high"],
-        feature_name="mappability_high",
+        feature_name="map_difficult_250bp",
     shell:
         """
         echo 'chrom\tstart\tend\t{params.feature_name}' > {output}
@@ -33,4 +33,4 @@ use rule get_mappability_high_src as get_mappability_low_src with:
         mappability_src_dir / "mappability_low.tsv",
     params:
         url=config["resources"]["annotations"]["mappability"]["low"],
-        feature_name="mappability_low",
+        feature_name="map_difficult_100bp",

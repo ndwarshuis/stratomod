@@ -26,10 +26,10 @@ ebm_runs:
     error_labels: [fp]
     include_filtered: false
     interactions:
-      - input
+      - vcf_input
     features: &base_features
       # input file
-      input:
+      vcf_input:
         feature_type: categorical
       # core
       VAF: {}
@@ -40,24 +40,24 @@ ebm_runs:
       GC_homopolymer_length: {}
       AT_homopolymer_imperfect_frac: {}
       GC_homopolymer_imperfect_frac: {}
-      AT_homopolymer_gap_frac: {}
-      GC_homopolymer_gap_frac: {}
+      AT_homopolymer_total_imperfect_frac: {}
+      GC_homopolymer_total_imperfect_frac: {}
       # tandem repeats
-      period_max: {}
-      copyNum_max: {}
-      perMatch_min: {}
-      score_max: {}
-      AT_median:
+      TR_unit_size_max: {}
+      TR_unit_copies_max: {}
+      TR_identity_min: {}
+      TR_score_max: {}
+      TR_percent_AT_median:
         fill_na: -1
       # repeat masker
-      SINE: {}
-      LINE: {}
+      SINE_length: {}
+      LINE_length: {}
       # mappability
-      mappability_high:
+      map_difficult_250bp:
         feature_type: categorical
-      mappability_low:
+      map_difficult_100bp:
         feature_type: categorical
       # segdups
-      alignL_max: {}
-      fracMatchIndel_mean: {}
-      fracMatchIndel_count: {}
+      segdup_size_max: {}
+      segdup_identity_mean: {}
+      segdup_count: {}
