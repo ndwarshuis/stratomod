@@ -44,7 +44,7 @@ FEATURE_COLUMNS = {
     "TR_unit_copies": 6,  # copyNum
     "TR_consensus_size": 7,  # consensusSize
     "TR_identity": 8,  # perMatch
-    "TR_per_indel": 9,  # perIndel
+    "TR_per_indel_mismatch": 9,  # perIndel
     "TR_score": 10,  # score
     PERC_A_COL: 11,  # A
     PERC_C_COL: 12,  # C
@@ -52,7 +52,7 @@ FEATURE_COLUMNS = {
     PERC_T_COL: 14,  # T
 }
 
-LEN_FEATURE = "TR_region_length"
+LEN_FEATURE = "TR_length"
 
 ALL_COLUMNS = {**BED_COLUMNS, **FEATURE_COLUMNS}
 
