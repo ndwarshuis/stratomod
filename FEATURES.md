@@ -35,40 +35,41 @@ filtered/mapped to 0 or 1 before being fed to the EBM.
 
 ## VCF Features
 
-These are features inherent to the query VCF file itself:
+These are features inherent to the query VCF file itself and are prefixed with
+`VCF`:
 
-### QUAL
+### VCF_QUAL
 
 Confidence of the called variant as assigned by the variant caller as a
 Phred-scaled float.
 
-### FILTER
+### VCF_FILTER
 
 Filter as assigned by the variant caller. Passing variants will have `PASS` for
 this column; non-passing variants will have a different value depending on the
 variant caller.
 
-### GT
+### VCF_GT
 
 The genotype of the variant. `0/1` means heterozygous, `1/1` means homozygous.
 
-### GQ
+### VCF_GQ
 
 Confidence in the called genotype as assigned by the variant caller as a
 Phred-scaled float.
 
-### DP
+### VCF_DP
 
 The total number of reads mapped to this location in the reference (non-negative
 integer).
 
-### VAF
+### VCF_VAF
 
 The fraction of alleles supporting the variant (float between 0 and 1). In
 general, if the `GT` field is `0/1` and `1/1` this should be ~0.5 and ~1.0
 respectively.
 
-### indel_length
+### VCF_indel_length
 
 In integer describing the difference between the length of the reference and
 alterantive sequences for this variant. For SNPs this is 0. For INDELs which is
@@ -86,12 +87,14 @@ resulting feature will be calculated using <agg> (an aggregation function
 applied to the list of subfeatures being merged). <agg> is one of `min`, `max`,
 `count`, or `mean`.
 
-### fracMatchIndel_<agg>
+Each of these features is prefixed with `SEGDUP`.
+
+### SEGDUP_fracMatchIndel_<agg>
 
 The fraction (a float between 0 and 1) between this segmental duplication and
 another in a different part of the genome.
 
-### alignL_<agg>
+### SEGDUP_alignL_<agg>
 
 Spaces/positions in the alignment (positive integer).
 
@@ -106,7 +109,9 @@ A homopolymer is defined as any sequence of one base repeated at least 4 times.
 The placeholder <bases> below is either `AT` or `GC` (meaning that the feature
 pertains to homopolymers of As and Ts or Gs and Cs)
 
-### <bases>_homopolymer_length
+EACh of these features is prefixed with `HOMOPOL`
+
+### HOMOPOL_<bases>_length
 
 The length of the homopolymer. This includes all homopolymers of the same base
 with at most 1 non-homopolymer base in between (so called "imperfect
@@ -115,32 +120,32 @@ pairs.
 
 The individual features are described below:
 
-### <bases>_homopolymer_gap_count
+### HOMOPOL_<bases>_imperfect_count
 
 The number of non-homopolymer bases within one imperfect homopolymer for one
 base. Note this does not include the 10bp gap between homopolymers of different
 bases. In the case of multiple homopolymers separated by up to 10bp, the max
 each each individual imperfect homopolymer is used as this feature.
 
-### <bases>_homopolymer_imperfect_frac
+### HOMOPOL_<bases>_imperfect_frac
+
+The quotient of <bases>_homopolymer_gap_count and <bases>_homopolymer_length;
+used where correlation between these might be a problem.
+
+### HOMOPOL_<bases>_total_imperfect_frac
 
 The fraction of bases in this entire feature length that do not belong to a
 perfect homopolymer. In other words, this is the number of bases in the 1bp gaps
 between perfect homopolymers of the same base and the number of bases in between
 imperfect homopolymers of the different bases normalized to the entire length.
 
-### <bases>_homopolymer_gap_frac
-
-The quotient of <bases>_homopolymer_gap_count and <bases>_homopolymer_length;
-used where correlation between these might be a problem.
-
 ## Mappability
 
 Features pertaining to hard-to-map regions of the genome. These were obtained
 from the v3.0 GIAB stratification bed files.
 
-There are only two features, `mappability_high` and `mappability_low` which
-correspond to "hard to map" and "less hard to map". Both are binary, so a
+There are only two features, `MAP_difficult_250bp` and `MAP_difficult_100bp`
+which correspond to "hard to map" and "less hard to map". Both are binary, so a
 variant that overlaps with a high/low region will be 1, and otherwise 0.
 
 ## Repeat Masker
@@ -171,7 +176,7 @@ Additionally, within LINE there are subclass, of which we use:
 * Penelope
 * Dong-R4
 
-Each of these features is literally represented as the name of the class above.
+Each of these features is represented as `REPMASK_<(sub)class>_length`.
 
 ## Tandem Repeats
 
@@ -184,39 +189,41 @@ superregion and (where noted) the value of the resulting feature will be
 calculated using <agg> (an aggregation function applied to the list of
 subfeatures being merged). <agg> is one of `min`, `max`, or `median`.
 
-### count
+Each of these features is prefixed with `TR`.
+
+### TR_count
 
 The number of tandem repeats merged to make this feature.
 
-### region_length
+### TR_length
 
-The length of the this region of tandem repeats
+The length of the this merged region of tandem repeats
 
-### period_<agg>
+### TR_unit_size_<agg>
 
 Length of the repeat unit
 
-### copyNum_<agg>
+### TR_unit_copies_<agg>
 
 Mean number of copies of the repeated unit
 
-### consensusSize_<agg>
+### TR_consensus_size_<agg>
 
 The length of the consensus sequence
 
-### perMatch_<agg>
+### TR_identity_<agg>
 
 Percentage match (integer between 0 and 100)
 
-### perIndel_<agg>
+### TR_per_indel_mismatch_<agg>
 
 Percentage INDEL (integer between 0 and 100)
 
-### score_<agg>
+### TR_score_<agg>
 
 Alignment score (integer with minimum of 50)
 
-### <base>_<agg>
+### TR_percent_<base>_<agg>
 
 The percentage of <base> in the repeat. <base> can be one of `A`, `T`, `G`, `G`
 (for single bases), `AT`, or `GC` (for complimentary bases, which are the sum of
