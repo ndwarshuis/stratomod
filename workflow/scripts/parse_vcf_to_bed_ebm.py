@@ -22,13 +22,14 @@ f_out.write(
                 "CHROM",
                 "POS",
                 "POS+length(REF)",
-                "QUAL",
-                "FILTER",
-                "GT",
-                "GQ",
-                "DP",
-                "VAF",
-                "indel_length",
+                # all "vcf features" are prefixed with "VCF"
+                "VCF_QUAL",
+                "VCF_FILTER",
+                "VCF_GT",
+                "VCF_GQ",
+                "VCF_DP",
+                "VCF_VAF",
+                "VCF_indel_length",
                 "label",
             ]
         )
