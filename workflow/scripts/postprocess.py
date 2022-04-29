@@ -12,7 +12,7 @@ logger = setup_logging(snakemake.log[0])
 LABEL_COL = "label"
 CHROM_COL = "VCF_CHROM"
 FILTER_COL = "VCF_FILTER"
-INPUT_COL = "VCF_INPUT"
+INPUT_COL = "VCF_input"
 
 TP_LABEL = "tp"
 TN_LABEL = "tn"

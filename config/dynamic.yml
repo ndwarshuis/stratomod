@@ -26,38 +26,38 @@ ebm_runs:
     error_labels: [fp]
     include_filtered: false
     interactions:
-      - vcf_input
+      - VCF_input
     features: &base_features
-      # input file
-      vcf_input:
+      VCF_input:
         feature_type: categorical
-      # core
-      VAF: {}
-      DP: {}
-      indel_length: {}
-      # homopolymers
-      AT_homopolymer_length: {}
-      GC_homopolymer_length: {}
-      AT_homopolymer_imperfect_frac: {}
-      GC_homopolymer_imperfect_frac: {}
-      AT_homopolymer_total_imperfect_frac: {}
-      GC_homopolymer_total_imperfect_frac: {}
-      # tandem repeats
+      VCF_VAF: {}
+      VCF_DP: {}
+      VCF_indel_length: {}
+
+      HOMOPOL_AT_length: {}
+      HOMOPOL_GC_length: {}
+      HOMOPOL_AT_imperfect_frac: {}
+      HOMOPOL_GC_imperfect_frac: {}
+      HOMOPOL_AT_total_imperfect_frac: {}
+      HOMOPOL_GC_total_imperfect_frac: {}
+
       TR_unit_size_max: {}
       TR_unit_copies_max: {}
       TR_identity_min: {}
       TR_score_max: {}
       TR_percent_AT_median:
         fill_na: -1
-      # repeat masker
-      SINE_length: {}
-      LINE_length: {}
+
+      REPMASK_SINE_length: {}
+      REPMASK_LINE_length: {}
+
       # mappability
-      map_difficult_250bp:
+      MAP_difficult_250bp:
         feature_type: categorical
-      map_difficult_100bp:
+      MAP_difficult_100bp:
         feature_type: categorical
+
       # segdups
-      segdup_size_max: {}
-      segdup_identity_mean: {}
-      segdup_count: {}
+      SEGDUP_size_max: {}
+      SEGDUP_identity_mean: {}
+      SEGDUP_count: {}
