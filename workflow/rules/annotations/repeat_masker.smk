@@ -42,4 +42,4 @@ rule get_repeat_masker_classes:
         prefix=rmsk_result_prefix,
         filt=lookup_global_chr_filter(config),
     script:
-        str(scripts_dir / "get_rmsk_classes.py")
+        str(scripts_dir / "get_repeat_masker_features.py")

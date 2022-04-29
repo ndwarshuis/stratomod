@@ -9,20 +9,23 @@ logger = setup_logging(snakemake.log[0])
 
 
 # TODO don't hardcode this
-LABEL = "label"
+LABEL_COL = "label"
+CHROM_COL = "VCF_CHROM"
+FILTER_COL = "VCF_FILTER"
+INPUT_COL = "VCF_input"
+
 TP_LABEL = "tp"
 TN_LABEL = "tn"
 FP_LABEL = "fp"
 FN_LABEL = "fn"
-CHROM_COL = "CHROM"
-FILTER = "FILTER"
+
 FILTERED_VAL = "RefCall"
 
 
 def read_inputs(paths):
     eps = [*enumerate(paths)]
     return (
-        pd.concat([read_tsv(p).assign(**{"input": i}) for i, p in eps]),
+        pd.concat([read_tsv(p).assign(**{INPUT_COL: i}) for i, p in eps]),
         {p: i for i, p in eps},
     )
 
@@ -61,7 +64,7 @@ def check_columns(wanted_cols, df_cols):
 
 
 def select_columns(features, df):
-    wanted_cols = [*features, LABEL]
+    wanted_cols = [*features, LABEL_COL]
     check_columns(wanted_cols, df.columns.tolist())
     return df[wanted_cols]
 
@@ -70,26 +73,26 @@ def mask_labels(include_filtered, df):
     # if we don't want to include filtered labels (from the perspective of
     # the truth set) they all become false negatives
     def mask(row):
-        if row[FILTER] == FILTERED_VAL:
-            if row[LABEL] == FP_LABEL:
+        if row[FILTER_COL] == FILTERED_VAL:
+            if row[LABEL_COL] == FP_LABEL:
                 return TN_LABEL
-            elif row[LABEL] == TP_LABEL:
+            elif row[LABEL_COL] == TP_LABEL:
                 return FN_LABEL
             else:
-                return row[LABEL]
+                return row[LABEL_COL]
         else:
-            return row[LABEL]
+            return row[LABEL_COL]
 
     if include_filtered is False:
         # use convoluted apply to avoid slicing warnings
-        df[LABEL] = df.apply(mask, axis=1)
+        df[LABEL_COL] = df.apply(mask, axis=1)
     return df
 
 
 def collapse_labels(error_labels, df):
     all_labels = [*error_labels, TP_LABEL]
-    return df[df[LABEL].apply(lambda x: x in all_labels)].assign(
-        **{LABEL: lambda x: (x[LABEL] == TP_LABEL).astype(int)}
+    return df[df[LABEL_COL].apply(lambda x: x in all_labels)].assign(
+        **{LABEL_COL: lambda x: (x[LABEL_COL] == TP_LABEL).astype(int)}
     )
 
 

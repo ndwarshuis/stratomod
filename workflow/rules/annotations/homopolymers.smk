@@ -74,6 +74,8 @@ rule sort_and_filter_simple_repeats:
         homopolymers_results_dir / "simple_repeats_p3_sorted.bed",
     log:
         homopolymers_results_dir / "sorted.log",
+    conda:
+        str(envs_dir / "bedtools.yml")
     shell:
         """
         cat {input} | \
@@ -93,4 +95,4 @@ rule get_homopolymers:
     log:
         homopolymers_results_dir / "homopolymers_{bases}.log",
     script:
-        str(scripts_dir / "get_homopoly.py")
+        str(scripts_dir / "get_homopoly_features.py")

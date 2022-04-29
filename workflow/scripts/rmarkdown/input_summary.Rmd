@@ -66,9 +66,9 @@ df_x <- readr::read_tsv(path,
                             CHROM = "-",
                             POS = "-",
                             `POS+length(REF)` = "-",
-                            FILTER = "-",
-                            GT = "-",
-                            GQ = "-",
+                            VCF_FILTER = "-",
+                            VCF_GT = "-",
+                            VCF_GQ = "-",
                             .default = "d"))
 
 df_y <- readr::read_tsv(path, col_types = cols(label = "c", .default = "-")) %>%

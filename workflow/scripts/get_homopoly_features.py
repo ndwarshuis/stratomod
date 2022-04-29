@@ -2,17 +2,15 @@ import pandas as pd
 from pybedtools import BedTool as bt
 from pybedtools import cleanup
 from common.tsv import write_tsv, read_tsv
-from common.bed import sort_bed_numerically
+from common.bed import sort_bed_numerically, BED_CHR, BED_START, BED_END
 from common.cli import setup_logging
 
 logger = setup_logging(snakemake.log[0])
 
-START_COL = "start"
-END_COL = "end"
-BED_COLS = ["chr", START_COL, END_COL]
+BED_COLS = [BED_CHR, BED_START, BED_END]
 
 BASE_COL = "base"
-SIMPLE_REPEAT_BED_COLS = [*BED_COLS, BASE_COL]
+HOMOPOLY_BED_COLS = [*BED_COLS, BASE_COL]
 
 GAP_COL = "gap_count"
 NORM_GAP_COL = "normalized_gap_count"
@@ -23,7 +21,7 @@ SLOP = 5
 
 def read_input(path):
     logger.info("Reading dataframe from %s", path)
-    return read_tsv(path, header=None, comment="#", names=SIMPLE_REPEAT_BED_COLS)
+    return read_tsv(path, header=None, comment="#", names=HOMOPOLY_BED_COLS)
 
 
 def filter_base(df, base):
@@ -35,7 +33,7 @@ def filter_base(df, base):
     # Calculate the length of each "pure" homopolymer (eg just "AAAAAAAA").
     # Note that this is summed in the merge below, and the final length based
     # on start/end won't necessarily be this sum because of the -d 1 parameter
-    _df[PFCT_LEN_COL] = _df[END_COL] - _df[START_COL]
+    _df[PFCT_LEN_COL] = _df[BED_END] - _df[BED_START]
     merged = (
         bt.from_dataframe(_df)
         .merge(d=1, c=[4], o=["sum"])
@@ -43,7 +41,7 @@ def filter_base(df, base):
     )
     # calculate the number of "gaps" (eg imperfect homopolymer bases like the
     # "G" in "AAAAGAAAA")
-    merged[GAP_COL] = merged[END_COL] - merged[START_COL] - merged[PFCT_LEN_COL]
+    merged[GAP_COL] = merged[BED_END] - merged[BED_START] - merged[PFCT_LEN_COL]
     # these files are huge; now that we have a dataframe, remove all the bed
     # files from tmpfs to prevent a run on downloadmoreram.com
     cleanup()
@@ -84,14 +82,14 @@ def intersect_bases(dfs, bases, genome):
     cleanup()
 
     logger.info("Adding homopolymer length/fraction features")
-    length_col = f"{bases}_homopolymer_length"
-    frac_col = f"{bases}_homopolymer_imperfect_frac"
-    frac_gap_col = f"{bases}_homopolymer_gap_frac"
-    merged[length_col] = merged[END_COL] - merged[START_COL] - SLOP * 2
+    length_col = f"HOMOPOL_{bases}_length"
+    frac_col = f"HOMOPOL_{bases}_total_imperfect_frac"
+    frac_gap_col = f"HOMOPOL_{bases}_imperfect_frac"
+    merged[length_col] = merged[BED_END] - merged[BED_START] - SLOP * 2
     merged[frac_col] = 1 - (merged[PFCT_LEN_COL] / merged[length_col])
     merged[frac_gap_col] = merged[GAP_COL] / merged[length_col]
     return merged.drop(columns=[PFCT_LEN_COL]).rename(
-        columns={GAP_COL: f"{bases}_homopolymer_gap_count"}
+        columns={GAP_COL: f"HOMOPOL_{bases}_imperfect_count"}
     )
 
 
