@@ -207,10 +207,6 @@ Length of the repeat unit
 
 Mean number of copies of the repeated unit
 
-### TR_consensus_size_<agg>
-
-The length of the consensus sequence
-
 ### TR_identity_<agg>
 
 Percentage match (integer between 0 and 100)

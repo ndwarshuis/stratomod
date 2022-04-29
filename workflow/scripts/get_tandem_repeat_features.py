@@ -29,7 +29,6 @@ PERC_G_COL = format_base("G")
 FEATURE_COLS = {
     5: "TR_unit_size",  # period
     6: "TR_unit_copies",  # copyNum
-    7: "TR_consensus_size",  # consensusSize
     8: "TR_identity",  # perMatch
     9: "TR_per_indel_mismatch",  # perIndel
     10: "TR_score",  # score
