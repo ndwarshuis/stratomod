@@ -82,14 +82,14 @@ def intersect_bases(dfs, bases, genome):
     cleanup()
 
     logger.info("Adding homopolymer length/fraction features")
-    length_col = f"{bases}_homopolymer_length"
-    frac_col = f"{bases}_homopolymer_total_imperfect_frac"
-    frac_gap_col = f"{bases}_homopolymer_imperfect_frac"
+    length_col = f"HOMOPOL_{bases}_length"
+    frac_col = f"HOMOPOL_{bases}_total_imperfect_frac"
+    frac_gap_col = f"HOMOPOL_{bases}_imperfect_frac"
     merged[length_col] = merged[BED_END] - merged[BED_START] - SLOP * 2
     merged[frac_col] = 1 - (merged[PFCT_LEN_COL] / merged[length_col])
     merged[frac_gap_col] = merged[GAP_COL] / merged[length_col]
     return merged.drop(columns=[PFCT_LEN_COL]).rename(
-        columns={GAP_COL: f"{bases}_homopolymer_imperfect_count"}
+        columns={GAP_COL: f"HOMOPOL_{bases}_imperfect_count"}
     )
 
 

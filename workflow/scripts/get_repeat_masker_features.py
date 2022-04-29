@@ -3,23 +3,17 @@ from os.path import basename, splitext
 from pybedtools import BedTool as bt
 from common.tsv import read_tsv, write_tsv
 from common.cli import setup_logging
-from common.bed import (
-    sort_bed_numerically,
-    filter_chromosomes,
-    BED_CHR,
-    BED_START,
-    BED_END,
-)
+from common.bed import read_bed_df, BED_CHR, BED_START, BED_END
+
+# CONVENTION: prefix all features with "REPMASK"
 
 logger = setup_logging(snakemake.log[0])
 
-CLASSCOL = "repClass"
-FAMCOL = "repFamily"
+# both of these columns are temporary and used to make processing easier
+CLASSCOL = "_repClass"
+FAMCOL = "_repFamily"
 
 COLS = {
-    5: BED_CHR,
-    6: BED_START,
-    7: BED_END,
     11: CLASSCOL,
     12: FAMCOL,
 }
@@ -28,9 +22,7 @@ RMSK_COLS = [BED_CHR, BED_START, BED_END]
 
 
 def read_rmsk_df(path):
-    df = read_tsv(path, header=None)[[*COLS]].rename(columns=COLS)
-    df = filter_chromosomes(df, snakemake.params["filt"])
-    return sort_bed_numerically(df)
+    return read_bed_df(path, (5, 6, 7), COLS, snakemake.params["filt"])
 
 
 def merge_and_write_group(df, path, groupcol, groupname):
@@ -39,7 +31,7 @@ def merge_and_write_group(df, path, groupcol, groupname):
     if len(merged.index) == 0:
         logger.warning("Empty dataframe for %s", path)
     else:
-        merged[f"{groupname}_length"] = merged[BED_END] - merged[BED_START]
+        merged[f"REPMASK_{groupname}_length"] = merged[BED_END] - merged[BED_START]
         write_tsv(path, merged, header=True)
 
 

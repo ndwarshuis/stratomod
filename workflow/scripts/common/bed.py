@@ -1,4 +1,5 @@
 import logging
+from common.tsv import read_tsv
 from itertools import product
 from more_itertools import unzip
 from pybedtools import BedTool as bt
@@ -60,6 +61,17 @@ def sort_bed_numerically(df, drop_chr=True):
     )
 
     return df
+
+
+def read_bed_df(path, bed_indices, col_mapping, filt):
+    bed_mapping = {
+        bed_indices[0]: BED_CHR,
+        bed_indices[1]: BED_START,
+        bed_indices[2]: BED_END,
+    }
+    mapping = {**bed_mapping, **col_mapping}
+    df = read_tsv(path, header=None)[[*mapping]].rename(columns=mapping)
+    return sort_bed_numerically(filter_chromosomes(df, filt))
 
 
 def merge_and_apply_stats(merge_stats, prefix, bed_df):

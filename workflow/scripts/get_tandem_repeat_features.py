@@ -2,14 +2,7 @@ from itertools import product
 from more_itertools import unzip
 from pybedtools import BedTool as bt
 from common.tsv import read_tsv, write_tsv
-from common.bed import (
-    sort_bed_numerically,
-    filter_chromosomes,
-    merge_and_apply_stats,
-    BED_CHR,
-    BED_START,
-    BED_END,
-)
+from common.bed import read_bed_df, merge_and_apply_stats, BED_START, BED_END
 from common.cli import setup_logging
 
 logger = setup_logging(snakemake.log[0])
@@ -28,44 +21,34 @@ def format_base(base):
     return f"TR_percent_{base}"
 
 
-BED_COLUMNS = {
-    BED_CHR: 1,  # chrom
-    BED_START: 2,  # chromStart
-    BED_END: 3,  # chromEnd
-}
-
 PERC_A_COL = format_base("A")
 PERC_T_COL = format_base("T")
 PERC_C_COL = format_base("C")
 PERC_G_COL = format_base("G")
 
-FEATURE_COLUMNS = {
-    "TR_unit_size": 5,  # period
-    "TR_unit_copies": 6,  # copyNum
-    "TR_consensus_size": 7,  # consensusSize
-    "TR_identity": 8,  # perMatch
-    "TR_per_indel_mismatch": 9,  # perIndel
-    "TR_score": 10,  # score
-    PERC_A_COL: 11,  # A
-    PERC_C_COL: 12,  # C
-    PERC_G_COL: 13,  # G
-    PERC_T_COL: 14,  # T
+FEATURE_COLS = {
+    5: "TR_unit_size",  # period
+    6: "TR_unit_copies",  # copyNum
+    7: "TR_consensus_size",  # consensusSize
+    8: "TR_identity",  # perMatch
+    9: "TR_per_indel_mismatch",  # perIndel
+    10: "TR_score",  # score
+    11: PERC_A_COL,  # A
+    12: PERC_C_COL,  # C
+    13: PERC_G_COL,  # G
+    14: PERC_T_COL,  # T
 }
 
 LEN_FEATURE = "TR_length"
-
-ALL_COLUMNS = {**BED_COLUMNS, **FEATURE_COLUMNS}
 
 SLOP = 5
 
 
 def read_tandem_repeats(path):
-    df = read_tsv(path, header=None)[[*ALL_COLUMNS.values()]]
-    df.columns = [*ALL_COLUMNS]
-    df = filter_chromosomes(df, snakemake.params["filt"])
+    df = read_bed_df(path, (1, 2, 3), FEATURE_COLS, snakemake.params["filt"])
     df[format_base("AT")] = df[PERC_A_COL] + df[PERC_T_COL]
     df[format_base("GC")] = df[PERC_G_COL] + df[PERC_C_COL]
-    return sort_bed_numerically(df)
+    return df
 
 
 def merge_tandem_repeats(gfile, df):
