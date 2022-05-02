@@ -1,4 +1,4 @@
-from scripts.common.config import lookup_global_chr_filter
+from scripts.common.config import lookup_global_chr_filter, lookup_annotations
 
 homopolymers_src_dir = annotations_src_dir / "homopolymers"
 homopolymers_results_dir = annotations_tsv_dir / "homopolymers"
@@ -9,7 +9,7 @@ rule download_no_alt_analysis:
     output:
         homopolymers_src_dir / "GRCh38_no_alt_analysis_set.fa",
     params:
-        url=config["resources"]["annotations"]["homopolymers"]["fasta"],
+        url=lookup_annotations(config)["homopol_fasta"],
     shell:
         "curl {params.url} | gunzip -c > {output}"
 
@@ -18,7 +18,7 @@ rule download_find_regions_script:
     output:
         homopolymers_src_dir / "find_regions.py",
     params:
-        url=config["resources"]["annotations"]["homopolymers"]["find_regions"],
+        url=config["resources"]["homopol_find_regions"],
     shell:
         "curl -o {output} {params.url}"
 
