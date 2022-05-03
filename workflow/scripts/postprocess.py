@@ -31,10 +31,13 @@ def read_inputs(paths):
 
 
 def process_series(opts, ser):
-    log_trans = opts["log_transform"]
-    fillval = opts["fill_na"]
+    trans = opts["transform"]
     _ser = pd.to_numeric(ser, errors="coerce")
-    return (np.log(_ser) if log_trans else _ser).fillna(fillval)
+    if trans == "binary":
+        return (~_ser.isnull()).astype(int)
+    else:
+        fillval = opts["fill_na"]
+        return (np.log(_ser) if trans == "log" else _ser).fillna(fillval)
 
 
 def process_chr(ser):
@@ -46,18 +49,16 @@ def process_chr(ser):
 
 
 def check_columns(wanted_cols, df_cols):
+    def assert_dups(xs, msg):
+        dups = [*duplicates_everseen(xs)]
+        assert 0 == len(dups), f"{msg}: {dups}"
+        return set(xs)
+
+    # ASSUME we already check for duplicate feature columns when the config
+    # is validated
     wanted_set = set(wanted_cols)
-    df_set = set(df_cols)
-    assert len(wanted_set) == len(
-        wanted_cols
-    ), "duplicate configuration features detected: {}".format(
-        list(duplicates_everseen(wanted_cols)),
-    )
-    assert len(df_set) == len(
-        df_cols
-    ), "input dataframe has duplicate columns: {}".format(
-        list(duplicates_everseen(df_cols)),
-    )
+    df_set = assert_dups(df_cols, "input dataframe has duplicate columns")
+
     assert (
         df_set >= wanted_set
     ), "configuration features must be a subset of columns in input dataframe"
@@ -66,10 +67,11 @@ def check_columns(wanted_cols, df_cols):
 def select_columns(features, df):
     wanted_cols = [*features, LABEL_COL]
     check_columns(wanted_cols, df.columns.tolist())
-    return df[wanted_cols]
+    to_rename = {k: n for k, v in features.items() if (n := v["alt_name"]) is not None}
+    return df[wanted_cols].rename(columns=to_rename)
 
 
-def mask_labels(include_filtered, df):
+def mask_labels(filtered_are_candidates, df):
     # if we don't want to include filtered labels (from the perspective of
     # the truth set) they all become false negatives
     def mask(row):
@@ -83,7 +85,7 @@ def mask_labels(include_filtered, df):
         else:
             return row[LABEL_COL]
 
-    if include_filtered is False:
+    if filtered_are_candidates is False:
         # use convoluted apply to avoid slicing warnings
         df[LABEL_COL] = df.apply(mask, axis=1)
     return df
@@ -96,7 +98,7 @@ def collapse_labels(error_labels, df):
     )
 
 
-def process_data(features, error_labels, include_filtered, df):
+def process_data(features, error_labels, filtered_are_candidates, df):
     for col, opts in features.items():
         if col == CHROM_COL:
             df[col] = process_chr(df[col])
@@ -108,7 +110,7 @@ def process_data(features, error_labels, include_filtered, df):
         error_labels,
         select_columns(
             features,
-            mask_labels(include_filtered, df),
+            mask_labels(filtered_are_candidates, df),
         ),
     )
 
@@ -119,7 +121,7 @@ def main():
     processed = process_data(
         ps["features"],
         ps["error_labels"],
-        ps["include_filtered"],
+        ps["filtered_are_candidates"],
         raw_df,
     )
     with open(snakemake.output["paths"], "w") as f:

@@ -1,3 +1,8 @@
+# 3.1.0
+
+- add option to change name of features in config file
+- add 'binary' feature transformation option
+
 # 3.0.0
 
 - rename features to have standard prefixes per group
