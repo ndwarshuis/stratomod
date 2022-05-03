@@ -69,7 +69,7 @@ def select_columns(features, df):
     return df[wanted_cols]
 
 
-def mask_labels(include_filtered, df):
+def mask_labels(filtered_are_candidates, df):
     # if we don't want to include filtered labels (from the perspective of
     # the truth set) they all become false negatives
     def mask(row):
@@ -83,7 +83,7 @@ def mask_labels(include_filtered, df):
         else:
             return row[LABEL_COL]
 
-    if include_filtered is False:
+    if filtered_are_candidates is False:
         # use convoluted apply to avoid slicing warnings
         df[LABEL_COL] = df.apply(mask, axis=1)
     return df
@@ -96,7 +96,7 @@ def collapse_labels(error_labels, df):
     )
 
 
-def process_data(features, error_labels, include_filtered, df):
+def process_data(features, error_labels, filtered_are_candidates, df):
     for col, opts in features.items():
         if col == CHROM_COL:
             df[col] = process_chr(df[col])
@@ -108,7 +108,7 @@ def process_data(features, error_labels, include_filtered, df):
         error_labels,
         select_columns(
             features,
-            mask_labels(include_filtered, df),
+            mask_labels(filtered_are_candidates, df),
         ),
     )
 
@@ -119,7 +119,7 @@ def main():
     processed = process_data(
         ps["features"],
         ps["error_labels"],
-        ps["include_filtered"],
+        ps["filtered_are_candidates"],
         raw_df,
     )
     with open(snakemake.output["paths"], "w") as f:
