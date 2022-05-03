@@ -48,7 +48,14 @@ ebm_runs:
       TR_percent_AT_median:
         fill_na: -1
 
-      REPMASK_SINE_length: {}
+      REPMASK_SINE_length:
+        transform: binary
+        alt_name: REPMASK_SINE
+        feature_type: categorical
+      REPMASK_LTR_length:
+        transform: binary
+        alt_name: REPMASK_LTR
+        feature_type: categorical
       REPMASK_LINE_length: {}
 
       # mappability

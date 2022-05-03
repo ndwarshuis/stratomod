@@ -45,6 +45,9 @@ def get_interactions(df_columns, iconfig):
 
 def train_ebm(config, label, df):
     features = config["features"]
+    feature_names = [
+        k if v["alt_name"] is None else v["alt_name"] for k, v in features.items()
+    ]
     misc_params = config["ebm_settings"]["misc_parameters"]
 
     if not misc_params["downsample"] is None:
@@ -69,9 +72,9 @@ def train_ebm(config, label, df):
         # NOTE the EBM docs show them explicitly adding interactions here like
         # 'F1 x F2' but it appears to work when I specify them separately via
         # the 'interactions' parameter
-        feature_names=list(features),
+        feature_names=feature_names,
         feature_types=[f["feature_type"] for f in features.values()],
-        interactions=get_interactions(list(features), config["interactions"]),
+        interactions=get_interactions(feature_names, config["interactions"]),
         **ebm_config,
     )
     ebm.fit(X_train, y_train)

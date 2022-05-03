@@ -1,4 +1,4 @@
-from more_itertools import unzip
+from more_itertools import unzip, duplicates_everseen
 from pathlib import Path
 from snakemake.utils import min_version, validate
 
@@ -9,7 +9,22 @@ configfile: "config/static.yml"
 configfile: "config/dynamic.yml"
 
 
-def validate_interactions(config):
+################################################################################
+# Validation
+#
+# These functions are necessary to validate properties of the config file(s)
+# that are not possible using JSON schema validation.
+#
+# In particular:
+# - For each in 'ebm_runs', make sure there are no duplicated feature names
+#   (especially considering that features can be renamed on-the-fly with
+#   'alt_name'
+# - For each in 'ebm_runs', make sure explicitly named interaction terms are
+#   also in the feature set
+# - Make sure input files in for each in 'ebm_runs' are in the 'inputs' section
+
+
+def validate_features(config):
     def assert_1(run_name, feature_list, feature):
         assert (
             feature in feature_list
@@ -19,31 +34,40 @@ def validate_interactions(config):
         for i in ints:
             assert_1(run_name, feature_list, i)
 
-    for run_name, run_values in config["ebm_runs"].items():
-        if "interactions" in run_values:
-            interactions = run_values["interactions"]
-            if isinstance(interactions, list):
-                for i in interactions:
-                    (assert_N if isinstance(i, list) else assert_1)(
-                        run_name, [*run_values["features"]], i
-                    )
+    def flatten_features(fs):
+        return [k if v["alt_name"] is None else v["alt_name"] for k, v in fs.items()]
+
+    flat = [
+        (k, ints, flatten_features(v["features"]))
+        for k, v in config["ebm_runs"].items()
+        if "interactions" in v and isinstance(ints := v["interactions"], list)
+    ]
+
+    for run_name, ints, feature_names in flat:
+        # test for feature duplicates
+        dups = [*duplicates_everseen(feature_names)]
+        assert len(dups) == 0, "Duplicated features: {}".format(", ".join(dups))
+        # test for matching interaction terms
+        for i in ints:
+            check = assert_N if isinstance(i, list) else assert_1
+            check(run_name, feature_names, i)
 
 
 def validate_inputs(config):
     inputs = set(config["inputs"])
     for k, v in config["ebm_runs"].items():
-        assert set(j for i in v["inputs"] for j in i) <= inputs, (
-            "Run config %s contains invalid input keys" % k
-        )
+        assert (
+            set(j for i in v["inputs"] for j in i) <= inputs
+        ), f"Run config {k} contains invalid input keys"
 
 
 validate(config, "schemas/config-schema.yml")
 validate_inputs(config)
-validate_interactions(config)
+validate_features(config)
 
 
 ################################################################################
-# paths
+# Paths
 
 # this is necessary as envs are apparently resolved locally in each rule file
 envs_dir = Path("workflow/envs").resolve()
@@ -54,7 +78,7 @@ resources_dir = Path(conf_paths["resources"])
 results_dir = Path(conf_paths["results"])
 
 ################################################################################
-# import subworkflows
+# Import Subworkflows
 
 
 include: "rules/annotations/get_annotations.smk"
@@ -63,7 +87,7 @@ include: "rules/run_ebm.smk"
 
 
 ################################################################################
-# main target
+# Main Target
 
 
 rule all:
