@@ -1,4 +1,4 @@
-from scripts.common.config import lookup_global_chr_filter
+from scripts.common.config import lookup_global_chr_filter, lookup_annotations
 
 segdups_src_dir = annotations_src_dir / "segdups"
 segdups_results_dir = annotations_tsv_dir / "segdups"
@@ -9,7 +9,7 @@ rule download_superdups:
     output:
         segdups_src_dir / "superdups.txt",
     params:
-        url=config["resources"]["annotations"]["superdups"],
+        url=lookup_annotations(config)["superdups"],
     shell:
         "curl {params.url} | gunzip -c > {output}"
 

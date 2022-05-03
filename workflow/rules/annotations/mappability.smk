@@ -1,6 +1,9 @@
-mappability_src_dir = annotations_src_dir / "mappability"
-# mappability_results_dir = annotations_tsv_dir / "mappability"
+from scripts.common.config import lookup_annotations
 
+mappability_src_dir = annotations_src_dir / "mappability"
+mappability_results_dir = annotations_tsv_dir / "mappability"
+
+mappability_config = lookup_annotations(config)["mappability"]
 
 # ASSUME these are already sorted numerically and filtered for complete
 # chromosomes
@@ -15,7 +18,7 @@ rule get_mappability_high_src:
     output:
         mappability_src_dir / "mappability_high.tsv",
     params:
-        url=config["resources"]["annotations"]["mappability"]["high"],
+        url=mappability_config["high"],
         feature_name="MAP_difficult_250bp",
     shell:
         """
@@ -32,5 +35,17 @@ use rule get_mappability_high_src as get_mappability_low_src with:
     output:
         mappability_src_dir / "mappability_low.tsv",
     params:
-        url=config["resources"]["annotations"]["mappability"]["low"],
+        url=mappability_config["low"],
         feature_name="MAP_difficult_100bp",
+
+
+rule subtract_high_from_low_mappability:
+    input:
+        low=rules.get_mappability_low_src.output,
+        high=rules.get_mappability_high_src.output,
+    output:
+        mappability_results_dir / "mappability_low_no_high.tsv",
+    conda:
+        str(envs_dir / "bedtools.yml")
+    script:
+        str(scripts_dir / "get_mappability_features.py")

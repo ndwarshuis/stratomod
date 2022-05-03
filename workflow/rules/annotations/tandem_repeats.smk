@@ -1,4 +1,4 @@
-from scripts.common.config import lookup_global_chr_filter
+from scripts.common.config import lookup_global_chr_filter, lookup_annotations
 
 tandem_repeats_src_dir = annotations_src_dir / "tandem_repeats"
 tandem_repeats_results_dir = annotations_tsv_dir / "tandem_repeats"
@@ -9,7 +9,7 @@ rule get_simreps_src:
     output:
         tandem_repeats_src_dir / "simple_repeats.tsv",
     params:
-        url=config["resources"]["annotations"]["simreps"],
+        url=lookup_annotations(config)["simreps"],
     shell:
         "curl {params.url} | gunzip -c > {output}"
 

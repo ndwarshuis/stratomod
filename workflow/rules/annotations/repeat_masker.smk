@@ -1,4 +1,4 @@
-from scripts.common.config import lookup_global_chr_filter
+from scripts.common.config import lookup_global_chr_filter, lookup_annotations
 
 rmsk_src_dir = annotations_src_dir / "repeat_masker"
 rmsk_results_dir = annotations_tsv_dir / "repeat_masker"
@@ -18,7 +18,7 @@ rule get_repeat_masker_src:
     output:
         rmsk_src_dir / "repeat_masker.tsv",
     params:
-        url="https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/rmsk.txt.gz",
+        url=lookup_annotations(config)["repeat_masker"]
     shell:
         "curl {params.url} | gunzip -c > {output}"
 

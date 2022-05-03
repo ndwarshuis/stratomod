@@ -24,7 +24,7 @@ ebm_runs:
       split_parameters:
         test_size: 0.2
     error_labels: [fp]
-    include_filtered: false
+    filtered_are_candidates: false
     interactions:
       - VCF_input
     features: &base_features

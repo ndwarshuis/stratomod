@@ -10,7 +10,7 @@ rule get_genome:
     output:
         annotations_src_dir / "genome.txt",
     params:
-        url=config["resources"]["annotations"]["genome"]
+        url=config["resources"]["references"]["GRCh38"]["genome"]
     shell:
         """
         curl {params.url} | \
