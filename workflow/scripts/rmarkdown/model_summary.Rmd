@@ -93,6 +93,38 @@ ggplot(global_df, aes(score, reorder(variable, score))) +
 
 ```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 4}
 
+integer_plot_features <- list("VCF_DP" = 50,
+                              "VCF_indel_length" = 50,
+                              "HOMOPOL_[^_]+_length" = 50,
+                              "TR_unit_size_[^_]+$" = 50,
+                              "TR_unit_copies_[^_]+$" = 50,
+                              "SEGDUP_count" = 50) %>%
+    imap(~ list(name = .y, value = .x))
+
+get_truncation <- function(s) {
+    t <- detect(integer_plot_features, ~ !is.na(str_match(s, .x$name)[1,1]))
+    if (is.null(t)) NA else t$value
+}
+
+make_integer_plot <- function(df, xlab, errorbars = TRUE, truncate = 50) {
+    fill_cols <- if (errorbars) c("score", "stdev") else "score"
+    p <- df %>%
+        mutate(value = ceiling(value)) %>%
+        filter(value <= truncate) %>%
+        right_join(tibble(value = 0:truncate), by = "value") %>%
+        arrange(value) %>%
+        fill(all_of(fill_cols), .direction = "downup") %>%
+        ggplot(aes(value, score)) +
+        geom_col() +
+        xlab(xlab) +
+        ylab("Score")
+    if (errorbars) {
+        p + geom_errorbar(aes(ymin = score - stdev, ymax = score + stdev))
+    } else {
+        p
+    }
+}
+
 make_continuous_plot <- function(df, name) {
     infer_transform(df$value) %>%
         mutate(score = df$score,
@@ -118,7 +150,12 @@ make_categorical_plot <- function(df, name) {
 
 print_uv_plot <- function(vartype, df, name) {
     if (vartype == "continuous") {
-        p <- make_continuous_plot(df, name)
+        t <- get_truncation(name)
+        if (is.na(t)) {
+            p <- make_continuous_plot(df, name)
+        } else {
+            p <- make_integer_plot(df, name, truncate = t)
+        }
     } else if (vartype == "categorical") {
         p <- make_categorical_plot(df, name)
     } else {
@@ -173,11 +210,16 @@ print_cont_cont_plot <- function(df, left_name, right_name) {
 
 print_cont_cat_plot_inner <- function(df, cat_name, cont_name) {
     cat_val <- as.character(df$c[[1]])
-    p <- ggplot(df, aes(x, score)) +
-        geom_step(aes(y = lower), color = "red") +
-        geom_step(aes(y = upper), color = "red") +
-        geom_step() +
-        xlab(cont_name)
+    t <- get_truncation(cont_name)
+    p <- if (is.na(t)) {
+             ggplot(df, aes(value, score)) +
+                 geom_step(aes(y = lower), color = "red") +
+                 geom_step(aes(y = upper), color = "red") +
+                 geom_step() +
+                 xlab(cont_name)
+         } else {
+             make_integer_plot(df, cont_name, truncate = t)
+         }
     cat(sprintf("### %s = %s\n\n", cat_name, cat_val))
     print(p)
     cat("\n\n")
@@ -186,7 +228,7 @@ print_cont_cat_plot_inner <- function(df, cat_name, cont_name) {
 print_cont_cat_plot <- function(df, cat, cont, cat_name, cont_name) {
     ## this 'all_of' thing is needed to silence a weird warning about
     ## using vectors to select things (I disagree with it, but whatever)
-    .df <- rename(df, x = all_of(cont), c = all_of(cat)) %>%
+    .df <- rename(df, value = all_of(cont), c = all_of(cat)) %>%
         mutate(lower = score - stdev,
                upper = score + stdev) %>%
         group_split(c) %>%
