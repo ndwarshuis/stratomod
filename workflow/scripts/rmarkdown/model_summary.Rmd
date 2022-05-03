@@ -210,11 +210,16 @@ print_cont_cont_plot <- function(df, left_name, right_name) {
 
 print_cont_cat_plot_inner <- function(df, cat_name, cont_name) {
     cat_val <- as.character(df$c[[1]])
-    p <- ggplot(df, aes(x, score)) +
-        geom_step(aes(y = lower), color = "red") +
-        geom_step(aes(y = upper), color = "red") +
-        geom_step() +
-        xlab(cont_name)
+    t <- get_truncation(cont_name)
+    p <- if (is.na(t)) {
+             ggplot(df, aes(value, score)) +
+                 geom_step(aes(y = lower), color = "red") +
+                 geom_step(aes(y = upper), color = "red") +
+                 geom_step() +
+                 xlab(cont_name)
+         } else {
+             make_integer_plot(df, cont_name, truncate = t)
+         }
     cat(sprintf("### %s = %s\n\n", cat_name, cat_val))
     print(p)
     cat("\n\n")
@@ -223,7 +228,7 @@ print_cont_cat_plot_inner <- function(df, cat_name, cont_name) {
 print_cont_cat_plot <- function(df, cat, cont, cat_name, cont_name) {
     ## this 'all_of' thing is needed to silence a weird warning about
     ## using vectors to select things (I disagree with it, but whatever)
-    .df <- rename(df, x = all_of(cont), c = all_of(cat)) %>%
+    .df <- rename(df, value = all_of(cont), c = all_of(cat)) %>%
         mutate(lower = score - stdev,
                upper = score + stdev) %>%
         group_split(c) %>%
