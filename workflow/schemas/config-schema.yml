@@ -248,10 +248,23 @@ properties:
                     type: string
                     default: continuous
                     pattern: ^continuous|categorical$
-                  log_transform:
-                    description: log transform the feature if 'true'
-                    type: boolean
-                    default: false
+                  transform:
+                    description: |
+                      Apply transformation to the feature. Must be one of 'log'
+                      (log transform) or 'binary' (present values become 1, this
+                      makes most sense when 'fill_na' is 0)
+                    default: null
+                    anyOf:
+                      - type: string
+                        pattern: ^log|binary$
+                      - type: "null"
+                  alt_name: 
+                    description: an alternative name for this feature
+                    default: null
+                    anyOf:
+                      - type: string
+                        pattern: ^[\w_-]+$
+                      - type: "null"
                   fill_na:
                     description: if present, fill missing values with this value
                     type: number
