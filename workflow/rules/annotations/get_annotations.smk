@@ -10,7 +10,7 @@ rule get_genome:
     output:
         annotations_src_dir / "genome.txt",
     params:
-        url="https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/chromInfo.txt.gz",
+        url=config["resources"]["references"]["GRCh38"]["genome"]
     shell:
         """
         curl {params.url} | \

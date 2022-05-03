@@ -19,27 +19,18 @@ format_exp <- function(x) {
     sprintf("%.1e", x)
 }
 
-read_tsv <- function(path) {
-    read.csv(path, sep = "\t") %>%
-        as_tibble()
-}
-
-eval_nowarn <- function(f, xs) {
-    .xs <- discard(xs, is.na)
-    ifelse(length(.xs) == 0, NA, f(.xs))
-}
-
 make_stats_table <- function(df) {
-    gather(df) %>%
+    N <- nrow(df)
+    gather(df, factor_key = TRUE, na.rm = TRUE) %>%
         group_by(key) %>%
-        summarize(min = eval_nowarn(min, value),
-                  max = eval_nowarn(max, value),
-                  med = median(value, na.rm = TRUE),
-                  mean = mean(value, na.rm = TRUE),
-                  stdev = mean(value, na.rm = TRUE),
-                  range = max - min,
-                  n_present = sum(!is.na(value)),
-                  perc_present = 100 * n_present / n()) %>%
+        summarize(n_present = n(),
+                  perc_present = 100 * n_present / N,
+                  min = ifelse(n_present == 0, NA, min(value)),
+                  max = ifelse(n_present == 0, NA, max(value)),
+                  med = median(value),
+                  mean = mean(value),
+                  stdev = sd(value),
+                  range = max - min) %>%
         rename(feature = key) %>%
         mutate(perc_present = format_perc(perc_present)) %>%
         mutate(across(c(min, max, med, mean, stdev, range), format_exp)) %>%
@@ -67,14 +58,21 @@ label_summary_table <- function(y) {
         knitr::kable()
 }
 
+path <- snakemake@input[[1]]
 
-df <- read_tsv(snakemake@input[[1]])
+df_x <- readr::read_tsv(path,
+                        col_types = cols(
+                            label = "-",
+                            CHROM = "-",
+                            POS = "-",
+                            `POS+length(REF)` = "-",
+                            VCF_FILTER = "-",
+                            VCF_GT = "-",
+                            VCF_GQ = "-",
+                            .default = "d"))
 
-df_x <- df %>%
-    select(-label) %>%
-    select(-CHROM, -POS, -POS.length.REF., -FILTER, -GT, -GQ)
-
-df_y <- df$label
+df_y <- readr::read_tsv(path, col_types = cols(label = "c", .default = "-")) %>%
+    pull(label)
 
 y_labels <- unique(df_y)
 

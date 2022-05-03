@@ -37,14 +37,10 @@ rule add_annotations:
                 allow_missing=True,
             ),
             rules.get_repeat_masker_classes.output,
-            rules.get_simple_reps.output,
+            rules.get_tandem_repeats.output,
             rules.get_mappability_high_src.output,
-            rules.get_mappability_low_src.output,
-            expand(
-                rules.get_segdups.output,
-                colname=list(segdups_cols),
-                allow_missing=True,
-            ),
+            rules.subtract_high_from_low_mappability.output,
+            rules.get_segdups.output,
         ],
     output:
         annotated_input_dir / "{filter_key}.tsv",

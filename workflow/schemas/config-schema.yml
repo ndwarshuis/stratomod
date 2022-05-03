@@ -67,7 +67,6 @@ properties:
     required:
       - benchmarks
       - references
-      - annotations
     properties:
 
       benchmarks:
@@ -93,12 +92,20 @@ properties:
                 type: string
                 format: uri
 
+      homopol_find_regions:
+        description: |
+          the url of the script to use when finding simple repeat regions
+        type: string
+        format: uri
+
       references:
         additionalProperties: false
         patternProperties:
           ^[\w\.\-]+$:
             required:
               - sdf
+              - genome
+              - annotations
             additionalProperties: false
             properties:
               sdf:
@@ -106,49 +113,55 @@ properties:
                 type: string
                 format: uri
 
-      annotations:
-        additionalProperties: false
-        required:
-          - mappability
-          - superdups
-          - homopolymers
-        properties:
-          mappability:
-            additionalProperties: false
-            required:
-            - low
-            - high
-            properties:
-              low:
-                description: the url for low stringency mappability bed file
-                type: string
-                format: uri
-              high:
-                description: the url for high stringency mappability bed file
-                type: string
-                format: uri
+              genome:
+                  description: the url to the genome database file
+                  type: string
+                  format: uri
 
-          superdups:
-            description: the url to the superdups txt file
-            type: string
-            format: uri
+              annotations:
+                additionalProperties: false
+                required:
+                  - mappability
+                  - superdups
+                  - homopol_fasta
+                  - simreps
+                  - repeat_masker
+                properties:
+                  mappability:
+                    additionalProperties: false
+                    required:
+                    - low
+                    - high
+                    properties:
+                      low:
+                        description: the url for low stringency mappability bed file
+                        type: string
+                        format: uri
+                      high:
+                        description: the url for high stringency mappability bed file
+                        type: string
+                        format: uri
+          
+                  superdups:
+                    description: the url to the superdups txt file
+                    type: string
+                    format: uri
+          
+                  simreps:
+                    description: the url to the simreps database file
+                    type: string
+                    format: uri
+          
+                  homopol_fasta:
+                    description: |
+                        the url of the fasta file containing the simple regions
+                    type: string
+                    format: uri
 
-          homopolymers:
-            required:
-              - find_regions
-              - fasta
-            additionalProperties: false
-            properties:
-              find_regions:
-                description: |
-                  the url of the script to use when finding simple repeat regions
-                type: string
-                format: uri
-              fasta:
-                description: |
-                  the url of the fasta file containing the simple regions
-                type: string
-                format: uri
+                  repeat_masker:
+                    description: the url to the repeat masker database file
+                    type: string
+                    format: uri
 
 ################################################################################
 # EBM runs
@@ -194,7 +207,7 @@ properties:
               type: string
               pattern: ^INDEL|SNP$
 
-          include_filtered:
+          filtered_are_candidates:
             description: |
               If true, consider FILTER'ed entries in the query as positives
               (which in turn could be either TP or FP depending on if they are

@@ -1,4 +1,4 @@
-from scripts.common.config import lookup_global_chr_filter
+from scripts.common.config import lookup_global_chr_filter, lookup_annotations
 
 tandem_repeats_src_dir = annotations_src_dir / "tandem_repeats"
 tandem_repeats_results_dir = annotations_tsv_dir / "tandem_repeats"
@@ -9,23 +9,23 @@ rule get_simreps_src:
     output:
         tandem_repeats_src_dir / "simple_repeats.tsv",
     params:
-        url="https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/simpleRepeat.txt.gz",
+        url=lookup_annotations(config)["simreps"],
     shell:
         "curl {params.url} | gunzip -c > {output}"
 
 
 # NOTE sorting is done internally by the script
-rule get_simple_reps:
+rule get_tandem_repeats:
     input:
         src=rules.get_simreps_src.output,
         genome=rules.get_genome.output,
     output:
-        tandem_repeats_results_dir / "merged_simreps.tsv",
+        tandem_repeats_results_dir / "tandem_repeats.tsv",
     conda:
         str(envs_dir / "bedtools.yml")
     params:
         filt=lookup_global_chr_filter(config),
     log:
-        tandem_repeats_results_dir / "simreps.log",
+        tandem_repeats_results_dir / "tandem_repeats.log",
     script:
-        str(scripts_dir / "get_simple_repeats.py")
+        str(scripts_dir / "get_tandem_repeat_features.py")
