@@ -1,3 +1,11 @@
+# 3.0.0
+
+- rename features to have standard prefixes per group
+- rename `include_filtered` to `filtered_are_candidates` (config option)
+- make mappability features independent (eg no overlap)
+- remove `consensusSize` feature
+- make static config annotations dependent on reference (futureproofing)
+
 # 2.5.1
 
 - make Rmd files run faster with large files
