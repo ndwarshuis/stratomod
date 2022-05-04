@@ -7,5 +7,7 @@ before_script:
 snakemake_dry:
   stage: test
   script:
-    - snakemake --version
-    - snakemake -p --use-conda --cores 1 --verbose --dryrun
+    - >
+      snakemake -p --use-conda --cores 1 --verbose
+      --configfile config/dynamic-testing.yml
+      --dryrun

@@ -6,7 +6,6 @@ min_version("6.12")
 
 
 configfile: "config/static.yml"
-configfile: "config/dynamic.yml"
 
 
 ################################################################################
