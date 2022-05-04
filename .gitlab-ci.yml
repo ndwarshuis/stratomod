@@ -11,12 +11,12 @@ stages:
 install_env:
   stage: snakemake_global
   script:
+    - echo "Heyyyyy"
     - >
-      if [ -d this-env ]; then
-      echo "Env already created"
-      else
-      mamba env create -f env.yml -p ./this-env
-      fi
+      test -d ./this-env
+      && echo "Env already created"
+      || mamba env create -f env.yml -p ./this-env
+    - echo "Yayyyy"
   cache:
     policy: pull-push
     paths:
