@@ -13,9 +13,9 @@ install_env:
   cache:
     paths:
       - this-env
-    - key:
-        files:
-          - env.yml
+    key:
+      files:
+        - env.yml
 
 snakemake_dry:
   stage: test
@@ -28,9 +28,9 @@ snakemake_dry:
   cache:
     paths:
       - this-env
-    - key:
-        files:
-          - env.yml
+    key:
+      files:
+        - env.yml
 
 # snakemake_chr21:
 #   stage: test
