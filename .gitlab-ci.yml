@@ -42,7 +42,7 @@ install_smk_conda_envs:
     - snakemake --use-conda -c 1 --configfile $TESTCONF --conda-create-envs-only
   cache:
     - policy: pull
-      path: *env-global-path
+      paths: *env-global-path
       key: *env-global-key
     - policy: pull-push
       paths: &env-smk-path
