@@ -2,9 +2,10 @@ image: condaforge/mambaforge:4.12.0-0
 
 before_script:
   - mamba env create -f env.yml --force
-  - source activate snakemake-ebm
+  - conda activate snakemake-ebm
 
 snakemake_dry:
   stage: test
   script:
+    - snakemake --version
     - snakemake -p --use-conda --cores 1 --verbose --dryrun
