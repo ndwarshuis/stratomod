@@ -10,7 +10,12 @@ stages:
 install_env:
   stage: snakemake_global
   script:
-    - mamba env create -f env.yml -p ./this-env
+    - >
+      if conda env list | grep "snakemake-ebm" >/dev/null 2>&1; then
+      echo "Env already created"
+      else
+      mamba env create -f env.yml -p ./this-env
+      fi
   cache:
     policy: pull-push
     paths:
@@ -22,6 +27,7 @@ install_env:
 install_smk_conda_envs:
   stage: snakemake_conda
   script:
+    - conda activate ./this-env
     - >
       snakemake --use-conda --cores 1
       --configfile config/dynamic-testing.yml
@@ -53,6 +59,7 @@ snakemake_dry:
 snakemake_chr21:
   stage: test
   script:
+    - conda activate ./this-env
     - >
       snakemake -p --use-conda --cores 1 --verbose
       --configfile config/dynamic-testing.yml
