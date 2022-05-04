@@ -19,7 +19,7 @@ install_env:
         - env.yml
 
 install_smk_conda_envs:
-  needs: install_env
+  needs: [install_env]
   stage: build
   script:
     - >
