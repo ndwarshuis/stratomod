@@ -4,10 +4,7 @@ image: condaforge/mambaforge:4.12.0-0
 # the env is apparently cached (soooooo need to figure out how to figure out
 # if conda env is installed or not)
 before_script:
-  - echo "$HOME"
-  - ls -al "$HOME"
-  - ls -al /git/gitlab-runner
-  - whoami
+  - which mamba
   - mamba env create -f env.yml
   - conda activate snakemake-ebm
 
