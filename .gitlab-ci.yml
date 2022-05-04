@@ -1,5 +1,8 @@
 # image: condaforge/mambaforge:4.12.0-0
 
+variables:
+  ENV_DIR: ./this-env
+
 stages:
   - snakemake_global
   - snakemake_conda
@@ -11,16 +14,14 @@ stages:
 install_env:
   stage: snakemake_global
   script:
-    - echo "Heyyyyy"
     - >
-      test -d ./this-env
+      test -d $ENV_DIR
       && echo "Env already created"
-      || mamba env create -f env.yml -p ./this-env
-    - echo "Yayyyy"
+      || mamba env create -f env.yml -p $ENV_DIR
   cache:
     policy: pull-push
     paths:
-      - this-env
+      - $ENV_DIR
     key:
       files:
         - env.yml
@@ -28,23 +29,29 @@ install_env:
 install_smk_conda_envs:
   stage: snakemake_conda
   script:
-    - conda activate ./this-env
+    - conda activate $ENV_DIR
     - >
       snakemake --use-conda --cores 1
       --configfile config/dynamic-testing.yml
       --conda-create-envs-only
   cache:
-    policy: pull-push
-    paths:
-      - .snakemake/conda
-    key:
-      files:
-        - workflow/envs
+    - policy: pull
+      paths:
+        - this-env
+      key:
+        files:
+          - env.yml
+    - policy: pull-push
+      paths:
+        - .snakemake/conda
+      key:
+        files:
+          - workflow/envs
 
 snakemake_dry:
   stage: test
   script:
-    - conda activate ./this-env
+    - conda activate $ENV_DIR
     - >
       snakemake --use-conda --cores 1
       --configfile config/dynamic-testing.yml
@@ -60,7 +67,7 @@ snakemake_dry:
 snakemake_chr21:
   stage: test
   script:
-    - conda activate ./this-env
+    - conda activate $ENV_DIR
     - >
       snakemake -p --use-conda --cores 1 --verbose
       --configfile config/dynamic-testing.yml
