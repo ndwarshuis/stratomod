@@ -1,5 +1,3 @@
-# image: condaforge/mambaforge:4.12.0-0
-
 variables:
   ENV_DIR: ./this-env
   TESTCONF: config/dynamic-testing.yml
@@ -8,6 +6,12 @@ stages:
   - snakemake_global
   - snakemake_conda
   - test
+
+# NOTE NIST gitlab runner doesn't seem to have docker :(
+# image: condaforge/mambaforge:4.12.0-0
+
+################################################################################
+# set up global conda environment
 
 # - ASSUME mamba is already installed on the system hosting the gitlab runner
 # - ASSUME the cache will track any changes to env.yml and will force an update
@@ -19,61 +23,56 @@ install_env:
       test -d $ENV_DIR
       && echo "Env already created"
       || mamba env create -f env.yml -p $ENV_DIR
-  cache:
+  cache: 
     policy: pull-push
-    paths:
+    paths: &env-global-path
       - this-env
-    key:
+    key: &env-global-key
       files:
         - env.yml
 
+################################################################################
+# set up snakemake rule conda environments
+
 install_smk_conda_envs:
   stage: snakemake_conda
-  script:
+  before_script: &conda-before
     - conda activate $ENV_DIR
+  script:
     - snakemake --use-conda -c 1 --configfile $TESTCONF --conda-create-envs-only
   cache:
     - policy: pull
-      paths:
-        - this-env
-      key:
-        files:
-          - env.yml
+      <<: *env-global-path
+      <<: *env-global-key
     - policy: pull-push
-      paths:
+      paths: &env-smk-path
         - .snakemake/conda
-      key:
+      key: &env-smk-keys
         files:
           - workflow/envs
+
+################################################################################
+# test snakemake things
 
 snakemake_dry:
   stage: test
+  <<: *conda-before
   script:
-    - conda activate $ENV_DIR
     - snakemake --use-conda -c 1 --configfile $TESTCONF --dryrun
   cache:
     - policy: pull
-     -paths:
-       -- this-env
-     -key:
-       -files:
-         -- env.yml
+      <<: *env-global-path
+      <<: *env-global-key
 
 snakemake_chr21:
   stage: test
+  <<: *conda-before
   script:
-    - conda activate $ENV_DIR
     - snakemake -p --use-conda -c 1 --verbose --configfile $TESTCONF
   cache:
     - policy: pull
-      paths:
-        - this-env
-      key:
-        files:
-          - env.yml
+      <<: *env-global-path
+      <<: *env-global-key
     - policy: pull
-      paths:
-        - .snakemake/conda
-      key:
-        files:
-          - workflow/envs
+      <<: *env-smk-path
+      <<: *env-smk-key
