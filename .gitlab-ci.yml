@@ -4,7 +4,7 @@
 # the env is apparently cached (soooooo need to figure out how to figure out
 # if conda env is installed or not)
 before_script:
-  - which mamba
+  - conda info
   - mamba env create -f env.yml
   - conda activate snakemake-ebm
 
