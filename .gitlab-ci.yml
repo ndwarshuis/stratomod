@@ -65,16 +65,16 @@ snakemake_dry:
       paths: *env-global-path
       key: *env-global-key
 
-snakemake_chr21:
-  needs: [install_smk_conda_envs, install_global_env]
-  stage: test
-  before_script: *conda-before
-  script:
-    - snakemake -p --use-conda -c 1 --verbose --configfile $TESTCONF
-  cache:
-    - policy: pull
-      paths: *env-global-path
-      key: *env-global-key
-    - policy: pull
-      paths: *env-smk-path
-      key: *env-smk-key
+# snakemake_chr21:
+#   needs: [install_smk_conda_envs, install_global_env]
+#   stage: test
+#   before_script: *conda-before
+#   script:
+#     - snakemake -p --use-conda -c 1 --verbose --configfile $TESTCONF
+#   cache:
+#     - policy: pull
+#       paths: *env-global-path
+#       key: *env-global-key
+#     - policy: pull
+#       paths: *env-smk-path
+#       key: *env-smk-key
