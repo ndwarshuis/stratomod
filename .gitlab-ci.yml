@@ -16,7 +16,7 @@ stages:
 # - ASSUME mamba is already installed on the system hosting the gitlab runner
 # - ASSUME the cache will track any changes to env.yml and will force an update
 #   if this changes
-install_env:
+install_global_env:
   stage: snakemake_global
   script:
     - >
@@ -55,6 +55,7 @@ install_smk_conda_envs:
 # test snakemake things
 
 snakemake_dry:
+  needs: [install_global_env]
   stage: test
   before_script: *conda-before
   script:
@@ -65,6 +66,7 @@ snakemake_dry:
       key: *env-global-key
 
 snakemake_chr21:
+  needs: [install_smk_conda_envs]
   stage: test
   before_script: *conda-before
   script:
