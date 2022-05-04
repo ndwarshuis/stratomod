@@ -10,6 +10,12 @@ install_env:
   stage: build
   script:
     - mamba env create -f env.yml -p ./this-env
+  cache:
+    paths:
+      - this-env
+    - key:
+        files:
+          - env.yml
 
 snakemake_dry:
   stage: test
@@ -19,6 +25,12 @@ snakemake_dry:
       snakemake --use-conda --cores 1
       --configfile config/dynamic-testing.yml
       --dryrun
+  cache:
+    paths:
+      - this-env
+    - key:
+        files:
+          - env.yml
 
 # snakemake_chr21:
 #   stage: test
