@@ -42,8 +42,8 @@ install_smk_conda_envs:
     - snakemake --use-conda -c 1 --configfile $TESTCONF --conda-create-envs-only
   cache:
     - policy: pull
-      <<: *env-global-path
-      <<: *env-global-key
+      path: *env-global-path
+      key: *env-global-key
     - policy: pull-push
       paths: &env-smk-path
         - .snakemake/conda
@@ -61,8 +61,8 @@ snakemake_dry:
     - snakemake --use-conda -c 1 --configfile $TESTCONF --dryrun
   cache:
     - policy: pull
-      <<: *env-global-path
-      <<: *env-global-key
+      paths: *env-global-path
+      key: *env-global-key
 
 snakemake_chr21:
   stage: test
@@ -71,8 +71,8 @@ snakemake_chr21:
     - snakemake -p --use-conda -c 1 --verbose --configfile $TESTCONF
   cache:
     - policy: pull
-      <<: *env-global-path
-      <<: *env-global-key
+      paths: *env-global-path
+      key: *env-global-key
     - policy: pull
-      <<: *env-smk-path
-      <<: *env-smk-key
+      paths: *env-smk-path
+      key: *env-smk-key
