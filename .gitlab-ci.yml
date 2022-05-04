@@ -5,6 +5,8 @@
 # if conda env is installed or not)
 before_script:
   - conda info
+  - conda env list
+  - conda list
   - mamba env create -f env.yml
   - conda activate snakemake-ebm
 
