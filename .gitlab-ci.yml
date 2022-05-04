@@ -47,7 +47,7 @@ install_smk_conda_envs:
     - policy: pull-push
       paths: &env-smk-path
         - .snakemake/conda
-      key: &env-smk-keys
+      key: &env-smk-key
         files:
           - workflow/envs
 
