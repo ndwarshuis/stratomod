@@ -1,5 +1,8 @@
 image: condaforge/mambaforge:4.12.0-0
 
+# TODO this is run before every test and the '--force' flag is needed because
+# the env is apparently cached (soooooo need to figure out how to figure out
+# if conda env is installed or not)
 before_script:
   - mamba env create -f env.yml --force
   - conda activate snakemake-ebm
