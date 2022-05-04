@@ -8,6 +8,13 @@ snakemake_dry:
   stage: test
   script:
     - >
-      snakemake -p --use-conda --cores 1 --verbose
+      snakemake --use-conda --cores 1
       --configfile config/dynamic-testing.yml
       --dryrun
+
+snakemake_chr21:
+  stage: test
+  script:
+    - >
+      snakemake -p --use-conda --cores 4 --verbose
+      --configfile config/dynamic-testing.yml
