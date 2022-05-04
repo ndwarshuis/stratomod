@@ -1,3 +1,7 @@
+# 3.2.0
+
+- add working CI pipeline with super lame test
+
 # 3.1.0
 
 - add option to change name of features in config file
