@@ -32,7 +32,7 @@ properties:
     patternProperties:
       ^[\w\.\_]+$:
         required:
-          - vcf
+          - url
           - ref
           - benchmark
         additionalProperties: false
@@ -45,9 +45,12 @@ properties:
             description: the reference index to use for this input
             type: string
 
-          vcf:
-            description: the vcf to use for this input
-            type: string
+          url:
+            description: the url to use in obtaining this input vcf
+            anyOf:
+              - type: string
+                format: uri
+              - type: "null"
 
           chr_filter:
             description: |

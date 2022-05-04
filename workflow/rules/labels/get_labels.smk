@@ -29,12 +29,19 @@ include: "download_resources.smk"
 ################################################################################
 # VCF preprocessing
 
+rule get_input_vcf:
+    output:
+        inputs_dir / "{input_key}.vcf.gz"
+    params:
+        url=lambda wildcards: lookup_input(wildcards, "url"),
+    shell:
+        "curl -o {output} {params.url}"
+
 
 # TODO this is (probably) just for DV VCFs
 rule preprocess_vcf:
     input:
-        lambda wildcards: inputs_dir
-        / lookup_config(config, "inputs", wildcards.input_key, "vcf"),
+        rules.get_input_vcf.output
     output:
         label_dir / "query.vcf.gz",
     conda:
