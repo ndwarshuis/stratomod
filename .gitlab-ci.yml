@@ -1,13 +1,14 @@
 # image: condaforge/mambaforge:4.12.0-0
 
 stages:
-  - build
+  - snakemake_global
+  - snakemake_conda
   - test
 
 # NOTE this assumes mamba is already installed on the system hosting the gitlab
 # runner
 install_env:
-  stage: build
+  stage: snakemake_global
   script:
     - mamba env create -f env.yml -p ./this-env
   cache:
@@ -19,8 +20,7 @@ install_env:
         - env.yml
 
 install_smk_conda_envs:
-  needs: [install_env]
-  stage: build
+  stage: snakemake_conda
   script:
     - >
       snakemake --use-conda --cores 1
@@ -54,7 +54,7 @@ snakemake_chr21:
   stage: test
   script:
     - >
-      snakemake -p --use-conda --cores 4 --verbose
+      snakemake -p --use-conda --cores 1 --verbose
       --configfile config/dynamic-testing.yml
   cache:
     - policy: pull
