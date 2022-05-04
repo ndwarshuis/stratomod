@@ -6,7 +6,14 @@ Install the environment to run in snakemake by running this command at the root
 of this repo:
 
 ```
-conda env create -f env.yml
+mamba env create -f env.yml
+```
+
+For development packages (`black`, `flake8`, etc) run this (must be done after
+creating the environment:
+
+```
+mamba install --file dev.txt -n snakemake-ebm -c conda-forge -c bioconda
 ```
 
 ## running the pipeline

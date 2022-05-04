@@ -13,3 +13,6 @@ __pycache__/
 
 # slurmy things
 slurm*
+
+# gitlab runner waste materials
+builds
