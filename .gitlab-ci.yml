@@ -11,11 +11,27 @@ install_env:
   script:
     - mamba env create -f env.yml -p ./this-env
   cache:
+    policy: pull-push
     paths:
       - this-env
     key:
       files:
         - env.yml
+
+install_smk_conda_envs:
+  needs: install_env
+  stage: build
+  script:
+    - > snakemake -p --use-conda --cores 1
+    --configfile config/dynamic-testing.yml
+    --conda-create-envs-only
+  cache:
+    policy: pull-push
+    paths:
+      - .snakemake/conda
+    key:
+      files:
+        - workflow/envs
 
 snakemake_dry:
   stage: test
@@ -26,15 +42,29 @@ snakemake_dry:
       --configfile config/dynamic-testing.yml
       --dryrun
   cache:
+    policy: pull
     paths:
       - this-env
     key:
       files:
         - env.yml
 
-# snakemake_chr21:
-#   stage: test
-#   script:
-#     - >
-#       snakemake -p --use-conda --cores 4 --verbose
-#       --configfile config/dynamic-testing.yml
+snakemake_chr21:
+  stage: test
+  script:
+    - >
+      snakemake -p --use-conda --cores 4 --verbose
+      --configfile config/dynamic-testing.yml
+  cache:
+    - policy: pull
+      paths:
+        - this-env
+      key:
+        files:
+          - env.yml
+    - policy: pull
+      paths:
+        - .snakemake/conda
+      key:
+        files:
+          - workflow/envs
