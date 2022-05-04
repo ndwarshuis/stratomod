@@ -5,13 +5,14 @@ stages:
   - snakemake_conda
   - test
 
-# NOTE this assumes mamba is already installed on the system hosting the gitlab
-# runner
+# - ASSUME mamba is already installed on the system hosting the gitlab runner
+# - ASSUME the cache will track any changes to env.yml and will force an update
+#   if this changes
 install_env:
   stage: snakemake_global
   script:
     - >
-      if conda env list | grep "snakemake-ebm" >/dev/null 2>&1; then
+      if [ -d this-env ]; then
       echo "Env already created"
       else
       mamba env create -f env.yml -p ./this-env
