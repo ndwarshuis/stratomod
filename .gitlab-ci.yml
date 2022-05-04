@@ -4,7 +4,7 @@ image: condaforge/mambaforge:4.12.0-0
 # the env is apparently cached (soooooo need to figure out how to figure out
 # if conda env is installed or not)
 before_script:
-  - mamba env create -f env.yml --force
+  - mamba env create -f env.yml
   - conda activate snakemake-ebm
 
 snakemake_dry:
@@ -15,9 +15,9 @@ snakemake_dry:
       --configfile config/dynamic-testing.yml
       --dryrun
 
-snakemake_chr21:
-  stage: test
-  script:
-    - >
-      snakemake -p --use-conda --cores 4 --verbose
-      --configfile config/dynamic-testing.yml
+# snakemake_chr21:
+#   stage: test
+#   script:
+#     - >
+#       snakemake -p --use-conda --cores 4 --verbose
+#       --configfile config/dynamic-testing.yml
