@@ -22,9 +22,10 @@ install_smk_conda_envs:
   needs: install_env
   stage: build
   script:
-    - > snakemake -p --use-conda --cores 1
-    --configfile config/dynamic-testing.yml
-    --conda-create-envs-only
+    - >
+      snakemake --use-conda --cores 1
+      --configfile config/dynamic-testing.yml
+      --conda-create-envs-only
   cache:
     policy: pull-push
     paths:
