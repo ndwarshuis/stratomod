@@ -66,7 +66,7 @@ snakemake_dry:
       key: *env-global-key
 
 snakemake_chr21:
-  needs: [install_smk_conda_envs]
+  needs: [install_smk_conda_envs, install_global_env]
   stage: test
   before_script: *conda-before
   script:
