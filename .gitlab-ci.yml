@@ -2,6 +2,7 @@
 
 variables:
   ENV_DIR: ./this-env
+  TESTCONF: config/dynamic-testing.yml
 
 stages:
   - snakemake_global
@@ -21,7 +22,7 @@ install_env:
   cache:
     policy: pull-push
     paths:
-      - $ENV_DIR
+      - this-env
     key:
       files:
         - env.yml
@@ -30,10 +31,7 @@ install_smk_conda_envs:
   stage: snakemake_conda
   script:
     - conda activate $ENV_DIR
-    - >
-      snakemake --use-conda --cores 1
-      --configfile config/dynamic-testing.yml
-      --conda-create-envs-only
+    - snakemake --use-conda -c 1 --configfile $TESTCONF --conda-create-envs-only
   cache:
     - policy: pull
       paths:
@@ -52,25 +50,20 @@ snakemake_dry:
   stage: test
   script:
     - conda activate $ENV_DIR
-    - >
-      snakemake --use-conda --cores 1
-      --configfile config/dynamic-testing.yml
-      --dryrun
+    - snakemake --use-conda -c 1 --configfile $TESTCONF --dryrun
   cache:
-    policy: pull
-    paths:
-      - this-env
-    key:
-      files:
-        - env.yml
+    - policy: pull
+     -paths:
+       -- this-env
+     -key:
+       -files:
+         -- env.yml
 
 snakemake_chr21:
   stage: test
   script:
     - conda activate $ENV_DIR
-    - >
-      snakemake -p --use-conda --cores 1 --verbose
-      --configfile config/dynamic-testing.yml
+    - snakemake -p --use-conda -c 1 --verbose --configfile $TESTCONF
   cache:
     - policy: pull
       paths:
