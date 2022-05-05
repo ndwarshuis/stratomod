@@ -14,15 +14,6 @@ rule download_no_alt_analysis:
         "curl -Ss {params.url} | gunzip -c > {output}"
 
 
-rule download_find_regions_script:
-    output:
-        homopolymers_src_dir / "find_regions.py",
-    params:
-        url=config["resources"]["homopol_find_regions"],
-    shell:
-        "curl -Ss -o {output} {params.url}"
-
-
 # The main reason this rule is here is because I got tired of waiting for
 # downstream steps to run for 30 minutes. If I filter to some small chromosome
 # it makes testing waaaaay nicer.
@@ -51,17 +42,18 @@ def get_pasta():
 
 rule find_simple_repeats:
     input:
-        script=rules.download_find_regions_script.output,
-        fasta=get_pasta(),
+        get_pasta(),
     output:
         homopolymers_results_dir / "simple_repeats_p3.bed",
     conda:
         str(envs_dir / "find_simple_repeats.yml")
+    params:
+        script=str(scripts_dir / "find_regions.py"),
     shell:
         """
-        python {input.script} \
+        python {params.script} \
         -p 3 -d 100000 -t 100000 -q 100000 \
-        {input.fasta} {output}
+        {input} {output}
         """
 
 

@@ -95,12 +95,6 @@ properties:
                 type: string
                 format: uri
 
-      homopol_find_regions:
-        description: |
-          the url of the script to use when finding simple repeat regions
-        type: string
-        format: uri
-
       references:
         additionalProperties: false
         patternProperties:
