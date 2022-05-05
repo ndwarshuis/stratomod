@@ -15,10 +15,10 @@ variables:
   CACHE_COMPRESSION_LEVEL: "fast"
 
 # only run this pipeline on master/default/feature branches
-# workflow:
-#   rules:
-#     - if: $CI_COMMIT_BRANCH =~ /^x_/
-#       when: never
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^x_.*/
+      when: never
 
 # NOTE NIST gitlab runner doesn't seem to have docker :(
 # image: condaforge/mambaforge:4.12.0-0
