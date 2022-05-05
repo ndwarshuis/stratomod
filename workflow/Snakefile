@@ -93,3 +93,31 @@ rule all:
     input:
         rules.all_summary.input,
         rules.all_ebm.input,
+
+
+################################################################################
+# Testing Targets
+
+
+rule all_resources:
+    input:
+        expand(rules.get_input_vcf.output, input_key=[*config["inputs"]]),
+        expand(
+            rules.get_ref_sdf.output,
+            ref_key=set(i["ref"] for i in config["inputs"].values()),
+        ),
+        expand(
+            [
+                *rules.get_bench_vcf.output,
+                *rules.get_bench_bed.output,
+                *rules.get_bench_tbi.output,
+            ],
+            bench_key=set(i["benchmark"] for i in config["inputs"].values()),
+        ),
+        # TODO all these implicitly depend on the reference
+        rules.get_genome.output,
+        rules.get_mappability_high_src.output,
+        rules.get_mappability_low_src.output,
+        rules.get_repeat_masker_src.output,
+        rules.get_superdups_src.output,
+        rules.get_simreps_src.output,

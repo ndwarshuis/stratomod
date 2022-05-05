@@ -33,6 +33,8 @@ rule get_ref_sdf:
         "curl -Ss {params.url} | bsdtar -xf - -C {params.dir}"
 
 
+# TODO this isn't really downloading anything but couldn't think of where else
+# to put it
 rule sdf_to_fasta:
     input:
         rules.get_ref_sdf.output,
