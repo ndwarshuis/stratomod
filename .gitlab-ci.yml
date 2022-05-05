@@ -41,6 +41,18 @@ workflow:
     files:
       - workflow/envs
 
+.smk_resources_cache: &smk_resources_cache
+  paths:
+    - resources
+  key:
+    files:
+      - config/static.yml
+      - config/dynamic-testing.yml
+
+.activate_smk: &activate_smk
+  before_script:
+    - conda activate $ENV_DIR
+
 ################################################################################
 # set up global conda environment
 
@@ -62,10 +74,9 @@ install_global_env:
 
 install_smk_conda_envs:
   stage: snakemake_conda
-  before_script: &conda-before
-    - conda activate $ENV_DIR
+  <<: *activate_smk
   script:
-    - snakemake --use-conda -c 1 --configfile $TESTCONF --conda-create-envs-only
+    - snakemake --use-conda -c 1 --configfile=$TESTCONF --conda-create-envs-only
   cache:
     - <<: *smk_global_cache
       policy: pull
@@ -77,21 +88,36 @@ install_smk_conda_envs:
 snakemake_dry:
   needs: [install_global_env]
   stage: test
-  before_script: *conda-before
+  <<: *activate_smk
   script:
-    - snakemake --use-conda -c 1 --configfile $TESTCONF --dryrun
+    - snakemake --use-conda -c 1 --configfile=$TESTCONF --dryrun
   cache:
     - <<: *smk_global_cache
       policy: pull
 
-snakemake_chr21:
+snakemake_resources:
   needs: [install_smk_conda_envs, install_global_env]
   stage: test
-  before_script: *conda-before
+  <<: *activate_smk
   script:
-    - snakemake -p --use-conda -c 1 --verbose --configfile $TESTCONF
+    - snakemake -p --use-conda -c 1 --configfile=$TESTCONF all_resources
   cache:
     - <<: *smk_global_cache
       policy: pull
     - <<: *smk_envs_cache
+      policy: pull
+    - <<: *smk_resources_cache
+
+snakemake_results:
+  needs: [install_smk_conda_envs, install_global_env]
+  stage: test
+  <<: *activate_smk
+  script:
+    - snakemake -p --use-conda -c 1 --verbose --configfile=$TESTCONF
+  cache:
+    - <<: *smk_global_cache
+      policy: pull
+    - <<: *smk_envs_cache
+      policy: pull
+    - <<: *smk_resources_cache
       policy: pull
