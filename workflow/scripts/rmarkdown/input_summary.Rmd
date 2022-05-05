@@ -21,15 +21,16 @@ format_exp <- function(x) {
 
 make_stats_table <- function(df) {
     N <- nrow(df)
-    gather(df, factor_key = TRUE, na.rm = TRUE) %>%
+    gather(df, factor_key = TRUE) %>%
         group_by(key) %>%
-        summarize(n_present = n(),
+        summarize(n_present = sum(!is.na(value)),
                   perc_present = 100 * n_present / N,
-                  min = ifelse(n_present == 0, NA, min(value)),
-                  max = ifelse(n_present == 0, NA, max(value)),
-                  med = median(value),
-                  mean = mean(value),
-                  stdev = sd(value),
+                  # prevent NULL error for zero length vectors in min/max
+                  min = ifelse(n_present == 0, NA, min(value, na.rm = TRUE)),
+                  max = ifelse(n_present == 0, NA, max(value, na.rm = TRUE)),
+                  med = median(value, na.rm = TRUE),
+                  mean = mean(value, na.rm = TRUE),
+                  stdev = sd(value, na.rm = TRUE),
                   range = max - min) %>%
         rename(feature = key) %>%
         mutate(perc_present = format_perc(perc_present)) %>%
