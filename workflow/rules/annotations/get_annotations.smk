@@ -13,7 +13,7 @@ rule get_genome:
         url=config["resources"]["references"]["GRCh38"]["genome"]
     shell:
         """
-        curl {params.url} | \
+        curl -Ss {params.url} | \
         gunzip -c | \
         cut -f1,2 | \
         sed -n '/^chr\([0-9XY][[:space:]]\|[0-9]\{{2\}}[[:space:]]\)/p' | \

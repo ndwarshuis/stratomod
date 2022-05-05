@@ -1,10 +1,5 @@
 # the VCF file to annotate and analyze via EBMs and associated metadata
 inputs:
-  # HG002_Illumina_DV:
-  #   vcf: illumina-query.vcf.gz
-  #   ref: GRCh38
-  #   benchmark: v4.2.1
-  #   chr_filter: [chr21]
   HG002_Hifi_DV:
     url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh38/SupplementaryFiles/inputvcfsandbeds/HG002_GRCh38_1_22_PacBio_HiFi_DeepVariant.vcf.gz
     ref: GRCh38
@@ -15,9 +10,7 @@ inputs:
 ebm_runs:
   small_set_v3:
     inputs:
-      # - [HG002_Illumina_DV]
       - [HG002_Hifi_DV]
-      # - [HG002_Illumina_DV, HG002_Hifi_DV]
     filter: [SNP, INDEL]
     ebm_settings: &ebm_settings
       split_parameters:

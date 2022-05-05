@@ -1,3 +1,12 @@
+# 4.0.0
+
+- use dynamic-testing.yml only for testing
+- improve CI pipeline to test snakemake global and rule conda envs as well as
+  resources and results computation for chr21
+- remove superfluous reference download for homopolymers
+- make curl commands quieter
+- add target to download all resources (mostly for testing)
+
 # 3.2.0
 
 - add working CI pipeline with super lame test

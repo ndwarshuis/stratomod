@@ -20,7 +20,7 @@ rule get_repeat_masker_src:
     params:
         url=lookup_annotations(config)["repeat_masker"]
     shell:
-        "curl {params.url} | gunzip -c > {output}"
+        "curl -Ss {params.url} | gunzip -c > {output}"
 
 
 # NOTE sorting/filtering chromosomes is done internally by this script
