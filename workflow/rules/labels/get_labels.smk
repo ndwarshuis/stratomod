@@ -35,7 +35,7 @@ rule get_input_vcf:
     params:
         url=lambda wildcards: lookup_input(wildcards, "url"),
     shell:
-        "curl -o {output} {params.url}"
+        "curl -sS -o {output} {params.url}"
 
 
 # TODO this is (probably) just for DV VCFs
