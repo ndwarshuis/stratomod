@@ -1,3 +1,11 @@
+################################################################################
+# global pipeline config
+
+stages:
+  - snakemake_global
+  - snakemake_conda
+  - test
+
 variables:
   ENV_DIR: ./this-env
   TESTCONF: config/dynamic-testing.yml
@@ -6,10 +14,17 @@ variables:
   ARTIFACT_COMPRESSION_LEVEL: "fast"
   CACHE_COMPRESSION_LEVEL: "fast"
 
-stages:
-  - snakemake_global
-  - snakemake_conda
-  - test
+# only run this pipeline on master/default/feature branches
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == /^x_.*/
+      when: never
+
+# NOTE NIST gitlab runner doesn't seem to have docker :(
+# image: condaforge/mambaforge:4.12.0-0
+
+################################################################################
+# reusable object to permit lazy coder syndrome
 
 .smk_global_cache: &smk_global_cache
   paths:
@@ -24,9 +39,6 @@ stages:
   key:
     files:
       - workflow/envs
-
-# NOTE NIST gitlab runner doesn't seem to have docker :(
-# image: condaforge/mambaforge:4.12.0-0
 
 ################################################################################
 # set up global conda environment
