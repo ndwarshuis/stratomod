@@ -16,10 +16,7 @@ stages:
 lame_curl_test:
   stage: snakemake_global
   script:
-    - curl --version
-    - openssl version
-    - ls -al /etc/ssl/certs
-    - curl -O http://ftp.ncbi.nlm.nih.gov/genomes/archive/old_genbank/Eukaryotes/vertebrates_mammals/Homo_sapiens/GRCh38/seqs_for_alignment_pipelines/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
+    - curl -iL http://ftp.ncbi.nlm.nih.gov/genomes/archive/old_genbank/Eukaryotes/vertebrates_mammals/Homo_sapiens/GRCh38/seqs_for_alignment_pipelines/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
     - echo "I win"
 
 # - ASSUME mamba is already installed on the system hosting the gitlab runner
