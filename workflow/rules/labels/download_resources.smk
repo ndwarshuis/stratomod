@@ -28,7 +28,7 @@ rule get_ref_sdf:
         url=lookup_reference,
         dir=lambda _, output: dirname(output[0]),
     shell:
-        "curl {params.url} | bsdtar -xf - -C {params.dir}"
+        "curl -Ss {params.url} | bsdtar -xf - -C {params.dir}"
 
 
 ################################################################################
@@ -39,9 +39,9 @@ def download_bench_vcf_cmd(wildcards, output):
     # dirty hack to fix the v4.2.1 benchmark (this should filter out the MHC
     # region on chr6, which we don't really want anyway)
     cmd = (
-        "curl {u} | gunzip -c | grep -v 'GT:AD:PS' | bgzip -c > {o}"
+        "curl -Ss {u} | gunzip -c | grep -v 'GT:AD:PS' | bgzip -c > {o}"
         if wildcards.bench_key == "v4.2.1"
-        else "curl -o {o} {u}"
+        else "curl -Ss -o {o} {u}"
     )
     return cmd.format(u=lookup_benchmark("vcf_url", wildcards), o=output)
 
@@ -63,7 +63,7 @@ rule get_bench_bed:
     params:
         url=partial(lookup_benchmark, "bed_url"),
     shell:
-        "curl -o {output} {params.url}"
+        "curl -Ss -o {output} {params.url}"
 
 
 rule get_bench_tbi:

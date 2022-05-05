@@ -11,7 +11,7 @@ rule download_superdups:
     params:
         url=lookup_annotations(config)["superdups"],
     shell:
-        "curl {params.url} | gunzip -c > {output}"
+        "curl -Ss {params.url} | gunzip -c > {output}"
 
 
 # NOTE sorting is done internally by the script

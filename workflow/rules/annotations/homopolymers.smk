@@ -11,7 +11,7 @@ rule download_no_alt_analysis:
     params:
         url=lookup_annotations(config)["homopol_fasta"],
     shell:
-        "curl {params.url} | gunzip -c > {output}"
+        "curl -Ss {params.url} | gunzip -c > {output}"
 
 
 rule download_find_regions_script:
@@ -20,7 +20,7 @@ rule download_find_regions_script:
     params:
         url=config["resources"]["homopol_find_regions"],
     shell:
-        "curl -o {output} {params.url}"
+        "curl -Ss -o {output} {params.url}"
 
 
 # The main reason this rule is here is because I got tired of waiting for
