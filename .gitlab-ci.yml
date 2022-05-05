@@ -13,74 +13,68 @@ stages:
 ################################################################################
 # set up global conda environment
 
-lame_curl_test:
+# - ASSUME mamba is already installed on the system hosting the gitlab runner
+# - ASSUME the cache will track any changes to env.yml and will force an update
+#   if this changes
+install_global_env:
   stage: snakemake_global
   script:
-    - curl -O https://ftp.ncbi.nlm.nih.gov/genomes/archive/old_genbank/Eukaryotes/vertebrates_mammals/Homo_sapiens/GRCh38/seqs_for_alignment_pipelines/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
-    - echo "I win"
+    - >
+      test -d $ENV_DIR
+      && echo "Env already created"
+      || mamba env create -f env.yml -p $ENV_DIR
+  cache: 
+    policy: pull-push
+    paths: &env-global-path
+      - this-env
+    key: &env-global-key
+      files:
+        - env.yml
 
-# # - ASSUME mamba is already installed on the system hosting the gitlab runner
-# # - ASSUME the cache will track any changes to env.yml and will force an update
-# #   if this changes
-# install_global_env:
-#   stage: snakemake_global
-#   script:
-#     - >
-#       test -d $ENV_DIR
-#       && echo "Env already created"
-#       || mamba env create -f env.yml -p $ENV_DIR
-#   cache: 
-#     policy: pull-push
-#     paths: &env-global-path
-#       - this-env
-#     key: &env-global-key
-#       files:
-#         - env.yml
+################################################################################
+# set up snakemake rule conda environments
 
-# ################################################################################
-# # set up snakemake rule conda environments
+install_smk_conda_envs:
+  stage: snakemake_conda
+  before_script: &conda-before
+    - conda activate $ENV_DIR
+  script:
+    - snakemake --use-conda -c 1 --configfile $TESTCONF --conda-create-envs-only
+  cache:
+    - policy: pull
+      paths: *env-global-path
+      key: *env-global-key
+    - policy: pull-push
+      paths: &env-smk-path
+        - .snakemake/conda
+      key: &env-smk-key
+        files:
+          - workflow/envs
 
-# install_smk_conda_envs:
-#   stage: snakemake_conda
-#   before_script: &conda-before
-#     - conda activate $ENV_DIR
-#   script:
-#     - snakemake --use-conda -c 1 --configfile $TESTCONF --conda-create-envs-only
-#   cache:
-#     - policy: pull
-#       paths: *env-global-path
-#       key: *env-global-key
-#     - policy: pull-push
-#       paths: &env-smk-path
-#         - .snakemake/conda
-#       key: &env-smk-key
-#         files:
-#           - workflow/envs
+################################################################################
+# test snakemake things
 
-# ################################################################################
-# # test snakemake things
+snakemake_dry:
+  needs: [install_global_env]
+  stage: test
+  before_script: *conda-before
+  script:
+    - snakemake --use-conda -c 1 --configfile $TESTCONF --dryrun
+  cache:
+    - policy: pull
+      paths: *env-global-path
+      key: *env-global-key
 
-# snakemake_dry:
-#   needs: [install_global_env]
-#   stage: test
-#   before_script: *conda-before
-#   script:
-#     - snakemake --use-conda -c 1 --configfile $TESTCONF --dryrun
-#   cache:
-#     - policy: pull
-#       paths: *env-global-path
-#       key: *env-global-key
-
-# # snakemake_chr21:
-# #   needs: [install_smk_conda_envs, install_global_env]
-# #   stage: test
-# #   before_script: *conda-before
-# #   script:
-# #     - snakemake -p --use-conda -c 1 --verbose --configfile $TESTCONF
-# #   cache:
-# #     - policy: pull
-# #       paths: *env-global-path
-# #       key: *env-global-key
-# #     - policy: pull
-# #       paths: *env-smk-path
-# #       key: *env-smk-key
+snakemake_chr21:
+  needs: [install_smk_conda_envs, install_global_env]
+  stage: test
+  before_script: *conda-before
+  script:
+    - snakemake -p --use-conda -c 1 --verbose --configfile $TESTCONF
+  cache:
+    - policy: pull
+      paths: *env-global-path
+      key: *env-global-key
+    - policy: pull
+      paths: *env-smk-path
+      key: *env-smk-key
