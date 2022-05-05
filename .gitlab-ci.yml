@@ -17,7 +17,7 @@ variables:
 # only run this pipeline on master/default/feature branches
 workflow:
   rules:
-    - if: $CI_COMMIT_BRANCH == /^x_/
+    - if: $CI_COMMIT_BRANCH =~ /^x_/
       when: never
 
 # NOTE NIST gitlab runner doesn't seem to have docker :(
