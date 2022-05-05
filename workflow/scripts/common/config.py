@@ -20,6 +20,4 @@ def lookup_annotations(config):
 
 
 def lookup_global_chr_filter(config):
-    return [
-        *set(flatten(i["chr_filter"] for i in config["inputs"].values() if len(i) > 0))
-    ]
+    return [*set(flatten(i["chr_filter"] for i in config["inputs"].values()))]
