@@ -113,7 +113,7 @@ snakemake_results:
   stage: test
   <<: *activate_smk
   script:
-    - snakemake -p --use-conda -c 1 --verbose --configfile=$TESTCONF
+    - snakemake -p --use-conda -c 4 --configfile=$TESTCONF
   cache:
     - <<: *smk_global_cache
       policy: pull
