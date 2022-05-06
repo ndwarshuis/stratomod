@@ -1,0 +1,76 @@
+# the VCF file to annotate and analyze via EBMs and associated metadata
+inputs:
+  HG002_Illumina_DV:
+    ref: GRCh38
+    benchmark: v4.2.1
+  HG002_Hifi_DV:
+    vcf: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh38/SupplementaryFiles/inputvcfsandbeds/HG002_GRCh38_1_22_PacBio_HiFi_DeepVariant.vcf.gz
+    ref: GRCh38
+    benchmark: v4.2.1
+
+# settings for each ebm run
+ebm_runs:
+  vcf_interaction_fp_v1:
+    inputs:
+      - [HG002_Illumina_DV, HG002_Hifi_DV]
+    filter: [SNP, INDEL]
+    ebm_settings: &ebm_settings
+      split_parameters:
+        test_size: 0.2
+    error_labels: [fp]
+    # NOTE this is true here because we want to include all refcalls in the FP
+    # analysis comparison
+    filtered_are_candidates: true
+    interactions:
+      - VCF_input
+
+    features: &base_features
+      VCF_input:
+        feature_type: categorical
+      VCF_VAF: {}
+      VCF_DP: {}
+      VCF_indel_length: {}
+
+      HOMOPOL_AT_length: {}
+      HOMOPOL_GC_length: {}
+      HOMOPOL_AT_imperfect_frac: {}
+      HOMOPOL_GC_imperfect_frac: {}
+
+      TR_unit_size_max: {}
+      TR_unit_copies_max: {}
+      TR_identity_min: {}
+      TR_score_max: {}
+      TR_percent_AT_median:
+        fill_na: -1
+
+      REPMASK_SINE_length:
+        transform: binary
+        alt_name: REPMASK_SINE
+        feature_type: categorical
+      REPMASK_LTR_length: {}
+        transform: binary
+        alt_name: REPMASK_LTR
+        feature_type: categorical
+      REPMASK_LINE_length: {}
+
+      MAP_difficult_250bp:
+        feature_type: categorical
+      MAP_difficult_100bp:
+        feature_type: categorical
+
+      SEGDUP_size_max: {}
+      SEGDUP_identity_mean: {}
+      SEGDUP_count: {}
+
+  vcf_interaction_fn_v1:
+    inputs:
+      - [HG002_Illumina_DV, HG002_Hifi_DV]
+    filter: [SNP, INDEL]
+    ebm_settings:
+      <<: *ebm_settings
+    error_labels: [fn]
+    interactions:
+      - VCF_input
+    filtered_are_candidates: false
+    features:
+      <<: *base_features
