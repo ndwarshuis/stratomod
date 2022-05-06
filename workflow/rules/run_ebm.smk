@@ -33,7 +33,7 @@ rule add_annotations:
         tsvs=[
             expand(
                 rules.get_homopolymers.output,
-                bases=["AT", "GC"],
+                bases=config["features"]["homopolymers"]["bases"],
                 allow_missing=True,
             ),
             rules.get_repeat_masker_classes.output,

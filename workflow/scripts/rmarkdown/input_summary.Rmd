@@ -7,6 +7,10 @@ output: "html_document"
 library(tidyverse)
 library(infotheo)
 
+# from blablabla import nukes
+`:=` = rlang::`:=`
+`!!` = rlang::`!!`
+
 ## gross...
 source("workflow/scripts/rmarkdown/common/colocalization.r")
 source("workflow/scripts/rmarkdown/common/plots.r")
@@ -52,28 +56,39 @@ make_feature_distribution <- function(x, labels) {
 }
 
 label_summary_table <- function(y) {
-    tibble(label=y) %>%
+    tibble(label = y) %>%
         group_by(label) %>%
         summarize(n = n(),
                   proportion = format_perc(n / N)) %>%
         knitr::kable()
 }
 
+fmt_vcf_col <- function(fconf, which) {
+    .v <- fconf[["vcf"]]
+    sprintf("%s_%s", .v[["prefix"]], .v[["columns"]][[which]])
+}
+
 path <- snakemake@input[[1]]
+
+fconf <- snakemake@config[["features"]]
+label_col <- fconf[["label"]]
+idx <- fconf[["index"]]
 
 df_x <- readr::read_tsv(path,
                         col_types = cols(
-                            label = "-",
-                            CHROM = "-",
-                            POS = "-",
-                            `POS+length(REF)` = "-",
-                            VCF_FILTER = "-",
-                            VCF_GT = "-",
-                            VCF_GQ = "-",
+                            !!label_col := "-",
+                            !!idx[["chr"]] := "-",
+                            !!idx[["start"]] := "-",
+                            !!idx[["end"]] := "-",
+                            !!fmt_vcf_col(fconf, "filter") := "-",
+                            !!fmt_vcf_col(fconf, "gt") := "-",
+                            !!fmt_vcf_col(fconf, "gq") := "-",
                             .default = "d"))
 
-df_y <- readr::read_tsv(path, col_types = cols(label = "c", .default = "-")) %>%
-    pull(label)
+df_y <- readr::read_tsv(path, col_types = cols(
+                                  !!label_col := "c",
+                                  .default = "-")) %>%
+    pull(!!label_col)
 
 y_labels <- unique(df_y)
 

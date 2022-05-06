@@ -4,6 +4,7 @@ required:
   - paths
   - inputs
   - resources
+  - features
   - ebm_runs
 additionalProperties: false
 properties:
@@ -120,7 +121,6 @@ properties:
                 required:
                   - mappability
                   - superdups
-                  - homopol_fasta
                   - simreps
                   - repeat_masker
                 properties:
@@ -149,16 +149,205 @@ properties:
                     type: string
                     format: uri
           
-                  homopol_fasta:
-                    description: |
-                        the url of the fasta file containing the simple regions
-                    type: string
-                    format: uri
-
                   repeat_masker:
                     description: the url to the repeat masker database file
                     type: string
                     format: uri
+
+################################################################################
+# resources
+
+  features:
+    additionalProperties: false
+    required:
+      - label
+      - index
+      - vcf
+      - mappability
+      - homopolymers
+      - repeat_masker
+      - segdups
+      - tandem_repeats
+    properties:
+      label: &column
+        description: the label column for all dataframes
+        type: string
+        pattern: ^[_a-zA-Z0-9]+$
+
+      index:
+        additionalProperties: false
+        required: [chr, start, end]
+        properties:
+          chr:
+            <<: *column
+            description: the chromosome for the region
+          start:
+            <<: *column
+            description: the start offset for the region
+          end:
+            <<: *column
+            description: the end offset for the region
+        
+      vcf:
+        additionalProperties: false
+        required: [prefix, columns]
+        properties:
+          prefix: &feature_prefix
+            description: the prefix for this feature group
+            type: string
+            pattern: ^[A-Z]+$
+          columns:
+            additionalProperties: false
+            required: [qual, filter, gt, gq, dp, vaf, len]
+            properties:
+              input: 
+                <<: *column
+                description: the column for the vcf file index
+              qual: 
+                <<: *column
+                description: the QUAL column name
+              filter:
+                <<: *column
+                description: the FILTER column name
+              gt:
+                <<: *column
+                description: the GT column name
+              gq:
+                <<: *column
+                description: the GQ column name
+              dp:
+                <<: *column
+                description: the DP column name
+              vaf:
+                <<: *column
+                description: the VAF column name
+              len:
+                <<: *column
+                description: the column name for computed variant length
+
+      mappability: 
+       additionalProperties: false
+       required: [prefix, suffixes]
+       properties:
+         prefix: *feature_prefix
+         suffixes:
+           additionalProperties: false
+           required: [low, high]
+           properties:
+             low:
+               <<: *column
+               description: the suffix for the hard mappability regions
+             high:
+               <<: *column
+               description: the suffix for the harder mappability regions
+
+      homopolymers: 
+       additionalProperties: false
+       required: [prefix, bases, suffixes]
+       properties:
+         prefix: *feature_prefix
+         bases:
+           description: the bases to use when summarizing the homopolymers
+           type: array
+           items:
+             type: string
+         suffixes:
+           additionalProperties: false
+           required: [len, tot_imp_frac, imp_frac, imp_cnt]
+           properties:
+             len:
+               <<: *column
+               description: the length of the homopolymer
+             tot_imp_frac:
+               <<: *column
+               description: the percent of imperfect homopolymers (with slop)
+             imp_frac:
+               <<: *column
+               description: the percent of imperfect homopolymers
+             imp_cnt:
+               <<: *column
+               description: the number of imperfect homopolymers
+
+      repeat_masker: 
+       additionalProperties: false
+       required: [prefix, suffixes, classes]
+       properties:
+         prefix: *feature_prefix
+         suffixes:
+           additionalProperties: false
+           required: [len]
+           properties:
+             len:
+               <<: *column
+               description: the length of the repeat masker region
+         classes:
+           additionalProperties: false
+           patternProperties:
+             ^[a-zA-z]+$:
+               type: array
+               description: the class name to include as a feature
+               items:
+                 description: the family within the class to include
+                 type: string
+
+      segdups: 
+       additionalProperties: false
+       required: [prefix, columns, operations]
+       properties:
+         prefix: *feature_prefix
+         columns:
+           additionalProperties: false
+           required: [alignL, fracMatchIndel]
+           properties:
+             alignL:
+               <<: *column
+               description: the name to give the alignL column
+             fracMatchIndel:
+               <<: *column
+               description: the name to give the fracMatchIndel column
+         operations: &merge_operations
+           description: the aggregation function to apply to each column
+           type: array
+           minItems: 1
+           items:
+             type: string
+             pattern: ^sum|min|max|absmin|absmax|mean|median$
+
+      tandem_repeats: 
+       additionalProperties: false
+       required: [prefix, columns, bases_prefix, operations, other]
+       properties:
+         prefix: *feature_prefix
+         columns:
+           additionalProperties: false
+           required: [period, copyNum, perMatch, perIndel, score]
+           properties:
+             period:
+               <<: *column
+               description: the name to given the period column
+             copyNum:
+               <<: *column
+               description: the name to given the copynum column
+             perMatch:
+               <<: *column
+               description: the name to given the perMatch column
+             perIndel:
+               <<: *column
+               description: the name to given the perIndel column
+             score:
+               <<: *column
+               description: the name to given the score column
+         bases_prefix:
+           <<: *column
+           description: the prefix to assign to the base(s) features
+         other:
+           additionalProperties: false
+           required: [len]
+           properties:
+             len:
+               <<: *column
+               description: the name of the total length of the repeat region
+         operations: *merge_operations
 
 ################################################################################
 # EBM runs
