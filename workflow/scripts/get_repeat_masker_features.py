@@ -1,11 +1,16 @@
 import re
+from functools import partial
 from os.path import basename, splitext
 from pybedtools import BedTool as bt
-from common.tsv import read_tsv, write_tsv
+from common.tsv import write_tsv
 from common.cli import setup_logging
-from common.bed import read_bed_df, BED_CHR, BED_START, BED_END
-
-# CONVENTION: prefix all features with "REPMASK"
+from common.bed import read_bed_df
+from common.config import (
+    fmt_repeat_masker_feature,
+    lookup_bed_cols,
+    bed_cols_indexed,
+    bed_cols_ordered,
+)
 
 logger = setup_logging(snakemake.log[0])
 
@@ -18,33 +23,41 @@ COLS = {
     12: FAMCOL,
 }
 
-RMSK_COLS = [BED_CHR, BED_START, BED_END]
+fmt_feature = partial(fmt_repeat_masker_feature, snakemake.config)
 
 
-def read_rmsk_df(path):
-    return read_bed_df(path, (5, 6, 7), COLS, snakemake.params["filt"])
+def read_rmsk_df(path, bed_cols):
+    bed_mapping = bed_cols_indexed([5, 6, 7], bed_cols)
+    return read_bed_df(path, bed_mapping, COLS, snakemake.params["filt"])
 
 
-def merge_and_write_group(df, path, groupcol, groupname):
+def merge_and_write_group(df, path, bed_cols, groupcol, clsname, famname=None):
+    groupname = clsname if famname is None else famname
     dropped = df[df[groupcol] == groupname].drop(columns=[groupcol])
-    merged = bt.from_dataframe(dropped).merge().to_dataframe(names=RMSK_COLS)
+    merged = (
+        bt.from_dataframe(dropped)
+        .merge()
+        .to_dataframe(names=bed_cols_ordered(bed_cols))
+    )
     if len(merged.index) == 0:
         logger.warning("Empty dataframe for %s", path)
     else:
-        merged[f"REPMASK_{groupname}_length"] = merged[BED_END] - merged[BED_START]
+        col = fmt_feature(clsname, famname)
+        merged[col] = merged[bed_cols["end"]] - merged[bed_cols["start"]]
         write_tsv(path, merged, header=True)
 
 
-def parse_output(path, df, prefix):
-    res = re.match(f"{prefix}_(.*)", splitext(basename(path))[0])
+def parse_output(path, df, file_prefix, bed_cols):
+    res = re.match(f"{file_prefix}_(.*)", splitext(basename(path))[0])
     if res is None:
         logger.error("Unable to determine class/family from path: %s", path)
     else:
         s = res[1].split("_")
+        f = partial(merge_and_write_group, df, path, bed_cols)
         if len(s) == 1:
             cls = s[0]
             logger.info("Filtering and merging repeat masker class %s", cls)
-            merge_and_write_group(df, path, CLASSCOL, cls)
+            f(CLASSCOL, cls)
         elif len(s) == 2:
             cls, fam = s
             logger.info(
@@ -52,15 +65,16 @@ def parse_output(path, df, prefix):
                 fam,
                 cls,
             )
-            merge_and_write_group(df, path, FAMCOL, fam)
+            f(FAMCOL, cls, fam)
         else:
             logger.info("Invalid family/class spec in path: %s", path)
 
 
 def main():
-    rmsk_df = read_rmsk_df(snakemake.input[0])
+    bed_cols = lookup_bed_cols(snakemake.config)
+    rmsk_df = read_rmsk_df(snakemake.input[0], bed_cols)
     for path in snakemake.output:
-        parse_output(path, rmsk_df, snakemake.params.prefix)
+        parse_output(path, rmsk_df, snakemake.params.file_prefix, bed_cols)
 
 
 main()

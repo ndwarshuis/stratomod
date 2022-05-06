@@ -1,9 +1,10 @@
-from scripts.common.config import lookup_annotations
+from scripts.common.config import lookup_annotations, fmt_mappability_feature
 
 mappability_src_dir = annotations_src_dir / "mappability"
 mappability_results_dir = annotations_tsv_dir / "mappability"
 
 mappability_config = lookup_annotations(config)["mappability"]
+
 
 # ASSUME these are already sorted numerically and filtered for complete
 # chromosomes
@@ -19,7 +20,7 @@ rule get_mappability_high_src:
         mappability_src_dir / "mappability_high.tsv",
     params:
         url=mappability_config["high"],
-        feature_name="MAP_difficult_250bp",
+        feature_name=fmt_mappability_feature(config, "high"),
     shell:
         """
         echo 'chrom\tstart\tend\t{params.feature_name}' > {output}
@@ -36,7 +37,7 @@ use rule get_mappability_high_src as get_mappability_low_src with:
         mappability_src_dir / "mappability_low.tsv",
     params:
         url=mappability_config["low"],
-        feature_name="MAP_difficult_100bp",
+        feature_name=fmt_mappability_feature(config, "low"),
 
 
 rule subtract_high_from_low_mappability:

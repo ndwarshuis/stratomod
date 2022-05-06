@@ -142,11 +142,11 @@ def get_model_dict(ebm):
     }
 
 
-def write_predictions(ebm, X_test, y_test):
+def write_predictions(ebm, X_test, y_test, label):
     y_pred = pd.DataFrame(
         {
             "prob": ebm.predict_proba(X_test)[::, 1],
-            "label": y_test["label"],
+            "label": y_test[label],
         }
     )
     y_pred.to_csv(snakemake.output["predictions"], index=False)
@@ -159,9 +159,10 @@ def write_model_json(ebm):
 
 def main():
     ebm = read_pickle(snakemake.input["model"])
+    label = snakemake.config["features"]["label"]
     X_test = pd.read_csv(snakemake.input["test_x"])
     y_test = pd.read_csv(snakemake.input["test_y"])
-    write_predictions(ebm, X_test, y_test)
+    write_predictions(ebm, X_test, y_test, label)
     write_model_json(ebm)
 
 
