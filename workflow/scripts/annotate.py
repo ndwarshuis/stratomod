@@ -17,7 +17,8 @@ def left_outer_intersect(left, path):
     left_cols = left.columns.tolist()
     left_width = len(left_cols)
     right = read_tsv(path)
-    right_cols = right.columns.tolist()
+    # ASSUME the first three columns are the bed index columns
+    right_cols = ["_" + c if i < 3 else c for i, c in enumerate(right.columns.tolist())]
     right_bed = bt.from_dataframe(right)
     # prevent weird type errors when converted back to dataframe from bed
     dtypes = {right_cols[0]: str}

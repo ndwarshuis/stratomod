@@ -1,40 +1,30 @@
-import logging
-import argparse
+from common.cli import setup_logging
+from common.config import fmt_vcf_feature
 
-parser = argparse.ArgumentParser(description="Parse VCF to BED")
-parser.add_argument("--input", metavar="I", type=str, nargs="+", help="input vcf file")
-parser.add_argument(
-    "--output", metavar="I", type=str, nargs="+", help="output bed file"
-)
-parser.add_argument("--type", metavar="t", type=str, help="'INDEL' or 'SNP'")
-parser.add_argument("--label", metavar="L", type=str, help="the label to assign")
-args = parser.parse_args()
+logger = setup_logging(snakemake.log[0])
 
-f = open(args.input[0], "r")
-f_out = open(args.output[0], "w+")
+label_val = snakemake.wildcards.label
+vartype = snakemake.wildcards.filter_key
 
+fconf = snakemake.config["features"]["vcf"]
+label_name = snakemake.config["features"]["label"]
+idx = snakemake.config["features"]["index"]
+header = [
+    idx["chr"],
+    idx["start"],
+    idx["end"],
+    *map(
+        lambda f: fmt_vcf_feature(snakemake.config, f),
+        ["qual", "filter", "gt", "gq", "dp", "vaf", "len"],
+    ),
+    label_name,
+]
+
+f = open(snakemake.input[0], "r")
+f_out = open(snakemake.output[0], "w+")
 lines = f.readlines()
 
-f_out.write(
-    "{}\n".format(
-        "\t".join(
-            [
-                "CHROM",
-                "POS",
-                "POS+length(REF)",
-                # all "vcf features" are prefixed with "VCF"
-                "VCF_QUAL",
-                "VCF_FILTER",
-                "VCF_GT",
-                "VCF_GQ",
-                "VCF_DP",
-                "VCF_VAF",
-                "VCF_indel_length",
-                "label",
-            ]
-        )
-    )
-)
+f_out.write("{}\n".format("\t".join(header)))
 f_out.flush()
 
 
@@ -64,12 +54,12 @@ for line in lines:
     alt_length = len(alt)
     # if we want INDELs skip everything that has REF/ALT of one BP or the same
     # number of BPs
-    if args.type == "INDEL" and (
+    if vartype == "INDEL" and (
         (ref_length == alt_length == 1) or ref_length == alt_length
     ):
         continue
     # if we want SNPs, skip everything that isn't REF/ALT with one BP
-    if args.type == "SNP" and not (ref_length == alt_length == 1):
+    if vartype == "SNP" and not (ref_length == alt_length == 1):
         continue
     indel_length = alt_length - ref_length
     filt = split_line[6]
@@ -77,7 +67,7 @@ for line in lines:
     # rstrip the newline off at the end
     sample = split_line[9].rstrip().split(":")
     if len(fmt) != len(sample):
-        logging.warn(
+        logger.warn(
             "FORMAT/SAMPLE have different cardinality: %s %d %d",
             chrom,
             start,
@@ -99,7 +89,7 @@ for line in lines:
             lookup_maybe(named_sample, "DP"),
             lookup_maybe(named_sample, "VAF"),
             str(indel_length),
-            args.label,
+            label_val,
         ]
     )
     f_out.write(f"{to_write_out}\n")

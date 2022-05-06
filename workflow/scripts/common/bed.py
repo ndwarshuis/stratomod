@@ -3,24 +3,15 @@ from common.tsv import read_tsv
 from itertools import product
 from more_itertools import unzip
 from pybedtools import BedTool as bt
+from common.config import (
+    fmt_count_feature,
+    fmt_merged_feature,
+    bed_cols_ordered,
+)
 
-BED_CHR = "chrom"
-BED_START = "chromStart"
-BED_END = "chromEnd"
-
-# NOTE count and count_distinct are not allowed since those will be the same
-# in multiple columns and thus are better handled using a different code path
-ALLOWED_STATS = [
-    "sum",
-    "min",
-    "max",
-    "absmin",
-    "absmax",
-    "mean",
-    "median",
-    "collapse",
-    "distinct",
-]
+# BED_CHR = "chrom"
+# BED_START = "chromStart"
+# BED_END = "chromEnd"
 
 
 def filter_chromosomes(df, chr_filter):
@@ -63,20 +54,13 @@ def sort_bed_numerically(df, drop_chr=True):
     return df
 
 
-def read_bed_df(path, bed_indices, col_mapping, filt):
-    bed_mapping = {
-        bed_indices[0]: BED_CHR,
-        bed_indices[1]: BED_START,
-        bed_indices[2]: BED_END,
-    }
+def read_bed_df(path, bed_mapping, col_mapping, filt):
     mapping = {**bed_mapping, **col_mapping}
     df = read_tsv(path, header=None)[[*mapping]].rename(columns=mapping)
     return sort_bed_numerically(filter_chromosomes(df, filt))
 
 
-def merge_and_apply_stats(merge_stats, prefix, bed_df):
-    assert set(merge_stats) <= set(ALLOWED_STATS), "Bad stat found"
-
+def merge_and_apply_stats(merge_stats, bed_cols, prefix, bed_df):
     # compute stats on all columns except the first 3
     drop_n = 3
     stat_cols = bed_df.columns.tolist()[drop_n:]
@@ -85,7 +69,7 @@ def merge_and_apply_stats(merge_stats, prefix, bed_df):
     logging.info("Stats to compute: %s\n", ", ".join(merge_stats))
 
     cols, opts, headers = unzip(
-        (i + drop_n + 1, m, f"{s}_{m}")
+        (i + drop_n + 1, m, fmt_merged_feature(prefix, s, m))
         for (i, s), m in product(enumerate(stat_cols), merge_stats)
     )
 
@@ -93,7 +77,11 @@ def merge_and_apply_stats(merge_stats, prefix, bed_df):
     # number
     full_opts = ["count", *opts]
     full_cols = [drop_n + 1, *cols]
-    full_headers = [BED_CHR, BED_START, BED_END, f"{prefix}_count", *headers]
+    full_headers = [
+        *bed_cols_ordered(bed_cols),
+        fmt_count_feature(prefix),
+        *headers,
+    ]
 
     logging.info("Merging regions")
     # TODO there might be a way to make pybedtools echo what it is doing, but

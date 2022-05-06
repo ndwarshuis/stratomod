@@ -89,8 +89,7 @@ def train_ebm(config, label, df):
 def main():
     params = snakemake.params
     df = read_tsv(snakemake.input[0])
-    # TODO don't hardcode the label
-    train_ebm(params.config, "label", df)
+    train_ebm(params.config, snakemake.config["features"]["label"], df)
     dump_config(params.config)
 
 

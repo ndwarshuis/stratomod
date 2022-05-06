@@ -214,15 +214,8 @@ rule parse_label_vcf:
         label_dir / "{filter_key}_{label}.tsv",
     log:
         label_dir / "{filter_key}_{label}.log",
-    shell:
-        """
-        python \
-        workflow/scripts/parse_vcf_to_bed_ebm.py \
-        --type {wildcards.filter_key} \
-        --label {wildcards.label} \
-        --input {input} \
-        --output {output} > {log} 2>&1
-        """
+    script:
+        str(scripts_dir / "parse_vcf_to_bed_ebm.py")
 
 
 rule concat_tsv_files:
