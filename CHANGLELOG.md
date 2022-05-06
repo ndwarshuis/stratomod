@@ -1,3 +1,8 @@
+# 4.1.0
+
+- use config to control feature naming (mostly)
+- add checks for feature names in initial validation steps
+
 # 4.0.0
 
 - use dynamic-testing.yml only for testing
