@@ -47,7 +47,7 @@ ebm_runs:
         transform: binary
         alt_name: REPMASK_SINE
         feature_type: categorical
-      REPMASK_LTR_length: {}
+      REPMASK_LTR_length:
         transform: binary
         alt_name: REPMASK_LTR
         feature_type: categorical
