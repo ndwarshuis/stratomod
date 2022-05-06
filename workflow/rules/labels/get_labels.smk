@@ -181,6 +181,8 @@ rule get_vcf_labels:
         output_dir=lambda _, output: Path(output[0]).parent,
     log:
         rtg_dir / "vcfeval.log",
+    benchmark:
+        rtg_dir / "vcfeval.bench",
     shell:
         """
         rm -rf {params.tmp_dir}
@@ -214,6 +216,8 @@ rule parse_label_vcf:
         label_dir / "{filter_key}_{label}.tsv",
     log:
         label_dir / "{filter_key}_{label}.log",
+    benchmark:
+        label_dir / "{filter_key}_{label}.bench",
     script:
         str(scripts_dir / "parse_vcf_to_bed_ebm.py")
 
