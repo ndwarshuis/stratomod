@@ -1,10 +1,11 @@
 # the VCF file to annotate and analyze via EBMs and associated metadata
 inputs:
   HG002_Illumina_DV:
+    url: null
     ref: GRCh38
     benchmark: v4.2.1
   HG002_Hifi_DV:
-    vcf: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh38/SupplementaryFiles/inputvcfsandbeds/HG002_GRCh38_1_22_PacBio_HiFi_DeepVariant.vcf.gz
+    url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh38/SupplementaryFiles/inputvcfsandbeds/HG002_GRCh38_1_22_PacBio_HiFi_DeepVariant.vcf.gz
     ref: GRCh38
     benchmark: v4.2.1
 
