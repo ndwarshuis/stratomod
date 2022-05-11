@@ -62,7 +62,7 @@ def validate_features(config):
                 assert alt_prefix == prefix, f"Alt prefix must match for {k}"
 
             # test truncation values
-            truncate = v["truncate"]
+            truncate = v["visualization"]["truncate"]
             tlower = truncate["lower"]
             tupper = truncate["upper"]
             if tlower is not None and tupper is not None:

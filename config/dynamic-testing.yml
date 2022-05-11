@@ -24,22 +24,33 @@ ebm_runs:
         feature_type: categorical
       VCF_VAF: {}
       VCF_DP:
-        truncate: {lower: 0, upper: 100}
+        visualization:
+          plot_type: bar
+          truncate: {lower: 0, upper: 100}
       VCF_indel_length:
-        truncate: {lower: 50, upper: 50}
+        visualization:
+          truncate: {lower: -50, upper: 50}
 
       HOMOPOL_AT_length:
-        truncate: {lower: 0, upper: 50}
+        visualization:
+          plot_type: bar
+          truncate: {lower: 0, upper: 50}
       HOMOPOL_GC_length:
-        truncate: {lower: 0, upper: 50}
+        visualization:
+          plot_type: bar
+          truncate: {lower: 0, upper: 50}
       HOMOPOL_AT_imperfect_frac: {}
       HOMOPOL_GC_imperfect_frac: {}
       HOMOPOL_AT_total_imperfect_frac: {}
       HOMOPOL_GC_total_imperfect_frac: {}
 
       TR_unit_size_max:
-        truncate: {lower: 0, upper: 50}
-      TR_unit_copies_max: {}
+        visualization:
+          plot_type: bar
+          truncate: {lower: 0, upper: 50}
+      TR_unit_copies_max:
+        visualization:
+          truncate: {lower: 0, upper: 50}
       TR_identity_min: {}
       TR_score_max: {}
       TR_percent_AT_median:
@@ -63,4 +74,6 @@ ebm_runs:
       SEGDUP_size_max: {}
       SEGDUP_identity_mean: {}
       SEGDUP_count:
-        truncate: {upper: 50}
+        visualization:
+          plot_type: bar
+          truncate: {upper: 50}
