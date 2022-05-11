@@ -12,6 +12,9 @@ from common.config import (
     bed_cols_ordered,
 )
 
+# The repeat masker database is documented here:
+# https://genome.ucsc.edu/cgi-bin/hgTables?db=hg38&hgta_group=rep&hgta_track=rmsk&hgta_table=rmsk&hgta_doSchema=describe+table+schema
+
 logger = setup_logging(snakemake.log[0])
 
 # both of these columns are temporary and used to make processing easier

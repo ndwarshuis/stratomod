@@ -14,6 +14,8 @@ rule find_simple_repeats:
         str(envs_dir / "find_simple_repeats.yml")
     params:
         script=str(scripts_dir / "find_regions.py"),
+    benchmark:
+        homopolymers_results_dir / "find_regions.bench",
     shell:
         """
         python {params.script} \
@@ -51,5 +53,7 @@ rule get_homopolymers:
         str(envs_dir / "bedtools.yml")
     log:
         homopolymers_results_dir / "homopolymers_{bases}.log",
+    benchmark:
+        homopolymers_results_dir / "homopolymers_{bases}.bench",
     script:
         str(scripts_dir / "get_homopoly_features.py")

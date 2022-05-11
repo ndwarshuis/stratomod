@@ -48,6 +48,8 @@ rule add_annotations:
         str(envs_dir / "bedtools.yml")
     log:
         annotated_input_dir / "{filter_key}.log",
+    benchmark:
+        annotated_input_dir / "{filter_key}.bench",
     script:
         str(scripts_dir / "annotate.py")
 
@@ -63,6 +65,8 @@ rule make_input_summary:
         annotated_input_dir / "{filter_key}_summary.html",
     conda:
         str(envs_dir / "rmarkdown.yml")
+    benchmark:
+        annotated_input_dir / "{filter_key}_summary.bench",
     script:
         str(scripts_dir / "rmarkdown" / "input_summary.Rmd")
 
@@ -139,6 +143,8 @@ rule train_ebm:
         str(envs_dir / "ebm.yml")
     log:
         ebm_log_dir / "model.log",
+    benchmark:
+        ebm_log_dir / "model.bench",
     script:
         str(scripts_dir / "run_ebm.py")
 
@@ -164,6 +170,8 @@ rule summarize_ebm:
         ebm_dir / "summary.html",
     conda:
         str(envs_dir / "rmarkdown.yml")
+    benchmark:
+        ebm_dir / "summary.bench",
     script:
         str(scripts_dir / "rmarkdown" / "model_summary.Rmd")
 
