@@ -8,32 +8,68 @@ library(tidyverse)
 
 source("workflow/scripts/rmarkdown/common/plots.r")
 
-run_key <- snakemake@wildcards[["run_key"]]
-run_config <- snakemake@config[["ebm_runs"]][[run_key]]
-run_features <- run_config[["features"]]
-
-mod <- snakemake@input[["model"]] %>%
-    jsonlite::read_json(simplifyVector = TRUE, simplifyDataFrame = FALSE)
-ypred <- readr::read_csv(snakemake@input[["predictions"]],
-                         col_types = cols(.default = "d"))
 
 to_tibble <- function(lst) {
     do.call(tibble, lst)
 }
 
+get_run_features <- function(wildcards, config) {
+    run_key <- wildcards[["run_key"]]
+    config[["ebm_runs"]][[run_key]][["features"]]
+}
+
+read_model <- function(path) {
+    jsonlite::read_json(path, simplifyVector = TRUE, simplifyDataFrame = FALSE)
+}
+
+read_predictions <- function(path) {
+    readr::read_csv(path, col_types = cols(.default = "d"))
+}
+
+read_input_paths <- function(path) {
+    jsonlite::read_json(path) %>%
+        set_names(~ basename(dirname(.x)))
+}
+
+lookup_input_path <- function(mapping, k) {
+    pluck(mapping, as.character(as.integer(k)))
+}
+
+to_univariate <- function(model) {
+    model$univariate %>%
+        map(~ list(meta = .x[c("name", "vartype")], df = to_tibble(.x[["df"]])))
+}
+
+to_bivariate <- function(model) {
+    model$bivariate %>%
+        map(~ list(left = .x$left, right = .x$right, df = to_tibble(.x$df)))
+}
+
+run_features <- get_run_features(snakemake@wildcards, snakemake@config)
+
+mod <- read_model(snakemake@input[["model"]])
+ypred <- read_predictions(snakemake@input[["predictions"]])
+input_keys <- read_input_paths(snakemake@input[["paths"]])
+
+VCF_input_name <- "VCF_input"
+
 global_df <- to_tibble(mod$global)
 
-univariate <- mod$univariate %>%
-    map(~ list(meta = .x[c("name", "vartype")], df = to_tibble(.x[["df"]])))
-
-bivariate <- mod$bivariate %>%
-    map(~ list(left = .x$left,
-               right = .x$right,
-               df = to_tibble(.x$df)))
+univariate <- to_univariate(mod)
+bivariate <- to_bivariate(mod)
 
 ```
 
 # Model Statistics
+
+## Input file keys:
+
+```{r, echo = F, results = "asis"}
+
+iwalk(input_keys, ~ cat(sprintf("- %d: %s\n", .x, .y)))
+cat("\n")
+
+```
 
 ## Overview
 
@@ -253,8 +289,10 @@ print_cont_cat_plot <- function(df, cat, cont, cat_name, cont_name) {
 }
 
 print_cat_cat_plot <- function(df, left_name, right_name) {
-    p <- mutate(df, right_value = factor(right_value)) %>%
-        ggplot(aes(left_value, score, fill = right_value)) +
+    p <- ggplot(df, aes(factor(left_value),
+                         score,
+                         fill = factor(right_value)
+                         )) +
         geom_col(position = "dodge") +
         geom_errorbar(aes(ymin = score - stdev,
                           ymax = score + stdev),
@@ -273,7 +311,7 @@ print_bv_plot_inner <- function(L, R, df) {
     } else if (L$type == "continuous" && R$type == "categorical") {
         print_cont_cat_plot(df, "right_value", "left_value", R$name, L$name)
     } else if (L$type == "categorical" && R$type == "categorical") {
-        print_cat_cat_plot(df, R$name, L$name)
+        print_cat_cat_plot(df, L$name, R$name)
     } else {
         sprintf("Types are wrong, dummy: %s and/or %s", L$type, R$type)
     }
