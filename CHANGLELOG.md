@@ -1,3 +1,8 @@
+# 4.1.1
+
+- fix segdup feature errors (off by one columns)
+- add benchmarking directives to key rules for debugging
+
 # 4.1.0
 
 - use config to control feature naming (mostly)
