@@ -456,6 +456,24 @@ properties:
                     description: if present, fill missing values with this value
                     type: number
                     default: 0
+                  truncate:
+                    description: |
+                      Truncate the feature when displayed in the report (note
+                      the feature is left unchanged when training the EBM). Must
+                      be an integer or null, where null means no truncation. If
+                      both are supplied, upper must be at least 1 greater than
+                      the former. Note that this also implies that the feature
+                      will be displayed as a bar plot (for now).
+                    additionalProperties: false
+                    type: object
+                    default: {}
+                    properties:
+                      lower: &truncation
+                        anyOf:
+                          - type: integer
+                          - type: "null"
+                        default: null
+                      upper: *truncation
 
           interactions:
             description: |

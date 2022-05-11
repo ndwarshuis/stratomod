@@ -8,6 +8,10 @@ library(tidyverse)
 
 source("workflow/scripts/rmarkdown/common/plots.r")
 
+run_key <- snakemake@wildcards[["run_key"]]
+run_config <- snakemake@config[["ebm_runs"]][[run_key]]
+run_features <- run_config[["features"]]
+
 mod <- snakemake@input[["model"]] %>%
     jsonlite::read_json(simplifyVector = TRUE, simplifyDataFrame = FALSE)
 ypred <- readr::read_csv(snakemake@input[["predictions"]],
@@ -91,38 +95,27 @@ ggplot(global_df, aes(score, reorder(variable, score))) +
 
 # Univariate plots
 
-```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 4}
-
-integer_plot_features <- list("VCF_DP" = 50,
-                              "VCF_indel_length" = 50,
-                              "HOMOPOL_[^_]+_length" = 50,
-                              "TR_unit_size_[^_]+$" = 50,
-                              "TR_unit_copies_[^_]+$" = 50,
-                              "SEGDUP_count" = 50) %>%
-    imap(~ list(name = .y, value = .x))
+```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 4, message = F}
 
 get_truncation <- function(s) {
-    t <- detect(integer_plot_features, ~ !is.na(str_match(s, .x$name)[1,1]))
-    if (is.null(t)) NA else t$value
+    run_features[[s]][["truncate"]]
 }
 
-make_integer_plot <- function(df, xlab, errorbars = TRUE, truncate = 50) {
-    fill_cols <- if (errorbars) c("score", "stdev") else "score"
-    p <- df %>%
-        mutate(value = ceiling(value)) %>%
-        filter(value <= truncate) %>%
-        right_join(tibble(value = 0:truncate), by = "value") %>%
+make_integer_plot <- function(df, xlab, lower, upper) {
+    fill_cols <- c("score", "stdev")
+    .df <- mutate(df, value = ceiling(value))
+    .lower <- if (is.null(lower)) min(.df$value) else ceiling(lower)
+    .upper <- if (is.null(upper)) max(.df$value) else ceiling(upper)
+    .pdf <- .df %>%
+        filter(.lower <= value & value <= .upper) %>%
+        right_join(tibble(value = .lower:.upper), by = "value") %>%
         arrange(value) %>%
-        fill(all_of(fill_cols), .direction = "downup") %>%
-        ggplot(aes(value, score)) +
+        fill(all_of(fill_cols), .direction = "downup")
+    ggplot(.pdf, aes(value, score)) +
         geom_col() +
         xlab(xlab) +
-        ylab("Score")
-    if (errorbars) {
-        p + geom_errorbar(aes(ymin = score - stdev, ymax = score + stdev))
-    } else {
-        p
-    }
+        ylab("Score") +
+        geom_errorbar(aes(ymin = score - stdev, ymax = score + stdev))
 }
 
 make_continuous_plot <- function(df, name) {
@@ -151,10 +144,10 @@ make_categorical_plot <- function(df, name) {
 print_uv_plot <- function(vartype, df, name) {
     if (vartype == "continuous") {
         t <- get_truncation(name)
-        if (is.na(t)) {
+        if (is.null(t[["lower"]]) && is.null(t[["upper"]])) {
             p <- make_continuous_plot(df, name)
         } else {
-            p <- make_integer_plot(df, name, truncate = t)
+            p <- make_integer_plot(df, name, t[["lower"]], t[["upper"]])
         }
     } else if (vartype == "categorical") {
         p <- make_categorical_plot(df, name)
@@ -211,14 +204,14 @@ print_cont_cont_plot <- function(df, left_name, right_name) {
 print_cont_cat_plot_inner <- function(df, cat_name, cont_name) {
     cat_val <- as.character(df$c[[1]])
     t <- get_truncation(cont_name)
-    p <- if (is.na(t)) {
+    p <- if (is.null(t[["lower"]]) && is.null(t[["upper"]])) {
              ggplot(df, aes(value, score)) +
                  geom_step(aes(y = lower), color = "red") +
                  geom_step(aes(y = upper), color = "red") +
                  geom_step() +
                  xlab(cont_name)
          } else {
-             make_integer_plot(df, cont_name, truncate = t)
+             make_integer_plot(df, cont_name, t[["lower"]], t[["upper"]])
          }
     cat(sprintf("### %s = %s\n\n", cat_name, cat_val))
     print(p)

@@ -23,17 +23,22 @@ ebm_runs:
       VCF_input:
         feature_type: categorical
       VCF_VAF: {}
-      VCF_DP: {}
-      VCF_indel_length: {}
+      VCF_DP:
+        truncate: {lower: 0, upper: 100}
+      VCF_indel_length:
+        truncate: {lower: 50, upper: 50}
 
-      HOMOPOL_AT_length: {}
-      HOMOPOL_GC_length: {}
+      HOMOPOL_AT_length:
+        truncate: {lower: 0, upper: 50}
+      HOMOPOL_GC_length:
+        truncate: {lower: 0, upper: 50}
       HOMOPOL_AT_imperfect_frac: {}
       HOMOPOL_GC_imperfect_frac: {}
       HOMOPOL_AT_total_imperfect_frac: {}
       HOMOPOL_GC_total_imperfect_frac: {}
 
-      TR_unit_size_max: {}
+      TR_unit_size_max:
+        truncate: {lower: 0, upper: 50}
       TR_unit_copies_max: {}
       TR_identity_min: {}
       TR_score_max: {}
@@ -50,13 +55,12 @@ ebm_runs:
         feature_type: categorical
       REPMASK_LINE_length: {}
 
-      # mappability
       MAP_difficult_250bp:
         feature_type: categorical
       MAP_difficult_100bp:
         feature_type: categorical
 
-      # segdups
       SEGDUP_size_max: {}
       SEGDUP_identity_mean: {}
-      SEGDUP_count: {}
+      SEGDUP_count:
+        truncate: {upper: 50}
