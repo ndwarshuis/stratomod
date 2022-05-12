@@ -1,3 +1,11 @@
+# 4.2.0
+
+- add option to set truncation in config
+- add option to set plot type in config
+- add captions for truncated ranges
+- add vcf input key legend at the top of each EBM report
+- fix flipped legend in bivariate cat/cat plots
+
 # 4.1.1
 
 - fix segdup feature errors (off by one columns)
