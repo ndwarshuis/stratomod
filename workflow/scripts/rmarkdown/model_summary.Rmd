@@ -8,28 +8,68 @@ library(tidyverse)
 
 source("workflow/scripts/rmarkdown/common/plots.r")
 
-mod <- snakemake@input[["model"]] %>%
-    jsonlite::read_json(simplifyVector = TRUE, simplifyDataFrame = FALSE)
-ypred <- readr::read_csv(snakemake@input[["predictions"]],
-                         col_types = cols(.default = "d"))
 
 to_tibble <- function(lst) {
     do.call(tibble, lst)
 }
 
+get_run_features <- function(wildcards, config) {
+    run_key <- wildcards[["run_key"]]
+    config[["ebm_runs"]][[run_key]][["features"]]
+}
+
+read_model <- function(path) {
+    jsonlite::read_json(path, simplifyVector = TRUE, simplifyDataFrame = FALSE)
+}
+
+read_predictions <- function(path) {
+    readr::read_csv(path, col_types = cols(.default = "d"))
+}
+
+read_input_paths <- function(path) {
+    jsonlite::read_json(path) %>%
+        set_names(~ basename(dirname(.x)))
+}
+
+lookup_input_path <- function(mapping, k) {
+    pluck(mapping, as.character(as.integer(k)))
+}
+
+to_univariate <- function(model) {
+    model$univariate %>%
+        map(~ list(meta = .x[c("name", "vartype")], df = to_tibble(.x[["df"]])))
+}
+
+to_bivariate <- function(model) {
+    model$bivariate %>%
+        map(~ list(left = .x$left, right = .x$right, df = to_tibble(.x$df)))
+}
+
+run_features <- get_run_features(snakemake@wildcards, snakemake@config)
+
+mod <- read_model(snakemake@input[["model"]])
+ypred <- read_predictions(snakemake@input[["predictions"]])
+input_keys <- read_input_paths(snakemake@input[["paths"]])
+
+VCF_input_name <- "VCF_input"
+
 global_df <- to_tibble(mod$global)
 
-univariate <- mod$univariate %>%
-    map(~ list(meta = .x[c("name", "vartype")], df = to_tibble(.x[["df"]])))
-
-bivariate <- mod$bivariate %>%
-    map(~ list(left = .x$left,
-               right = .x$right,
-               df = to_tibble(.x$df)))
+univariate <- to_univariate(mod)
+bivariate <- to_bivariate(mod)
 
 ```
 
 # Model Statistics
+
+## Input file keys:
+
+```{r, echo = F, results = "asis"}
+
+iwalk(input_keys, ~ cat(sprintf("- %d: %s\n", .x, .y)))
+cat("\n")
+
+```
 
 ## Overview
 
@@ -91,42 +131,56 @@ ggplot(global_df, aes(score, reorder(variable, score))) +
 
 # Univariate plots
 
-```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 4}
-
-integer_plot_features <- list("VCF_DP" = 50,
-                              "VCF_indel_length" = 50,
-                              "HOMOPOL_[^_]+_length" = 50,
-                              "TR_unit_size_[^_]+$" = 50,
-                              "TR_unit_copies_[^_]+$" = 50,
-                              "SEGDUP_count" = 50) %>%
-    imap(~ list(name = .y, value = .x))
+```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 4, message = F}
 
 get_truncation <- function(s) {
-    t <- detect(integer_plot_features, ~ !is.na(str_match(s, .x$name)[1,1]))
-    if (is.null(t)) NA else t$value
+    run_features[[s]][["visualization"]][["truncate"]]
 }
 
-make_integer_plot <- function(df, xlab, errorbars = TRUE, truncate = 50) {
-    fill_cols <- if (errorbars) c("score", "stdev") else "score"
-    p <- df %>%
-        mutate(value = ceiling(value)) %>%
-        filter(value <= truncate) %>%
-        right_join(tibble(value = 0:truncate), by = "value") %>%
+get_plot_type <- function(s) {
+    run_features[[s]][["visualization"]][["plot_type"]]
+}
+
+truncate_maybe <- function(df, name) {
+    t <- get_truncation(name)
+    lower <- t[["lower"]]
+    upper <- t[["upper"]]
+    caption <- if (!is.null(lower) && !is.null(upper)) {
+                   sprintf("Truncated from %d to %d", lower, upper)
+               } else if (!is.null(lower)) {
+                   sprintf("Truncated from %d to -Inf", lower)
+               } else if (!is.null(upper)) {
+                   sprintf("Truncated from -Inf to %d", upper)
+               }
+    .df <- if (is.null(lower) && is.null(upper)) {
+               df
+           } else {
+               .lower <- if (is.null(lower)) min(df$value) else lower
+               .upper <- if (is.null(upper)) max(df$value) else upper
+               filter(df, .lower <= value & value <= .upper)
+           }
+    list(df = .df, lower = lower, upper = upper, caption = caption)
+}
+
+make_integer_plot <- function(df, xlab, lower = NULL, upper = NULL, caption = NULL) {
+    fill_cols <- c("score", "stdev")
+    .lower <- if (is.null(lower)) min(df$value) else lower
+    .upper <- if (is.null(upper)) max(df$value) else upper
+    .join <- tibble(value = .lower:.upper)
+    .df <- mutate(df, value = ceiling(value)) %>%
+        right_join(.join, by = "value") %>%
         arrange(value) %>%
-        fill(all_of(fill_cols), .direction = "downup") %>%
-        ggplot(aes(value, score)) +
+        fill(all_of(fill_cols), .direction = "downup")
+    p <- ggplot(.df, aes(value, score)) +
         geom_col() +
         xlab(xlab) +
-        ylab("Score")
-    if (errorbars) {
-        p + geom_errorbar(aes(ymin = score - stdev, ymax = score + stdev))
-    } else {
-        p
-    }
+        ylab("Score") +
+        geom_errorbar(aes(ymin = score - stdev, ymax = score + stdev))
+    if (is.null(caption)) p else p + labs(caption = caption)
 }
 
-make_continuous_plot <- function(df, name) {
-    infer_transform(df$value) %>%
+make_continuous_plot <- function(df, name, caption) {
+    p <- infer_transform(df$value) %>%
         mutate(score = df$score,
                lower = score - df$stdev,
                upper = score + df$stdev) %>%
@@ -138,6 +192,7 @@ make_continuous_plot <- function(df, name) {
         xlab(name) +
         ylab("Score") +
         facet_wrap(~trans, scales = "free")
+    if (is.null(caption)) p else p + labs(caption = caption)
 }
 
 make_categorical_plot <- function(df, name) {
@@ -149,18 +204,25 @@ make_categorical_plot <- function(df, name) {
 }
 
 print_uv_plot <- function(vartype, df, name) {
-    if (vartype == "continuous") {
-        t <- get_truncation(name)
-        if (is.na(t)) {
-            p <- make_continuous_plot(df, name)
-        } else {
-            p <- make_integer_plot(df, name, truncate = t)
-        }
-    } else if (vartype == "categorical") {
-        p <- make_categorical_plot(df, name)
-    } else {
-        p <- sprintf("wrong plot type, dummy; got %s", vartype)
-    }
+    p <- if (vartype == "continuous") {
+             tr <- truncate_maybe(df, name)
+             t <- get_plot_type(name)
+             if (t == "step") {
+                 make_continuous_plot(tr[["df"]], name, tr[["caption"]])
+             } else if (t == "bar") {
+                 make_integer_plot(tr[["df"]],
+                                   name,
+                                   tr[["lower"]],
+                                   tr[["upper"]],
+                                   tr[["caption"]])
+             } else {
+                 sprintf("wrong type, dummy; got %s", t)
+             }
+         } else if (vartype == "categorical") {
+             make_categorical_plot(df, name)
+         } else {
+             sprintf("wrong plot type, dummy; got %s", vartype)
+         }
 
     cat(sprintf("## %s\n", name))
     print(p)
@@ -210,16 +272,29 @@ print_cont_cont_plot <- function(df, left_name, right_name) {
 
 print_cont_cat_plot_inner <- function(df, cat_name, cont_name) {
     cat_val <- as.character(df$c[[1]])
-    t <- get_truncation(cont_name)
-    p <- if (is.na(t)) {
-             ggplot(df, aes(value, score)) +
+    tr <- truncate_maybe(df, cont_name)
+    t <- get_plot_type(cont_name)
+    p <- if (t == "step") {
+             .p <- ggplot(tr[["df"]], aes(value, score)) +
                  geom_step(aes(y = lower), color = "red") +
                  geom_step(aes(y = upper), color = "red") +
                  geom_step() +
                  xlab(cont_name)
+             if (!is.null(tr[["caption"]])) {
+                 .p + labs(caption = tr[["caption"]])
+             } else {
+                 .p
+             }
+         } else if (t == "bar") {
+             make_integer_plot(tr[["df"]],
+                               cont_name,
+                               tr[["lower"]],
+                               tr[["upper"]],
+                               tr[["caption"]])
          } else {
-             make_integer_plot(df, cont_name, truncate = t)
+             sprintf("wrong plot type: got %s", t)
          }
+    
     cat(sprintf("### %s = %s\n\n", cat_name, cat_val))
     print(p)
     cat("\n\n")
@@ -236,8 +311,10 @@ print_cont_cat_plot <- function(df, cat, cont, cat_name, cont_name) {
 }
 
 print_cat_cat_plot <- function(df, left_name, right_name) {
-    p <- mutate(df, right_value = factor(right_value)) %>%
-        ggplot(aes(left_value, score, fill = right_value)) +
+    p <- ggplot(df, aes(factor(left_value),
+                         score,
+                         fill = factor(right_value)
+                         )) +
         geom_col(position = "dodge") +
         geom_errorbar(aes(ymin = score - stdev,
                           ymax = score + stdev),
@@ -256,7 +333,7 @@ print_bv_plot_inner <- function(L, R, df) {
     } else if (L$type == "continuous" && R$type == "categorical") {
         print_cont_cat_plot(df, "right_value", "left_value", R$name, L$name)
     } else if (L$type == "categorical" && R$type == "categorical") {
-        print_cat_cat_plot(df, R$name, L$name)
+        print_cat_cat_plot(df, L$name, R$name)
     } else {
         sprintf("Types are wrong, dummy: %s and/or %s", L$type, R$type)
     }

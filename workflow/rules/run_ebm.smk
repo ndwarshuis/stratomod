@@ -106,7 +106,7 @@ rule postprocess_output:
         ),
     output:
         df=ebm_dir / "input.tsv",
-        paths=ebm_dir / "input_paths.yml",
+        paths=ebm_dir / "input_paths.json",
     params:
         config=lambda wildcards: lookup_ebm_run(wildcards),
     log:
@@ -166,6 +166,7 @@ rule decompose_ebm:
 rule summarize_ebm:
     input:
         **rules.decompose_ebm.output,
+        paths=rules.postprocess_output.output.paths
     output:
         ebm_dir / "summary.html",
     conda:
