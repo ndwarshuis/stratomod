@@ -48,6 +48,8 @@ rule add_annotations:
         str(envs_dir / "bedtools.yml")
     log:
         annotated_input_dir / "{filter_key}.log",
+    benchmark:
+        annotated_input_dir / "{filter_key}.bench",
     script:
         str(scripts_dir / "annotate.py")
 
@@ -63,6 +65,8 @@ rule make_input_summary:
         annotated_input_dir / "{filter_key}_summary.html",
     conda:
         str(envs_dir / "rmarkdown.yml")
+    benchmark:
+        annotated_input_dir / "{filter_key}_summary.bench",
     script:
         str(scripts_dir / "rmarkdown" / "input_summary.Rmd")
 
@@ -102,7 +106,7 @@ rule postprocess_output:
         ),
     output:
         df=ebm_dir / "input.tsv",
-        paths=ebm_dir / "input_paths.yml",
+        paths=ebm_dir / "input_paths.json",
     params:
         config=lambda wildcards: lookup_ebm_run(wildcards),
     log:
@@ -139,6 +143,8 @@ rule train_ebm:
         str(envs_dir / "ebm.yml")
     log:
         ebm_log_dir / "model.log",
+    benchmark:
+        ebm_log_dir / "model.bench",
     script:
         str(scripts_dir / "run_ebm.py")
 
@@ -160,10 +166,13 @@ rule decompose_ebm:
 rule summarize_ebm:
     input:
         **rules.decompose_ebm.output,
+        paths=rules.postprocess_output.output.paths
     output:
         ebm_dir / "summary.html",
     conda:
         str(envs_dir / "rmarkdown.yml")
+    benchmark:
+        ebm_dir / "summary.bench",
     script:
         str(scripts_dir / "rmarkdown" / "model_summary.Rmd")
 

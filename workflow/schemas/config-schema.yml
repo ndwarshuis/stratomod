@@ -456,6 +456,37 @@ properties:
                     description: if present, fill missing values with this value
                     type: number
                     default: 0
+                  visualization:
+                    additionalProperties: false
+                    type: object
+                    default: {}
+                    properties:
+                      plot_type:
+                        description: |
+                          The type of plot to use. Must be one of 'step' or
+                          'bar'. Note that in the case of 'bar' the feature
+                          should be an integer or weird things will happen (this
+                          is not enforced).
+                        type: string
+                        pattern: ^bar|step$
+                        default: step
+                      truncate:
+                        description: |
+                          Truncate the feature when displayed in the report
+                          (note the feature is left unchanged when training the
+                          EBM). Must be a number or null, where null means no
+                          truncation. If both are supplied, upper must be
+                          greater than the former.
+                        additionalProperties: false
+                        type: object
+                        default: {}
+                        properties:
+                          lower: &truncation
+                            anyOf:
+                              - type: number
+                              - type: "null"
+                            default: null
+                          upper: *truncation
 
           interactions:
             description: |

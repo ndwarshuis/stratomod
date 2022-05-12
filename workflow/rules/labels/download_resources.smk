@@ -46,6 +46,8 @@ rule sdf_to_fasta:
         filt=" ".join(lookup_global_chr_filter(config)),
     conda:
         str(envs_dir / "rtg.yml")
+    benchmark:
+        ref_results_dir / "{ref_key}.bench",
     shell:
         """
         rtg sdf2fasta \

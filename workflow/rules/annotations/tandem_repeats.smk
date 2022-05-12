@@ -27,5 +27,7 @@ rule get_tandem_repeats:
         filt=lookup_global_chr_filter(config),
     log:
         tandem_repeats_results_dir / "tandem_repeats.log",
+    benchmark:
+        tandem_repeats_results_dir / "tandem_repeats.bench",
     script:
         str(scripts_dir / "get_tandem_repeat_features.py")

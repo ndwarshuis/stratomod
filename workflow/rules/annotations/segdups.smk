@@ -26,5 +26,7 @@ rule get_segdups:
         filt=lookup_global_chr_filter(config),
     log:
         segdups_results_dir / "segdups.log",
+    benchmark:
+        segdups_results_dir / "segdups.bench",
     script:
         str(scripts_dir / "get_segdup_features.py")

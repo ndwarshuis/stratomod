@@ -1,4 +1,4 @@
-import yaml
+import json
 import pandas as pd
 import numpy as np
 from functools import partial
@@ -140,7 +140,7 @@ def main():
         raw_df,
     )
     with open(snakemake.output["paths"], "w") as f:
-        yaml.dump(mapped_paths, f)
+        json.dump(mapped_paths, f)
     write_tsv(snakemake.output["df"], processed)
 
 
