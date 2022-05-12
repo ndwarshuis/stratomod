@@ -53,13 +53,20 @@ def validate_features(config):
             ", ".join(fs - valid_features)
         )
 
-        # test feature alt names
         for k, v in features.items():
+            # test feature alt names
             alt = v["alt_name"]
             if alt is not None:
                 prefix = re.match("^[^_]+", k)[0]
                 alt_prefix = re.match("^[^_]+", alt)[0]
                 assert alt_prefix == prefix, f"Alt prefix must match for {k}"
+
+            # test truncation values
+            truncate = v["visualization"]["truncate"]
+            tlower = truncate["lower"]
+            tupper = truncate["upper"]
+            if tlower is not None and tupper is not None:
+                assert tlower < tupper, f"Non-positive truncation for {k}"
 
         # test duplicate alt names
         flat_feature_names = flatten_features(features)

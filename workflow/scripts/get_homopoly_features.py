@@ -13,11 +13,10 @@ from common.config import (
 
 logger = setup_logging(snakemake.log[0])
 
-BASE_COL = "base"
-
-GAP_COL = "gap_count"
-NORM_GAP_COL = "normalized_gap_count"
-PFCT_LEN_COL = "perfect_length"
+# temporary columns used for dataframe processing
+BASE_COL = "_base"
+GAP_COL = "_gap_count"
+PFCT_LEN_COL = "_perfect_length"
 
 SLOP = 5
 

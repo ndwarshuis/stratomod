@@ -9,16 +9,17 @@ from common.config import (
     bed_cols_indexed,
 )
 
-logger = setup_logging(snakemake.log[0])
-
-SLOP = 5
-
-# Input dataframe from here: https://genome.ucsc.edu/cgi-bin/hgTables?db=hg38&hgta_group=rep&hgta_track=simpleRepeat&hgta_table=simpleRepeat&hgta_doSchema=describe+table+schema
+# Input dataframe documented here:
+# https://genome.ucsc.edu/cgi-bin/hgTables?db=hg38&hgta_group=rep&hgta_track=simpleRepeat&hgta_table=simpleRepeat&hgta_doSchema=describe+table+schema
 #
 # ASSUME this dataframe is fed into this script as-is. The column numbers below
 # are dictionary values, and the corresponding feature names are the dictionary
 # keys. Note that many feature names don't match the original column names in
 # the database.
+
+logger = setup_logging(snakemake.log[0])
+
+SLOP = 5
 
 
 def format_base(bs_prefix, base):
