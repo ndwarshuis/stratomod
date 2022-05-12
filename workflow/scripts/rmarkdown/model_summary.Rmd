@@ -145,6 +145,13 @@ truncate_maybe <- function(df, name) {
     t <- get_truncation(name)
     lower <- t[["lower"]]
     upper <- t[["upper"]]
+    caption <- if (!is.null(lower) && !is.null(upper)) {
+                   sprintf("Truncated from %d to %d", lower, upper)
+               } else if (!is.null(lower)) {
+                   sprintf("Truncated from %d to -Inf", lower)
+               } else if (!is.null(upper)) {
+                   sprintf("Truncated from -Inf to %d", upper)
+               }
     .df <- if (is.null(lower) && is.null(upper)) {
                df
            } else {
@@ -152,10 +159,10 @@ truncate_maybe <- function(df, name) {
                .upper <- if (is.null(upper)) max(df$value) else upper
                filter(df, .lower <= value & value <= .upper)
            }
-    list(df = .df, lower = lower, upper = upper)
+    list(df = .df, lower = lower, upper = upper, caption = caption)
 }
 
-make_integer_plot <- function(df, xlab, lower = NULL, upper = NULL) {
+make_integer_plot <- function(df, xlab, lower = NULL, upper = NULL, caption = NULL) {
     fill_cols <- c("score", "stdev")
     .lower <- if (is.null(lower)) min(df$value) else lower
     .upper <- if (is.null(upper)) max(df$value) else upper
@@ -164,15 +171,16 @@ make_integer_plot <- function(df, xlab, lower = NULL, upper = NULL) {
         right_join(.join, by = "value") %>%
         arrange(value) %>%
         fill(all_of(fill_cols), .direction = "downup")
-    ggplot(.df, aes(value, score)) +
+    p <- ggplot(.df, aes(value, score)) +
         geom_col() +
         xlab(xlab) +
         ylab("Score") +
         geom_errorbar(aes(ymin = score - stdev, ymax = score + stdev))
+    if (is.null(caption)) p else p + labs(caption = caption)
 }
 
-make_continuous_plot <- function(df, name) {
-    infer_transform(df$value) %>%
+make_continuous_plot <- function(df, name, caption) {
+    p <- infer_transform(df$value) %>%
         mutate(score = df$score,
                lower = score - df$stdev,
                upper = score + df$stdev) %>%
@@ -184,6 +192,7 @@ make_continuous_plot <- function(df, name) {
         xlab(name) +
         ylab("Score") +
         facet_wrap(~trans, scales = "free")
+    if (is.null(caption)) p else p + labs(caption = caption)
 }
 
 make_categorical_plot <- function(df, name) {
@@ -199,9 +208,13 @@ print_uv_plot <- function(vartype, df, name) {
              tr <- truncate_maybe(df, name)
              t <- get_plot_type(name)
              if (t == "step") {
-                 make_continuous_plot(tr[["df"]], name)
+                 make_continuous_plot(tr[["df"]], name, tr[["caption"]])
              } else if (t == "bar") {
-                 make_integer_plot(tr[["df"]], name, tr[["lower"]], tr[["upper"]])
+                 make_integer_plot(tr[["df"]],
+                                   name,
+                                   tr[["lower"]],
+                                   tr[["upper"]],
+                                   tr[["caption"]])
              } else {
                  sprintf("wrong type, dummy; got %s", t)
              }
@@ -262,13 +275,22 @@ print_cont_cat_plot_inner <- function(df, cat_name, cont_name) {
     tr <- truncate_maybe(df, cont_name)
     t <- get_plot_type(cont_name)
     p <- if (t == "step") {
-             ggplot(tr[["df"]], aes(value, score)) +
+             .p <- ggplot(tr[["df"]], aes(value, score)) +
                  geom_step(aes(y = lower), color = "red") +
                  geom_step(aes(y = upper), color = "red") +
                  geom_step() +
                  xlab(cont_name)
+             if (!is.null(tr[["caption"]])) {
+                 .p + labs(caption = tr[["caption"]])
+             } else {
+                 .p
+             }
          } else if (t == "bar") {
-             make_integer_plot(tr[["df"]], cont_name, tr[["lower"]], tr[["upper"]])
+             make_integer_plot(tr[["df"]],
+                               cont_name,
+                               tr[["lower"]],
+                               tr[["upper"]],
+                               tr[["caption"]])
          } else {
              sprintf("wrong plot type: got %s", t)
          }
