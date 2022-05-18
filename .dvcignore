@@ -1,0 +1,21 @@
+# Add patterns of files dvc should ignore, which could improve
+# the performance. Learn more at
+# https://dvc.org/doc/user-guide/dvcignore
+
+# lots of garbage here we don't need to track
+.snakemake
+
+# old code
+.archive
+
+# big pipeline files
+resources/bench
+resources/reference
+resources/annotations
+results/annotations
+results/labels
+
+# workflow files
+workflow
+config
+

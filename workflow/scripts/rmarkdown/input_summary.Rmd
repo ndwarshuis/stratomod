@@ -7,6 +7,10 @@ output: "html_document"
 library(tidyverse)
 library(infotheo)
 
+# from blablabla import nukes
+`:=` = rlang::`:=`
+`!!` = rlang::`!!`
+
 ## gross...
 source("workflow/scripts/rmarkdown/common/colocalization.r")
 source("workflow/scripts/rmarkdown/common/plots.r")
@@ -19,27 +23,19 @@ format_exp <- function(x) {
     sprintf("%.1e", x)
 }
 
-read_tsv <- function(path) {
-    read.csv(path, sep = "\t", na.strings = c(".")) %>%
-        as_tibble()
-}
-
-eval_nowarn <- function(f, xs) {
-    .xs <- discard(xs, is.na)
-    ifelse(length(.xs) == 0, NA, f(.xs))
-}
-
 make_stats_table <- function(df) {
-    gather(df) %>%
+    N <- nrow(df)
+    gather(df, factor_key = TRUE) %>%
         group_by(key) %>%
-        summarize(min = eval_nowarn(min, value),
-                  max = eval_nowarn(max, value),
+        summarize(n_present = sum(!is.na(value)),
+                  perc_present = 100 * n_present / N,
+                  # prevent NULL error for zero length vectors in min/max
+                  min = ifelse(n_present == 0, NA, min(value, na.rm = TRUE)),
+                  max = ifelse(n_present == 0, NA, max(value, na.rm = TRUE)),
                   med = median(value, na.rm = TRUE),
                   mean = mean(value, na.rm = TRUE),
-                  stdev = mean(value, na.rm = TRUE),
-                  range = max - min,
-                  n_present = sum(!is.na(value)),
-                  perc_present = 100 * n_present / n()) %>%
+                  stdev = sd(value, na.rm = TRUE),
+                  range = max - min) %>%
         rename(feature = key) %>%
         mutate(perc_present = format_perc(perc_present)) %>%
         mutate(across(c(min, max, med, mean, stdev, range), format_exp)) %>%
@@ -59,13 +55,42 @@ make_feature_distribution <- function(x, labels) {
         facet_wrap(~key, scales = "free")
 }
 
-df <- read_tsv(snakemake@input[[1]])
+label_summary_table <- function(y) {
+    tibble(label = y) %>%
+        group_by(label) %>%
+        summarize(n = n(),
+                  proportion = format_perc(n / N)) %>%
+        knitr::kable()
+}
 
-df_x <- df %>%
-    select(-label) %>%
-    select(-CHROM, -POS, -POS.length.REF., -FILTER, -GT, -GQ)
+fmt_vcf_col <- function(fconf, which) {
+    .v <- fconf[["vcf"]]
+    sprintf("%s_%s", .v[["prefix"]], .v[["columns"]][[which]])
+}
 
-df_y <- df$label
+path <- snakemake@input[[1]]
+
+fconf <- snakemake@config[["features"]]
+label_col <- fconf[["label"]]
+idx <- fconf[["index"]]
+
+df_x <- readr::read_tsv(path,
+                        col_types = cols(
+                            !!label_col := "-",
+                            !!idx[["chr"]] := "-",
+                            !!idx[["start"]] := "-",
+                            !!idx[["end"]] := "-",
+                            !!fmt_vcf_col(fconf, "filter") := "-",
+                            !!fmt_vcf_col(fconf, "gt") := "-",
+                            !!fmt_vcf_col(fconf, "gq") := "-",
+                            .default = "d"))
+
+df_y <- readr::read_tsv(path, col_types = cols(
+                                  !!label_col := "c",
+                                  .default = "-")) %>%
+    pull(!!label_col)
+
+y_labels <- unique(df_y)
 
 features <- names(df_x)
 
@@ -76,14 +101,16 @@ features <- names(df_x)
 ```{r, echo=FALSE}
 N <- length(df_y)
 P <- length(names(df_x))
-N_TP <- length(keep(df_y, ~ .x == "tp"))
-perc_TP <- sprintf("%.2f", 100 * N_TP / N)
 ```
 
 * N Rows: `r N`
 * N Features: `r P`
-* N True Positives: `r N_TP`
-* Perc True Postives: `r perc_TP`
+
+## Label fractions
+
+```{r, echo=FALSE, results = "asis"}
+label_summary_table(df_y)
+```
 
 # Feature Summary Tables
 
@@ -98,23 +125,20 @@ df_x %>%
 
 ```
 
-## TP Label
-
 ```{r, results = "asis", echo = FALSE}
 
-df_x %>%
-    filter(df_y == "tp") %>%
-    make_stats_table()
+print_label_tbl <- function(label) {
+    cat(sprintf("## %s Label\n\n", label))
 
-```
+    df_x %>%
+        filter(df_y == label) %>%
+        make_stats_table() %>%
+        print()
 
-## FP Label
+    cat("\n\n")
+}
 
-```{r, results = "asis", echo = FALSE}
-
-df_x %>%
-    filter(df_y == "fp") %>%
-    make_stats_table()
+walk(as.list(y_labels), print_label_tbl)
 
 ```
 
@@ -248,24 +272,26 @@ combinations <- df_x %>%
     cross_tibble()
 
 df_x_bool <- to_binary(df_x)
-df_x_tp_bool <- filter(df_x, df_y == "tp") %>% to_binary()
-df_x_fp_bool <- filter(df_x, df_y == "fp") %>% to_binary()
 
 ```
 
 ```{r, echo=F, results = "asis", fig.width = 10, fig.height = 10}
 
-cat("## TP and FP\n\n")
+print_label_coloc <- function(label) {
+    cat(sprintf("## %s only\n\n", label))
+
+    df_x_bool <- filter(df_x, df_y == label) %>%
+        to_binary()
+    print_coloc(df_x_bool, combinations)
+
+    cat("\n\n")
+}
+
+cat("## All labels\n\n")
 
 print_coloc(df_x_bool, combinations)
 
-cat("## TP only\n\n")
-
-print_coloc(df_x_tp_bool, combinations)
-
-cat("## FP only\n\n")
-
-print_coloc(df_x_fp_bool, combinations)
+walk(as.list(y_labels), print_label_coloc)
 
 ```
 
@@ -302,17 +328,17 @@ print_cor_plots <- function(df, subsets) {
 
 ```{r, echo=FALSE, results = "asis", fig.width = 7, fig.height = 7}
 
-cat("## TP and FP\n\n")
+print_label_cor <- function(label) {
+    cat(sprintf("## %s only\n\n", label))
+    filter(df_x, df_y == label) %>% print_cor_plots(perfect_overlaps)
+    cat("\n\n")
+}
+
+cat("## All labels\n\n")
 
 print_cor_plots(df_x, perfect_overlaps)
 
-cat("## TP only\n\n")
-
-filter(df_x, df_y == "tp") %>% print_cor_plots(perfect_overlaps)
-
-cat("## FP only\n\n")
-
-filter(df_x, df_y == "fp") %>% print_cor_plots(perfect_overlaps)
+walk(as.list(y_labels), print_label_cor)
 
 ```
 
@@ -340,10 +366,9 @@ print_plot <- function(x, name) {
     .df <- tibble(x = x, y = df_y) %>%
         filter(!is.na(x))
 
-    .tp <- filter(.df, y == "tp")
-    .fp <- filter(.df, y == "fp")
-    
-    cat(sprintf("number of TP/FP points: %d/%d\n\n", nrow(.tp), nrow(.fp)))
+    label_summary_table(.df$y) %>% print()
+
+    cat("\n\n")
 
     .x <- .df$x
     .y <- .df$y

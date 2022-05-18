@@ -1,0 +1,9 @@
+# for development purposes
+# install these after creating the EBM environment with `mamba env create`
+
+black=21.12b0
+snakefmt=0.4.4
+flake8=4.0.1
+mypy=0.920
+pylint=2.12.2
+ipython=7.30.1

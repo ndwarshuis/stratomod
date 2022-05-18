@@ -4,6 +4,7 @@ required:
   - paths
   - inputs
   - resources
+  - features
   - ebm_runs
 additionalProperties: false
 properties:
@@ -32,7 +33,7 @@ properties:
     patternProperties:
       ^[\w\.\_]+$:
         required:
-          - vcf
+          - url
           - ref
           - benchmark
         additionalProperties: false
@@ -45,9 +46,22 @@ properties:
             description: the reference index to use for this input
             type: string
 
-          vcf:
-            description: the vcf to use for this input
-            type: string
+          url:
+            description: the url to use in obtaining this input vcf
+            anyOf:
+              - type: string
+                format: uri
+              - type: "null"
+
+          chr_filter:
+            description: |
+              A list of chromosomes filter when running all analyses. Empty
+              list means include all chromosomes.
+            type: array
+            uniqueItems: true
+            items:
+              type: string
+            default: []
 
 ################################################################################
 # resources
@@ -57,7 +71,6 @@ properties:
     required:
       - benchmarks
       - references
-      - annotations
     properties:
 
       benchmarks:
@@ -89,6 +102,8 @@ properties:
           ^[\w\.\-]+$:
             required:
               - sdf
+              - genome
+              - annotations
             additionalProperties: false
             properties:
               sdf:
@@ -96,49 +111,243 @@ properties:
                 type: string
                 format: uri
 
-      annotations:
+              genome:
+                  description: the url to the genome database file
+                  type: string
+                  format: uri
+
+              annotations:
+                additionalProperties: false
+                required:
+                  - mappability
+                  - superdups
+                  - simreps
+                  - repeat_masker
+                properties:
+                  mappability:
+                    additionalProperties: false
+                    required:
+                    - low
+                    - high
+                    properties:
+                      low:
+                        description: the url for low stringency mappability bed file
+                        type: string
+                        format: uri
+                      high:
+                        description: the url for high stringency mappability bed file
+                        type: string
+                        format: uri
+          
+                  superdups:
+                    description: the url to the superdups txt file
+                    type: string
+                    format: uri
+          
+                  simreps:
+                    description: the url to the simreps database file
+                    type: string
+                    format: uri
+          
+                  repeat_masker:
+                    description: the url to the repeat masker database file
+                    type: string
+                    format: uri
+
+################################################################################
+# resources
+
+  features:
+    additionalProperties: false
+    required:
+      - label
+      - index
+      - vcf
+      - mappability
+      - homopolymers
+      - repeat_masker
+      - segdups
+      - tandem_repeats
+    properties:
+      label: &column
+        description: the label column for all dataframes
+        type: string
+        pattern: ^[_a-zA-Z0-9]+$
+
+      index:
         additionalProperties: false
-        required:
-          - mappability
-          - superdups
-          - homopolymers
+        required: [chr, start, end]
         properties:
-          mappability:
-            additionalProperties: false
-            required:
-            - low
-            - high
-            properties:
-              low:
-                description: the url for low stringency mappability bed file
-                type: string
-                format: uri
-              high:
-                description: the url for high stringency mappability bed file
-                type: string
-                format: uri
-
-          superdups:
-            description: the url to the superdups txt file
+          chr:
+            <<: *column
+            description: the chromosome for the region
+          start:
+            <<: *column
+            description: the start offset for the region
+          end:
+            <<: *column
+            description: the end offset for the region
+        
+      vcf:
+        additionalProperties: false
+        required: [prefix, columns]
+        properties:
+          prefix: &feature_prefix
+            description: the prefix for this feature group
             type: string
-            format: uri
-
-          homopolymers:
-            required:
-              - find_regions
-              - fasta
+            pattern: ^[A-Z]+$
+          columns:
             additionalProperties: false
+            required: [qual, filter, gt, gq, dp, vaf, len]
             properties:
-              find_regions:
-                description: |
-                  the url of the script to use when finding simple repeat regions
-                type: string
-                format: uri
-              fasta:
-                description: |
-                  the url of the fasta file containing the simple regions
-                type: string
-                format: uri
+              input: 
+                <<: *column
+                description: the column for the vcf file index
+              qual: 
+                <<: *column
+                description: the QUAL column name
+              filter:
+                <<: *column
+                description: the FILTER column name
+              gt:
+                <<: *column
+                description: the GT column name
+              gq:
+                <<: *column
+                description: the GQ column name
+              dp:
+                <<: *column
+                description: the DP column name
+              vaf:
+                <<: *column
+                description: the VAF column name
+              len:
+                <<: *column
+                description: the column name for computed variant length
+
+      mappability: 
+       additionalProperties: false
+       required: [prefix, suffixes]
+       properties:
+         prefix: *feature_prefix
+         suffixes:
+           additionalProperties: false
+           required: [low, high]
+           properties:
+             low:
+               <<: *column
+               description: the suffix for the hard mappability regions
+             high:
+               <<: *column
+               description: the suffix for the harder mappability regions
+
+      homopolymers: 
+       additionalProperties: false
+       required: [prefix, bases, suffixes]
+       properties:
+         prefix: *feature_prefix
+         bases:
+           description: the bases to use when summarizing the homopolymers
+           type: array
+           items:
+             type: string
+         suffixes:
+           additionalProperties: false
+           required: [len, tot_imp_frac, imp_frac, imp_cnt]
+           properties:
+             len:
+               <<: *column
+               description: the length of the homopolymer
+             tot_imp_frac:
+               <<: *column
+               description: the percent of imperfect homopolymers (with slop)
+             imp_frac:
+               <<: *column
+               description: the percent of imperfect homopolymers
+             imp_cnt:
+               <<: *column
+               description: the number of imperfect homopolymers
+
+      repeat_masker: 
+       additionalProperties: false
+       required: [prefix, suffixes, classes]
+       properties:
+         prefix: *feature_prefix
+         suffixes:
+           additionalProperties: false
+           required: [len]
+           properties:
+             len:
+               <<: *column
+               description: the length of the repeat masker region
+         classes:
+           additionalProperties: false
+           patternProperties:
+             ^[a-zA-z]+$:
+               type: array
+               description: the class name to include as a feature
+               items:
+                 description: the family within the class to include
+                 type: string
+
+      segdups: 
+       additionalProperties: false
+       required: [prefix, columns, operations]
+       properties:
+         prefix: *feature_prefix
+         columns:
+           additionalProperties: false
+           required: [alignL, fracMatchIndel]
+           properties:
+             alignL:
+               <<: *column
+               description: the name to give the alignL column
+             fracMatchIndel:
+               <<: *column
+               description: the name to give the fracMatchIndel column
+         operations: &merge_operations
+           description: the aggregation function to apply to each column
+           type: array
+           minItems: 1
+           items:
+             type: string
+             pattern: ^sum|min|max|absmin|absmax|mean|median$
+
+      tandem_repeats: 
+       additionalProperties: false
+       required: [prefix, columns, bases_prefix, operations, other]
+       properties:
+         prefix: *feature_prefix
+         columns:
+           additionalProperties: false
+           required: [period, copyNum, perMatch, perIndel, score]
+           properties:
+             period:
+               <<: *column
+               description: the name to given the period column
+             copyNum:
+               <<: *column
+               description: the name to given the copynum column
+             perMatch:
+               <<: *column
+               description: the name to given the perMatch column
+             perIndel:
+               <<: *column
+               description: the name to given the perIndel column
+             score:
+               <<: *column
+               description: the name to given the score column
+         bases_prefix:
+           <<: *column
+           description: the prefix to assign to the base(s) features
+         other:
+           additionalProperties: false
+           required: [len]
+           properties:
+             len:
+               <<: *column
+               description: the name of the total length of the repeat region
+         operations: *merge_operations
 
 ################################################################################
 # EBM runs
@@ -155,12 +364,23 @@ properties:
           - ebm_settings
         properties:
           inputs:
-            description: the input VCFs to use for this configuration
+            description: |
+              The input VCFs to use for this configuration as a list of lists.
+              Each member in the outer list will be one EBM run, and each member
+              in the inner list will be the keys for the VCF input results files
+              to concat together row-wise where the input file will be denoted
+              with the INPUT column in the final dataframe. Obviously is this
+              sort of concatentation is not desired, the inner list is a
+              singleton.
             type: array
             minItems: 1
             uniqueItems: true
             items:
-              type: string
+              type: array
+              minItems: 1
+              uniqueItems: true
+              items:
+                type: string
 
           filter:
             description: |
@@ -172,6 +392,35 @@ properties:
             items:
               type: string
               pattern: ^INDEL|SNP$
+
+          filtered_are_candidates:
+            description: |
+              If true, consider FILTER'ed entries in the query as positives
+              (which in turn could be either TP or FP depending on if they are
+              in the truth set). If false, FILTER'ed FPs become TN (each not
+              considered) and TP become FN. Note that this only affects the way
+              the training dataset for the EBMs is compiled. It does not affect
+              the settings used for vcfeval (which is always run with
+              'all-records'), and thus the annotated dataframes will contain FP,
+              FN, and TP depending on what is in the truth or query independent
+              of FILTER.
+            type: boolean
+            default: true
+
+          error_labels:
+            description: |
+              Labels in the annotated dataframe to consider as "errors" (which
+              in the model will be the negative/0 class). The label "tp" will
+              always mean "not error". By default, both "fn" and "fp" will
+              be combined to mean "error". Any label that is not "tp" or listed
+              in this parameter will be ignored.
+            type: array
+            minItems: 1
+            uniqueItems: true
+            items:
+              type: string
+              pattern: ^fn|fp$
+            default: [fn, fp]
 
           features:
             additionalProperties: false
@@ -185,30 +434,86 @@ properties:
                     type: string
                     default: continuous
                     pattern: ^continuous|categorical$
-                  log_transform:
-                    description: log transform the feature if 'true'
-                    type: boolean
-                    default: false
+                  transform:
+                    description: |
+                      Apply transformation to the feature. Must be one of 'log'
+                      (log transform) or 'binary' (present values become 1,
+                      absent values become 0; note that this ignores 'fill_na'
+                      and is best used with 'feature_type' set to 'categorical')
+                    default: null
+                    anyOf:
+                      - type: string
+                        pattern: ^log|binary$
+                      - type: "null"
+                  alt_name: 
+                    description: an alternative name for this feature
+                    default: null
+                    anyOf:
+                      - type: string
+                        pattern: ^[\w_-]+$
+                      - type: "null"
                   fill_na:
                     description: if present, fill missing values with this value
                     type: number
                     default: 0
+                  visualization:
+                    additionalProperties: false
+                    type: object
+                    default: {}
+                    properties:
+                      plot_type:
+                        description: |
+                          The type of plot to use. Must be one of 'step' or
+                          'bar'. Note that in the case of 'bar' the feature
+                          should be an integer or weird things will happen (this
+                          is not enforced).
+                        type: string
+                        pattern: ^bar|step$
+                        default: step
+                      truncate:
+                        description: |
+                          Truncate the feature when displayed in the report
+                          (note the feature is left unchanged when training the
+                          EBM). Must be a number or null, where null means no
+                          truncation. If both are supplied, upper must be
+                          greater than the former.
+                        additionalProperties: false
+                        type: object
+                        default: {}
+                        properties:
+                          lower: &truncation
+                            anyOf:
+                              - type: number
+                              - type: "null"
+                            default: null
+                          upper: *truncation
 
           interactions:
             description: |
-              either a list of explicit interactions to use or an integer
-              representing the number of interactions to use automatically
+              The interaction terms to use in the model encoded as either an
+              integer or a list. If an integer, it represents an upper limit to
+              the number of interaction terms to choose (which could include any
+              features). If a list, each member must either be a string or a
+              sublist with two strings. The string should be a feature name and
+              indicates to include all interactions with this feature. A list
+              with two strings (each string indicates a feature) denotes one
+              explicit interaction between two features. To exlude interactions
+              entirely, supply either '0' or '[]'.
             default: 0
             anyOf:
               - type: number
                 minimum: 0
               - type: array
                 items:
-                  type: array
-                  minItems: 2
-                  uniqueItems: true
-                  items:
-                    type: string
+                  anyOf:
+                  - type: array
+                    minItems: 2
+                    maxItems: 2
+                    uniqueItems: true
+                    items:
+                      type: string
+                      pattern: ^[\w\.\-]+$
+                  - type: string
                     pattern: ^[\w\.\-]+$
                 
           ebm_settings:

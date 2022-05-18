@@ -1,7 +1,10 @@
 from os.path import dirname
+from functools import partial
+from scripts.common.config import lookup_global_chr_filter
 
 bench_dir = resources_dir / "bench"
-ref_dir = resources_dir / "reference"
+ref_resources_dir = resources_dir / "reference"
+ref_results_dir = results_dir / "reference"
 
 
 def lookup_resource(*args):
@@ -12,66 +15,89 @@ def lookup_reference(wildcards):
     return lookup_resource("references", wildcards.ref_key, "sdf")
 
 
-def lookup_benchmark(wildcards, key):
+def lookup_benchmark(key, wildcards):
     return lookup_resource("benchmarks", wildcards.bench_key, key)
 
 
 ################################################################################
-# get reference sdf
+# get reference
 
 
 rule get_ref_sdf:
     output:
-        directory(ref_dir / "{ref_key}.sdf"),
+        directory(ref_resources_dir / "{ref_key}.sdf"),
     params:
         url=lookup_reference,
         dir=lambda _, output: dirname(output[0]),
     shell:
-        "curl {params.url} | bsdtar -xf - -C {params.dir}"
+        "curl -Ss {params.url} | bsdtar -xf - -C {params.dir}"
+
+
+# TODO this isn't really downloading anything but couldn't think of where else
+# to put it
+rule sdf_to_fasta:
+    input:
+        rules.get_ref_sdf.output,
+    output:
+        ref_results_dir / "{ref_key}.fa",
+    # if filter is empty, this will produce a blank string and rtg sdf2fasta
+    # will filter nothing
+    params:
+        filt=" ".join(lookup_global_chr_filter(config)),
+    conda:
+        str(envs_dir / "rtg.yml")
+    benchmark:
+        ref_results_dir / "{ref_key}.bench",
+    shell:
+        """
+        rtg sdf2fasta \
+        -Z --line-length=70 -n \
+        -i {input} \
+        -o {output} {params.filt}
+        """
 
 
 ################################################################################
 # get benchmark files
 
 
-# rule get_bench_vcf:
-#     output:
-#         bench_dir / "{bench_key}.vcf.gz",
-#     params:
-#         url=lambda wildcards: lookup_benchmark(wildcards, "vcf_url"),
-#     shell:
-#         "curl -o {output} {params.url}"
+def download_bench_vcf_cmd(wildcards, output):
+    # dirty hack to fix the v4.2.1 benchmark (this should filter out the MHC
+    # region on chr6, which we don't really want anyway)
+    cmd = (
+        "curl -Ss {u} | gunzip -c | grep -v 'GT:AD:PS' | bgzip -c > {o}"
+        if wildcards.bench_key == "v4.2.1"
+        else "curl -Ss -o {o} {u}"
+    )
+    return cmd.format(u=lookup_benchmark("vcf_url", wildcards), o=output)
 
 
-# rule get_bench_tbi:
-#     output:
-#         bench_dir / "{bench_key}.vcf.gz.tbi",
-#     params:
-#         url=lambda wildcards: lookup_benchmark(wildcards, "tbi_url"),
-#     shell:
-#         "curl -o {output} {params.url}"
-
-
-# rule get_bench_bed:
-#     output:
-#         bench_dir / "{bench_key}.bed",
-#     params:
-#         url=lambda wildcards: lookup_benchmark(wildcards, "bed_url"),
-#     shell:
-#         "curl -o {output} {params.url}"
-
-
-rule get_bench:
+rule get_bench_vcf:
     output:
-        **{
-            key: (bench_dir / "{bench_key}").with_suffix(extension)
-            for key, extension in [
-                ("vcf", ".vcf.gz"),
-                ("tbi", ".vcf.gz.tbi"),
-                ("bed", ".bed"),
-            ]
-        },
-    run:
-        for key, path in output.items():
-            url = lookup_benchmark(wildcards, "%s_url" % key)
-            shell("curl -o %s %s" % (path, url))
+        bench_dir / "{bench_key}.vcf.gz",
+    params:
+        cmd=download_bench_vcf_cmd,
+    conda:
+        str(envs_dir / "samtools.yml")
+    shell:
+        "{params.cmd}"
+
+
+rule get_bench_bed:
+    output:
+        bench_dir / "{bench_key}.bed",
+    params:
+        url=partial(lookup_benchmark, "bed_url"),
+    shell:
+        "curl -Ss -o {output} {params.url}"
+
+
+rule get_bench_tbi:
+    input:
+        rules.get_bench_vcf.output,
+    output:
+        bench_dir / "{bench_key}.vcf.gz.tbi",
+    conda:
+        str(envs_dir / "samtools.yml")
+    shell:
+        "tabix -p vcf {input}"
