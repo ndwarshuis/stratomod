@@ -4,14 +4,14 @@ stages:
     cmd: snakemake -p --verbose -r -j 1 --use-conda --cores 1
     deps:
     - path: config/dynamic.yml
-      md5: f0c0fb7df39d83becc1627adbb680ee8
-      size: 938
+      md5: 68d0beb18df18da3aabb67d9ff5e1109
+      size: 2858
     outs:
     - path: results/annotated_input
-      md5: ae83be756a34f40ae6ccc99a72ff0351.dir
-      size: 56351472
-      nfiles: 8
+      md5: 03e878f59286c2849260987b069ae6d7.dir
+      size: 1235640512
+      nfiles: 20
     - path: results/ebm
-      md5: 2671b947a3fe45e68d84624b59a3c02b.dir
-      size: 17515224
-      nfiles: 40
+      md5: d1cf9c3cd67409db8d1d83e8fb23e01d.dir
+      size: 4094566780
+      nfiles: 96
