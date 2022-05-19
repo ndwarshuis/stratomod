@@ -36,5 +36,7 @@ rule get_repeat_masker_classes:
         filt=lookup_global_chr_filter(config),
     benchmark:
         rmsk_results_dir / "rmsk.bench",
+    resources:
+        mem_mb=4000
     script:
         str(scripts_dir / "get_repeat_masker_features.py")
