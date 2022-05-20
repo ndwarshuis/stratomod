@@ -1,3 +1,11 @@
+# 4.3.0
+
+- remove old slurm script
+- add profile for running pipeline on clusters (which really means Nisaba)
+- update docs for running on clusters
+- add resource annotations to memory-guzzling snakemake rules to prevent cluster
+  admins from booting us
+
 # 4.2.0
 
 - add option to set truncation in config
