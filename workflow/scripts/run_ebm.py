@@ -10,7 +10,7 @@ from interpret.glassbox import ExplainableBoostingClassifier
 from common.tsv import read_tsv
 from common.cli import setup_logging
 
-setup_logging(snakemake.log[0])
+logger = setup_logging(snakemake.log[0])
 
 
 def write_model(obj):
@@ -68,6 +68,14 @@ def train_ebm(config, label, df):
     if ebm_config["random_state"] is None:
         ebm_config["random_state"] = random.randrange(0, 420420)
 
+    cores = snakemake.threads
+
+    logger.info(
+        "Training EBM with %d features and %d cores",
+        len(features),
+        cores,
+    )
+
     ebm = ExplainableBoostingClassifier(
         # NOTE the EBM docs show them explicitly adding interactions here like
         # 'F1 x F2' but it appears to work when I specify them separately via
@@ -75,6 +83,7 @@ def train_ebm(config, label, df):
         feature_names=feature_names,
         feature_types=[f["feature_type"] for f in features.values()],
         interactions=get_interactions(feature_names, config["interactions"]),
+        n_jobs=cores,
         **ebm_config,
     )
     ebm.fit(X_train, y_train)

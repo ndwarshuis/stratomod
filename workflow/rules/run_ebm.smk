@@ -49,7 +49,9 @@ rule add_annotations:
     log:
         annotated_input_dir / "{filter_key}.log",
     benchmark:
-        annotated_input_dir / "{filter_key}.bench",
+        annotated_input_dir / "{filter_key}.bench"
+    resources:
+        mem_mb=32000,
     script:
         str(scripts_dir / "annotate.py")
 
@@ -66,7 +68,9 @@ rule make_input_summary:
     conda:
         str(envs_dir / "rmarkdown.yml")
     benchmark:
-        annotated_input_dir / "{filter_key}_summary.bench",
+        annotated_input_dir / "{filter_key}_summary.bench"
+    resources:
+        mem_mb=16000,
     script:
         str(scripts_dir / "rmarkdown" / "input_summary.Rmd")
 
@@ -143,8 +147,13 @@ rule train_ebm:
         str(envs_dir / "ebm.yml")
     log:
         ebm_log_dir / "model.log",
+    threads: min(workflow.cores, 8)
+    # ASSUME total memory is proportional the number of EBMs that are trained in
+    # parallel (see outer_bags parameter in the EBM function call)
+    resources:
+        mem_mb=lambda wildcards, threads: 16000 * threads,
     benchmark:
-        ebm_log_dir / "model.bench",
+        ebm_log_dir / "model.bench"
     script:
         str(scripts_dir / "run_ebm.py")
 
@@ -166,13 +175,15 @@ rule decompose_ebm:
 rule summarize_ebm:
     input:
         **rules.decompose_ebm.output,
-        paths=rules.postprocess_output.output.paths
+        paths=rules.postprocess_output.output.paths,
     output:
         ebm_dir / "summary.html",
     conda:
         str(envs_dir / "rmarkdown.yml")
     benchmark:
-        ebm_dir / "summary.bench",
+        ebm_dir / "summary.bench"
+    resources:
+        mem_mb=2000,
     script:
         str(scripts_dir / "rmarkdown" / "model_summary.Rmd")
 

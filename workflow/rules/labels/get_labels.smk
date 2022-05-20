@@ -183,6 +183,8 @@ rule get_vcf_labels:
         rtg_dir / "vcfeval.log",
     benchmark:
         rtg_dir / "vcfeval.bench",
+    resources:
+        mem_mb=32000
     shell:
         """
         rm -rf {params.tmp_dir}

@@ -1,3 +1,6 @@
+# this script was originally meant to read multiple EBM models using the
+# built-in web viewer (which we no longer use)
+
 import sys
 from time import sleep
 import pickle
