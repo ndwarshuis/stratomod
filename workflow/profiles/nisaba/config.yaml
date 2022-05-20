@@ -1,16 +1,16 @@
 cluster:
-  mkdir -p cluster_logs/%j &&
+  mkdir -p cluster_logs/{rule} &&
   sbatch
     --partition={resources.partition}
     --cpus-per-task={threads}
     --mem={resources.mem_mb}
     --job-name=smk-{rule}-{wildcards}
-    --output=cluster_logs/%j/{rule}-{wildcards}.out
+    --output=cluster_logs/{rule}/{rule}-{wildcards}-%j.out
     --time={resources.time}
 default-resources:
   - partition=batch
   - mem_mb=1000
-  - time=1-12
+  - time="8:0:0"
 restart-times: 3
 max-jobs-per-second: 10
 max-status-checks-per-second: 1
