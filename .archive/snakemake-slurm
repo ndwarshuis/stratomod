@@ -8,8 +8,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 
-module load anaconda
+module load python/3.9.5/miniconda
 
 conda activate snakemake-ebm
 
-snakemake -p --verbose -r -j 1 --use-conda
+snakemake -p --verbose -r -j 1 --use-conda --rerun-incomplete --configfile=config/dynamic.yml

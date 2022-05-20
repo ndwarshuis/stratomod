@@ -55,5 +55,7 @@ rule get_homopolymers:
         homopolymers_results_dir / "homopolymers_{bases}.log",
     benchmark:
         homopolymers_results_dir / "homopolymers_{bases}.bench",
+    resources:
+        mem_mb=32000
     script:
         str(scripts_dir / "get_homopoly_features.py")

@@ -122,13 +122,26 @@ dvc commit
 dvc push
 ```
 
-### Slurm
+### Slurm/Nisaba
 
-Submit a job to run the pipeline via slurm using this [script](snakemake-slurm):
+This repository has a profile to run the pipeline using slurm on the NIST Nisaba
+cluster.
+
+Run it with this:
 
 ```
-sbatch snakemake-slurm
+snakemake --configfile config/dynamic.yml --profile workflow/profiles/nisaba --cores 4
 ```
+
+See the [profile](workflow/profiles/nisaba/config.yaml) for slurm/snakemake
+options that are set.
+
+The `cores` option will only affect the number of cores used for EBM training;
+snakemake will submit up to 500 jobs to run rules in parallel. The slurm logs
+will be found in `cluster_logs`, partitioned by each rule.
+
+Note that this command will block the terminal so it is recommended to run it in
+the background with `&` or use a multiplexer like `tmux`.
 
 This does not invoke `dvc` so `dvc commit/push` will need to be run manually
 to put the results in the cloud.
