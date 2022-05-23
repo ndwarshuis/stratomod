@@ -1,5 +1,5 @@
 from functools import partial
-from scripts.common.config import lookup_config
+from scripts.common.config import lookup_config, attempt_mem_gb
 
 inputs_dir = resources_dir / "inputs"
 
@@ -29,9 +29,10 @@ include: "download_resources.smk"
 ################################################################################
 # VCF preprocessing
 
+
 rule get_input_vcf:
     output:
-        inputs_dir / "{input_key}.vcf.gz"
+        inputs_dir / "{input_key}.vcf.gz",
     params:
         url=lambda wildcards: lookup_input(wildcards, "url"),
     shell:
@@ -41,7 +42,7 @@ rule get_input_vcf:
 # TODO this is (probably) just for DV VCFs
 rule preprocess_vcf:
     input:
-        rules.get_input_vcf.output
+        rules.get_input_vcf.output,
     output:
         label_dir / "query.vcf.gz",
     conda:
@@ -182,9 +183,9 @@ rule get_vcf_labels:
     log:
         rtg_dir / "vcfeval.log",
     benchmark:
-        rtg_dir / "vcfeval.bench",
+        rtg_dir / "vcfeval.bench"
     resources:
-        mem_mb=32000
+        mem_mb=attempt_mem_gb(32),
     shell:
         """
         rm -rf {params.tmp_dir}
@@ -219,7 +220,7 @@ rule parse_label_vcf:
     log:
         label_dir / "{filter_key}_{label}.log",
     benchmark:
-        label_dir / "{filter_key}_{label}.bench",
+        label_dir / "{filter_key}_{label}.bench"
     script:
         str(scripts_dir / "parse_vcf_to_bed_ebm.py")
 
@@ -231,6 +232,10 @@ rule concat_tsv_files:
         label_dir / "{filter_key}_labeled.tsv",
     conda:
         str(envs_dir / "bedtools.yml")
+    benchmark:
+        label_dir / "{filter_key}_concat.bench"
+    resources:
+        mem_mb=attempt_mem_gb(4),
     script:
         str(scripts_dir / "concat_tsv.py")
 

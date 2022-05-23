@@ -2,6 +2,7 @@ import re
 import json
 import subprocess as sp
 from more_itertools import flatten
+from scripts.common.config import attempt_mem_gb
 
 
 def get_git_tag():
@@ -51,7 +52,7 @@ rule add_annotations:
     benchmark:
         annotated_input_dir / "{filter_key}.bench"
     resources:
-        mem_mb=32000,
+        mem_mb=attempt_mem_gb(32),
     script:
         str(scripts_dir / "annotate.py")
 
@@ -70,7 +71,7 @@ rule make_input_summary:
     benchmark:
         annotated_input_dir / "{filter_key}_summary.bench"
     resources:
-        mem_mb=16000,
+        mem_mb=attempt_mem_gb(16),
     script:
         str(scripts_dir / "rmarkdown" / "input_summary.Rmd")
 
@@ -115,6 +116,10 @@ rule postprocess_output:
         config=lambda wildcards: lookup_ebm_run(wildcards),
     log:
         ebm_log_dir / "postprocess.log",
+    benchmark:
+        ebm_log_dir / "postprocess.bench"
+    resources:
+        mem_mb=attempt_mem_gb(4),
     script:
         str(scripts_dir / "postprocess.py")
 
@@ -151,7 +156,7 @@ rule train_ebm:
     # ASSUME total memory is proportional the number of EBMs that are trained in
     # parallel (see outer_bags parameter in the EBM function call)
     resources:
-        mem_mb=lambda wildcards, threads: 16000 * threads,
+        mem_mb=lambda wildcards, threads, attempt: 16000 * threads * 2 ** (attempt - 1),
     benchmark:
         ebm_log_dir / "model.bench"
     script:
@@ -183,7 +188,7 @@ rule summarize_ebm:
     benchmark:
         ebm_dir / "summary.bench"
     resources:
-        mem_mb=2000,
+        mem_mb=attempt_mem_gb(2),
     script:
         str(scripts_dir / "rmarkdown" / "model_summary.Rmd")
 

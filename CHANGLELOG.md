@@ -1,3 +1,7 @@
+# 4.3.1
+
+- dynamically allocate memory for large jobs to keep slurm happy
+
 # 4.3.0
 
 - remove old slurm script
