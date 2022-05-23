@@ -3,6 +3,11 @@ from itertools import product
 from functools import partial
 
 
+def attempt_mem_gb(mem_gb):
+    # double initial memory on each attempt
+    return lambda wildcards, attempt: mem_gb * 1000 * 2 ** (attempt - 1)
+
+
 def lookup_config(config, *keys):
     k = keys[0]
     ks = keys[1:]
