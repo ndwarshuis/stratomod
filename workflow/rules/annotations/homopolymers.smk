@@ -1,4 +1,4 @@
-from scripts.common.config import lookup_annotations
+from scripts.common.config import lookup_annotations, attempt_mem_gb
 
 homopolymers_src_dir = annotations_src_dir / "homopolymers"
 homopolymers_results_dir = annotations_tsv_dir / "homopolymers"
@@ -15,7 +15,9 @@ rule find_simple_repeats:
     params:
         script=str(scripts_dir / "find_regions.py"),
     benchmark:
-        homopolymers_results_dir / "find_regions.bench",
+        homopolymers_results_dir / "find_regions.bench"
+    resources:
+        mem_mb=attempt_mem_gb(4),
     shell:
         """
         python {params.script} \
@@ -35,6 +37,10 @@ rule sort_and_filter_simple_repeats:
         homopolymers_results_dir / "sorted.log",
     conda:
         str(envs_dir / "bedtools.yml")
+    benchmark:
+        homopolymers_results_dir / "sorted.bench"
+    resources:
+        mem_mb=attempt_mem_gb(16),
     shell:
         """
         cat {input} | \
@@ -54,8 +60,8 @@ rule get_homopolymers:
     log:
         homopolymers_results_dir / "homopolymers_{bases}.log",
     benchmark:
-        homopolymers_results_dir / "homopolymers_{bases}.bench",
+        homopolymers_results_dir / "homopolymers_{bases}.bench"
     resources:
-        mem_mb=32000
+        mem_mb=32000,
     script:
         str(scripts_dir / "get_homopoly_features.py")

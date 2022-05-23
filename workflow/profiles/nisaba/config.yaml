@@ -5,7 +5,7 @@ cluster:
     --cpus-per-task={threads}
     --mem={resources.mem_mb}
     --job-name=smk-{rule}-{wildcards}
-    --output=cluster_logs/{rule}/{rule}-{wildcards}-%j.out
+    --output=cluster_logs/{rule}/%j-{wildcards}.out
     --time={resources.time}
 default-resources:
   - partition=batch
