@@ -1,3 +1,8 @@
+# 4.3.3
+
+- fix vcfeval mem management for large datasets
+- specify threads manually for vcfeval and ebm train
+
 # 4.3.2
 
 - fix slurm out of memory errors
