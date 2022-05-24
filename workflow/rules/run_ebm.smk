@@ -119,7 +119,7 @@ rule postprocess_output:
     benchmark:
         ebm_log_dir / "postprocess.bench"
     resources:
-        mem_mb=attempt_mem_gb(4),
+        mem_mb=attempt_mem_gb(8),
     script:
         str(scripts_dir / "postprocess.py")
 
@@ -173,6 +173,8 @@ rule decompose_ebm:
         str(envs_dir / "ebm.yml")
     log:
         ebm_log_dir / "decompose.log",
+    resources:
+        mem_mb=attempt_mem_gb(2),
     script:
         str(scripts_dir / "decompose_model.py")
 
