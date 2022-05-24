@@ -13,6 +13,11 @@ default-resources:
   - partition=batch
   - mem_mb=1000
   - time="8:0:0"
+set-resources:
+  - get_vcf_labels:mem_mb=8000
+use-threads:
+  - get_vcf_labels=1
+  - train_ebm=4
 restart-times: 3
 max-jobs-per-second: 10
 max-status-checks-per-second: 1
