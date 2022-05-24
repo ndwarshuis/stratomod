@@ -62,6 +62,6 @@ rule get_homopolymers:
     benchmark:
         homopolymers_results_dir / "homopolymers_{bases}.bench"
     resources:
-        mem_mb=32000,
+        mem_mb=attempt_mem_gb(16),
     script:
         str(scripts_dir / "get_homopoly_features.py")

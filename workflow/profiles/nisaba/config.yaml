@@ -1,11 +1,13 @@
+# anything with wildcards needs quotes since wildcards might contain characters
+# that are openly hostile to most shells
 cluster:
   mkdir -p cluster_logs/{rule} &&
   sbatch
     --partition={resources.partition}
     --cpus-per-task={threads}
     --mem={resources.mem_mb}
-    --job-name=smk-{rule}-{wildcards}
-    --output=cluster_logs/{rule}/%j-{wildcards}.out
+    --job-name=smk-'{rule}-{wildcards}'
+    --output='cluster_logs/{rule}/%j-{wildcards}.out'
     --time={resources.time}
 default-resources:
   - partition=batch

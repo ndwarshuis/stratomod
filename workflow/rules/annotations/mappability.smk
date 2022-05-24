@@ -1,4 +1,8 @@
-from scripts.common.config import lookup_annotations, fmt_mappability_feature
+from scripts.common.config import (
+    lookup_annotations,
+    fmt_mappability_feature,
+    attempt_mem_gb,
+)
 
 mappability_src_dir = annotations_src_dir / "mappability"
 mappability_results_dir = annotations_tsv_dir / "mappability"
@@ -48,5 +52,7 @@ rule subtract_high_from_low_mappability:
         mappability_results_dir / "mappability_low_no_high.tsv",
     conda:
         str(envs_dir / "bedtools.yml")
+    resources:
+        mem_mb=attempt_mem_gb(2),
     script:
         str(scripts_dir / "get_mappability_features.py")

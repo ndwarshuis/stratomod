@@ -1,4 +1,8 @@
-from scripts.common.config import lookup_global_chr_filter, lookup_annotations
+from scripts.common.config import (
+    lookup_global_chr_filter,
+    lookup_annotations,
+    attempt_mem_gb,
+)
 
 rmsk_src_dir = annotations_src_dir / "repeat_masker"
 rmsk_results_dir = annotations_tsv_dir / "repeat_masker"
@@ -35,8 +39,8 @@ rule get_repeat_masker_classes:
         file_prefix=rmsk_file_prefix,
         filt=lookup_global_chr_filter(config),
     benchmark:
-        rmsk_results_dir / "rmsk.bench",
+        rmsk_results_dir / "rmsk.bench"
     resources:
-        mem_mb=4000
+        mem_mb=attempt_mem_gb(2),
     script:
         str(scripts_dir / "get_repeat_masker_features.py")

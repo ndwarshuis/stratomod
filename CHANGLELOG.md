@@ -1,3 +1,8 @@
+# 4.3.2
+
+- fix slurm out of memory errors
+- fix quote errors when making cluster output files with weird characters
+
 # 4.3.1
 
 - dynamically allocate memory for large jobs to keep slurm happy
