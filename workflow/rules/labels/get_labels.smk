@@ -185,12 +185,15 @@ rule get_vcf_labels:
     benchmark:
         rtg_dir / "vcfeval.bench"
     resources:
-        mem_mb=attempt_mem_gb(32),
+        mem_mb=1000,
+    threads: 1
     shell:
         """
         rm -rf {params.tmp_dir}
 
-        rtg vcfeval {params.extra} \
+        rtg RTG_MEM=$(({resources.mem_mb}*80/100))M \
+        vcfeval {params.extra} \
+        --threads={threads} \
         -b {input.truth_vcf} \
         -e {input.truth_bed} \
         -c {input.query_vcf} \

@@ -152,7 +152,7 @@ rule train_ebm:
         str(envs_dir / "ebm.yml")
     log:
         ebm_log_dir / "model.log",
-    threads: min(workflow.cores, 8)
+    threads: 1
     # ASSUME total memory is proportional the number of EBMs that are trained in
     # parallel (see outer_bags parameter in the EBM function call)
     resources:
