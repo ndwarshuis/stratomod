@@ -14,8 +14,8 @@ default-resources:
   - mem_mb=1000
   - time="8:0:0"
 set-resources:
-  - get_vcf_labels:mem_mb=8000
-use-threads:
+  - get_vcf_labels:mem_mb=32000
+set-threads:
   - get_vcf_labels=1
   - train_ebm=4
 restart-times: 3

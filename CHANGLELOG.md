@@ -1,3 +1,8 @@
+# 4.3.4
+
+- fix vcfeval memory limit
+- fix thread typo
+
 # 4.3.3
 
 - fix vcfeval mem management for large datasets
