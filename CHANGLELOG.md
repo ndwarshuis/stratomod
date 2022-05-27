@@ -1,3 +1,8 @@
+# 4.4.0
+
+- add option to split continuous EBM tree plots by missing and non-missing
+- make all EBM plots the same width
+
 # 4.3.4
 
 - fix vcfeval memory limit

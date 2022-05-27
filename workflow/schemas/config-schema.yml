@@ -470,6 +470,21 @@ properties:
                         type: string
                         pattern: ^bar|step$
                         default: step
+                      split_missing:
+                        description: |
+                          If a float, display missing values as a single bar in
+                          a subplot in addition to the plot that would normally
+                          be shown. The value of this parameter is used as the
+                          lower bound for what will be displayed as the 'normal'
+                          subplot (which also means that 'fill_na' must be less
+                          than this value in order to make sense). Assumes (for
+                          now) that missing values are actually present. Note
+                          that truncation will be handled independently of this
+                          flag.
+                        anyOf:
+                          - type: number
+                          - type: "null"
+                        default: null
                       truncate:
                         description: |
                           Truncate the feature when displayed in the report
