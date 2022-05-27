@@ -41,8 +41,14 @@ ebm_runs:
           truncate: {lower: 0, upper: 50}
       HOMOPOL_AT_imperfect_frac: {}
       HOMOPOL_GC_imperfect_frac: {}
-      HOMOPOL_AT_total_imperfect_frac: {}
-      HOMOPOL_GC_total_imperfect_frac: {}
+      HOMOPOL_AT_total_imperfect_frac:
+        fill_na: -1
+        visualization:
+          split_missing: 0
+      HOMOPOL_GC_total_imperfect_frac:
+        fill_na: -1
+        visualization:
+          split_missing: 0
 
       TR_unit_size_max:
         visualization:
@@ -55,6 +61,8 @@ ebm_runs:
       TR_score_max: {}
       TR_percent_AT_median:
         fill_na: -1
+        visualization:
+          split_missing: 0
 
       REPMASK_SINE_length:
         transform: binary
