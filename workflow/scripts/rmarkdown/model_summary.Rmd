@@ -5,9 +5,9 @@ output: "html_document"
 
 ```{r, include=FALSE, message=FALSE}
 library(tidyverse)
+library(ggpubr)
 
 source("workflow/scripts/rmarkdown/common/plots.r")
-
 
 to_tibble <- function(lst) {
     do.call(tibble, lst)
@@ -131,10 +131,18 @@ ggplot(global_df, aes(score, reorder(variable, score))) +
 
 # Univariate plots
 
-```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 4, message = F}
+```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 4}
 
 get_truncation <- function(s) {
     run_features[[s]][["visualization"]][["truncate"]]
+}
+
+get_split_missing <- function(s) {
+    run_features[[s]][["visualization"]][["split_missing"]]
+}
+
+get_fill_na <- function(s) {
+    run_features[[s]][["fill_na"]]
 }
 
 get_plot_type <- function(s) {
@@ -162,7 +170,8 @@ truncate_maybe <- function(df, name) {
     list(df = .df, lower = lower, upper = upper, caption = caption)
 }
 
-make_integer_plot <- function(df, xlab, lower = NULL, upper = NULL, caption = NULL) {
+make_integer_plot <- function(df, name, lower = NULL, upper = NULL,
+                              caption = NULL, ylab = "Score") {
     fill_cols <- c("score", "stdev")
     .lower <- if (is.null(lower)) min(df$value) else lower
     .upper <- if (is.null(upper)) max(df$value) else upper
@@ -173,57 +182,85 @@ make_integer_plot <- function(df, xlab, lower = NULL, upper = NULL, caption = NU
         fill(all_of(fill_cols), .direction = "downup")
     p <- ggplot(.df, aes(value, score)) +
         geom_col() +
-        xlab(xlab) +
-        ylab("Score") +
+        xlab(name) +
+        ylab(ylab) +
         geom_errorbar(aes(ymin = score - stdev, ymax = score + stdev))
     if (is.null(caption)) p else p + labs(caption = caption)
 }
 
-make_continuous_plot <- function(df, name, caption) {
-    p <- infer_transform(df$value) %>%
-        mutate(score = df$score,
-               lower = score - df$stdev,
-               upper = score + df$stdev) %>%
-        gather(-score, -upper, -lower, key = trans, value = x) %>%
-        ggplot(aes(x, score)) +
-        geom_step(aes(y = lower), color = "red") +
-        geom_step(aes(y = upper), color = "red") +
+make_continuous_plot <- function(df, name, caption = NULL, ylab = "Score") {
+    p <- ggplot(df, aes(value, score)) +
+        geom_step(aes(y = score + stdev), color = "red") +
+        geom_step(aes(y = score - stdev), color = "red") +
         geom_step() +
         xlab(name) +
-        ylab("Score") +
-        facet_wrap(~trans, scales = "free")
+        ylab(ylab)
     if (is.null(caption)) p else p + labs(caption = caption)
 }
 
-make_categorical_plot <- function(df, name) {
+make_categorical_plot <- function(df, name, ylab = "Score") {
     ggplot(df, aes(factor(value), score)) +
         geom_col() +
         geom_errorbar(aes(ymin = score - stdev, ymax = score + stdev), width = 0.1) +
         xlab(name) +
-        ylab("Score")
+        ylab(ylab)
+}
+
+make_split_plot <- function(df, name, bound, fun) {
+    missing_val <- get_fill_na(name)
+    bounds <- df %>%
+        mutate(lower = score - stdev,
+               upper = score + stdev) %>%
+        summarize(maxvalue = max(upper),
+                  minvalue = min(lower))
+    missing <- filter(df, value == missing_val) %>%
+        mutate(value = "Missing")
+    nonmissing <- filter(df, value != missing_val) %>%
+        mutate(value = if_else(value < bound, bound, value))
+    yaxis <- scale_y_continuous(limits = c(bounds$minvalue, bounds$maxvalue))
+    bar <- ggplot(missing, aes(factor(value), score)) +
+        geom_col() +
+        geom_errorbar(aes(ymax = score + stdev,
+                          ymin = score - stdev),
+                      width = 0.2) +
+        xlab(NULL) +
+        yaxis
+    step <- fun(nonmissing, NULL) +
+        yaxis +
+        theme(axis.text.y = element_blank(),
+              axis.ticks.y = element_blank())
+    ggarrange(bar, step, ncol = 2, widths = c(1, 5)) %>%
+        annotate_figure(bottom = text_grob(name))
+}
+
+wrap_split_maybe <- function(name, f) {
+    s <- get_split_missing(name)
+    f
+    if (is.null(s)) f else partial(make_split_plot, fun = f, bound = s)
 }
 
 print_uv_plot <- function(vartype, df, name) {
-    p <- if (vartype == "continuous") {
+    r <- if (vartype == "continuous") {
              tr <- truncate_maybe(df, name)
              t <- get_plot_type(name)
-             if (t == "step") {
-                 make_continuous_plot(tr[["df"]], name, tr[["caption"]])
-             } else if (t == "bar") {
-                 make_integer_plot(tr[["df"]],
-                                   name,
-                                   tr[["lower"]],
-                                   tr[["upper"]],
-                                   tr[["caption"]])
-             } else {
-                 sprintf("wrong type, dummy; got %s", t)
-             }
+             f <- if (t == "step") {
+                      partial(make_continuous_plot, caption = tr[["caption"]])
+                  } else if (t == "bar") {
+                      partial(make_integer_plot,
+                              lower = tr[["lower"]],
+                              upper = tr[["upper"]],
+                              caption = tr[["caption"]])
+                  } else {
+                      stop(sprintf("wrong type, dummy; got %s", t))
+                  }
+             ## TODO only continuous plots can be split (for now)
+             list(f = wrap_split_maybe(name, f), df = tr[["df"]])
          } else if (vartype == "categorical") {
-             make_categorical_plot(df, name)
+             list(f = make_categorical_plot, df = df)
          } else {
-             sprintf("wrong plot type, dummy; got %s", vartype)
+             stop(sprintf("wrong plot type, dummy; got %s", vartype))
          }
-
+    p <- r$f(r$df, name)
     cat(sprintf("## %s\n", name))
     print(p)
     cat("\n\n")
@@ -235,7 +272,7 @@ walk(univariate, ~ print_uv_plot(.x$meta$vartype, .x$df, .x$meta$name))
 
 # Bivariate plots
 
-```{r, echo = FALSE, results = "asis", fig.width = 6, fig.height = 3.5}
+```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 4}
 
 cont_cont_plot <- function(df, yvar, left_name, right_name) {
     # poor-mans 2d step heatmap plot thing
@@ -274,27 +311,17 @@ print_cont_cat_plot_inner <- function(df, cat_name, cont_name) {
     cat_val <- as.character(df$c[[1]])
     tr <- truncate_maybe(df, cont_name)
     t <- get_plot_type(cont_name)
-    p <- if (t == "step") {
-             .p <- ggplot(tr[["df"]], aes(value, score)) +
-                 geom_step(aes(y = lower), color = "red") +
-                 geom_step(aes(y = upper), color = "red") +
-                 geom_step() +
-                 xlab(cont_name)
-             if (!is.null(tr[["caption"]])) {
-                 .p + labs(caption = tr[["caption"]])
-             } else {
-                 .p
-             }
+    f <- if (t == "step") {
+             partial(make_continuous_plot, caption = tr[["caption"]])
          } else if (t == "bar") {
-             make_integer_plot(tr[["df"]],
-                               cont_name,
-                               tr[["lower"]],
-                               tr[["upper"]],
-                               tr[["caption"]])
+             partial(make_integer_plot,
+                     lower = tr[["lower"]],
+                     upper = tr[["upper"]],
+                     caption = tr[["caption"]])
          } else {
-             sprintf("wrong plot type: got %s", t)
+             stop(sprintf("wrong plot type: got %s", t))
          }
-    
+    p <- wrap_split_maybe(cont_name, f)(tr[["df"]], cont_name)
     cat(sprintf("### %s = %s\n\n", cat_name, cat_val))
     print(p)
     cat("\n\n")
