@@ -51,6 +51,7 @@ workflow:
 
 .activate_smk: &activate_smk
   before_script:
+    - conda init bash
     - conda activate $ENV_DIR
 
 ################################################################################
