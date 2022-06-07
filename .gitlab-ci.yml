@@ -51,7 +51,7 @@ workflow:
 
 .activate_smk: &activate_smk
   before_script:
-    - conda init bash
+    - eval "$(${CONDA_DIR}/bin/conda shell.bash hook 2> /dev/null)"
     - conda activate $ENV_DIR
 
 ################################################################################
