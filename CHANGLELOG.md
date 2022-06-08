@@ -1,3 +1,7 @@
+# 4.4.1
+
+- update pipeline to work with dockerized CI/CD pipeline
+
 # 4.4.0
 
 - add option to split continuous EBM tree plots by missing and non-missing
