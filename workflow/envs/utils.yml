@@ -1,0 +1,11 @@
+# This is a catchall env for all the random shell binaries we need. Assume
+# coreutils is installed
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - curl=7.83.1
+  - libarchive=3.5.2
+  - samtools=1.14
+  - gzip=1.12
+  - sed=4.8

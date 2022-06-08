@@ -29,6 +29,8 @@ rule get_ref_sdf:
     params:
         url=lookup_reference,
         dir=lambda _, output: dirname(output[0]),
+    conda:
+        str(envs_dir / "utils.yml")
     shell:
         "curl -Ss {params.url} | bsdtar -xf - -C {params.dir}"
 
@@ -78,7 +80,7 @@ rule get_bench_vcf:
     params:
         cmd=download_bench_vcf_cmd,
     conda:
-        str(envs_dir / "samtools.yml")
+        str(envs_dir / "utils.yml")
     shell:
         "{params.cmd}"
 
@@ -88,6 +90,8 @@ rule get_bench_bed:
         bench_dir / "{bench_key}.bed",
     params:
         url=partial(lookup_benchmark, "bed_url"),
+    conda:
+        str(envs_dir / "utils.yml")
     shell:
         "curl -Ss -o {output} {params.url}"
 
@@ -98,6 +102,6 @@ rule get_bench_tbi:
     output:
         bench_dir / "{bench_key}.vcf.gz.tbi",
     conda:
-        str(envs_dir / "samtools.yml")
+        str(envs_dir / "utils.yml")
     shell:
         "tabix -p vcf {input}"

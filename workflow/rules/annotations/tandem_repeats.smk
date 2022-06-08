@@ -14,6 +14,8 @@ rule get_simreps_src:
         tandem_repeats_src_dir / "simple_repeats.tsv",
     params:
         url=lookup_annotations(config)["simreps"],
+    conda:
+        str(envs_dir / "utils.yml")
     shell:
         "curl -Ss {params.url} | gunzip -c > {output}"
 
