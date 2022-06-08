@@ -33,8 +33,6 @@ ebm_runs:
         visualization:
           plot_type: bar
           truncate: {lower: 0, upper: 50}
-      HOMOPOL_AT_imperfect_frac: {}
-      HOMOPOL_GC_imperfect_frac: {}
       HOMOPOL_AT_total_imperfect_frac:
         fill_na: -1
         visualization:
