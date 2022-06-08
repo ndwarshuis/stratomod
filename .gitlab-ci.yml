@@ -21,8 +21,7 @@ workflow:
       when: never
     - when: always
 
-# NOTE NIST gitlab runner doesn't seem to have docker :(
-# image: condaforge/mambaforge:4.12.0-0
+image: condaforge/mambaforge:4.12.0-0
 
 ################################################################################
 # reusable object to permit lazy coder syndrome
@@ -51,6 +50,7 @@ workflow:
 
 .activate_smk: &activate_smk
   before_script:
+    - eval "$(${CONDA_DIR}/bin/conda shell.bash hook 2> /dev/null)"
     - conda activate $ENV_DIR
 
 ################################################################################
