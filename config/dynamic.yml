@@ -14,7 +14,7 @@ ebm_runs:
       split_parameters:
         test_size: 0.2
     error_labels: [fp]
-    filtered_are_candidates: false
+    filtered_are_candidates: true
     features: &base_features
       VCF_VAF: {}
       VCF_DP:
@@ -85,7 +85,7 @@ ebm_runs:
     ebm_settings:
       <<: *ebm_settings
     error_labels: [fn]
-    filtered_are_candidates: true
+    filtered_are_candidates: false
     features: 
       <<: *base_features
 
@@ -96,6 +96,6 @@ ebm_runs:
     ebm_settings:
       <<: *ebm_settings
     error_labels: [fp, fn]
-    filtered_are_candidates: true
+    filtered_are_candidates: false
     features: 
       <<: *base_features
