@@ -11,6 +11,8 @@ rule get_genome:
         annotations_src_dir / "genome.txt",
     params:
         url=config["resources"]["references"]["GRCh38"]["genome"]
+    conda:
+        str(envs_dir / "download.yml")
     shell:
         """
         curl -Ss {params.url} | \

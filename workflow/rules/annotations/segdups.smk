@@ -14,6 +14,8 @@ rule get_superdups_src:
         segdups_src_dir / "superdups.txt",
     params:
         url=lookup_annotations(config)["superdups"],
+    conda:
+        str(envs_dir / "download.yml")
     shell:
         "curl -Ss {params.url} | gunzip -c > {output}"
 

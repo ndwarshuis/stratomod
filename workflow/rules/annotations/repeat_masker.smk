@@ -16,6 +16,8 @@ rule get_repeat_masker_src:
         rmsk_src_dir / "repeat_masker.tsv",
     params:
         url=lookup_annotations(config)["repeat_masker"],
+    conda:
+        str(envs_dir / "download.yml")
     shell:
         "curl -Ss {params.url} | gunzip -c > {output}"
 

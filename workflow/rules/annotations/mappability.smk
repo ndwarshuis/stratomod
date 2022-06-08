@@ -25,6 +25,8 @@ rule get_mappability_high_src:
     params:
         url=mappability_config["high"],
         feature_name=fmt_mappability_feature(config, "high"),
+    conda:
+        str(envs_dir / "download.yml")
     shell:
         """
         echo 'chrom\tstart\tend\t{params.feature_name}' > {output}

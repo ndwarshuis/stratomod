@@ -35,6 +35,8 @@ rule get_input_vcf:
         inputs_dir / "{input_key}.vcf.gz",
     params:
         url=lambda wildcards: lookup_input(wildcards, "url"),
+    conda:
+        str(envs_dir / "download.yml")
     shell:
         "curl -sS -o {output} {params.url}"
 

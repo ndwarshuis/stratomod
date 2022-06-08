@@ -29,6 +29,8 @@ rule get_ref_sdf:
     params:
         url=lookup_reference,
         dir=lambda _, output: dirname(output[0]),
+    conda:
+        str(envs_dir / "download.yml")
     shell:
         "curl -Ss {params.url} | bsdtar -xf - -C {params.dir}"
 
@@ -88,6 +90,8 @@ rule get_bench_bed:
         bench_dir / "{bench_key}.bed",
     params:
         url=partial(lookup_benchmark, "bed_url"),
+    conda:
+        str(envs_dir / "download.yml")
     shell:
         "curl -Ss -o {output} {params.url}"
 

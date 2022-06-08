@@ -1,0 +1,5 @@
+channels:
+  - conda-forge
+dependencies:
+  - curl=7.83.1
+  - libarchive=3.5.2
