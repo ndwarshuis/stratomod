@@ -80,7 +80,7 @@ rule get_bench_vcf:
     params:
         cmd=download_bench_vcf_cmd,
     conda:
-        str(envs_dir / "samtools.yml")
+        str(envs_dir / "download.yml")
     shell:
         "{params.cmd}"
 
