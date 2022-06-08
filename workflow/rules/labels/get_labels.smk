@@ -36,7 +36,7 @@ rule get_input_vcf:
     params:
         url=lambda wildcards: lookup_input(wildcards, "url"),
     conda:
-        str(envs_dir / "download.yml")
+        str(envs_dir / "utils.yml")
     shell:
         "curl -sS -o {output} {params.url}"
 
@@ -48,7 +48,7 @@ rule preprocess_vcf:
     output:
         label_dir / "query.vcf.gz",
     conda:
-        str(envs_dir / "samtools.yml")
+        str(envs_dir / "utils.yml")
     shell:
         """
         gunzip -c {input} | \
@@ -64,7 +64,7 @@ rule index_vcf:
     output:
         label_dir / "query.vcf.gz.tbi",
     conda:
-        str(envs_dir / "samtools.yml")
+        str(envs_dir / "utils.yml")
     shell:
         "tabix -p vcf {input}"
 
@@ -78,7 +78,7 @@ rule filter_query_vcf:
     params:
         filt=lookup_chr_filter,
     conda:
-        str(envs_dir / "samtools.yml")
+        str(envs_dir / "utils.yml")
     shell:
         """
         gunzip -c {input} | \

@@ -15,7 +15,7 @@ rule get_superdups_src:
     params:
         url=lookup_annotations(config)["superdups"],
     conda:
-        str(envs_dir / "download.yml")
+        str(envs_dir / "utils.yml")
     shell:
         "curl -Ss {params.url} | gunzip -c > {output}"
 

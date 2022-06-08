@@ -12,7 +12,7 @@ rule get_genome:
     params:
         url=config["resources"]["references"]["GRCh38"]["genome"]
     conda:
-        str(envs_dir / "download.yml")
+        str(envs_dir / "utils.yml")
     shell:
         """
         curl -Ss {params.url} | \

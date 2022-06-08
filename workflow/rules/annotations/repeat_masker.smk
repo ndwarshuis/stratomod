@@ -17,7 +17,7 @@ rule get_repeat_masker_src:
     params:
         url=lookup_annotations(config)["repeat_masker"],
     conda:
-        str(envs_dir / "download.yml")
+        str(envs_dir / "utils.yml")
     shell:
         "curl -Ss {params.url} | gunzip -c > {output}"
 
