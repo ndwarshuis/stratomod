@@ -180,7 +180,7 @@ rule get_vcf_labels:
         str(envs_dir / "rtg.yml")
     params:
         extra="--ref-overlap --all-records",
-        tmp_dir="/tmp/vcfeval",
+        tmp_dir=lambda wildcards: f"/tmp/vcfeval_{wildcards.input_key}",
         output_dir=lambda _, output: Path(output[0]).parent,
     log:
         rtg_dir / "vcfeval.log",
