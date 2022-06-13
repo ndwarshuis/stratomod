@@ -1,3 +1,7 @@
+# 4.4.2
+
+- fix vcfeval tmp dir clash
+
 # 4.4.1
 
 - update pipeline to work with dockerized CI/CD pipeline
