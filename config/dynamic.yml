@@ -4,12 +4,10 @@ inputs:
     url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG002.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
     ref: GRCh38
     benchmark: v4.2.1
-    chr_filter: [chr21]
   HG002_Illumina_PCR_plus_DV:
     url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_plus/40x/HG002.hiseqx.pcr-plus.40x.deepvariant-v1.0.grch38.vcf.gz
     ref: GRCh38
     benchmark: v4.2.1
-    chr_filter: [chr21]
 
 # settings for each ebm run
 ebm_runs:
