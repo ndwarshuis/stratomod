@@ -1,8 +1,11 @@
+vars:
+  - config/dvc-params.yml
+
 stages:
   snakemake:
-    cmd: snakemake -p --verbose -r -j 1 --use-conda --cores 1
+    cmd: snakemake --configfile=config/${config} --profile workflow/profiles/${profile}
     deps:
-    - config/dynamic.yml
+    - config/${config}
     outs:
     - results/annotated_input:
         persist: true

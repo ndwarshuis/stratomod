@@ -1,5 +1,58 @@
 # giab-ai-ebm
 
+The main pipeline to run EBM experiments using `snakemake` and `dvc`.
+
+## Workflow
+
+### Snakemake
+
+Each experiment is 'built' using `snakemake` which runs all commands to retrieve
+data, wrangle the input dataframes, and train the models.
+
+This repo is designed such that (for the most part) the only flags required to
+run `snakemake` are `--configfile` and `--profile`. This enables the experiement
+configuration and runtime respectively to be tracked in git and easily
+implemented in higher-level frameworks if needed.
+
+### Profiles
+
+In order to have snakemake run reproducibly on many different
+machines/architectures, several profiles are provided at
+`workflow/profiles/<profile_name`.
+
+For now, there are two profiles:
+- nisaba: for running on the NIST Nisaba cluster (specifically with slurm)
+- local: for running on a local machine
+
+### Configurations
+
+Each experiment is configured using `config/dynamic.yml`. By convention, this
+file is not tracked in any branch except for experiment branches (see below)
+and needs to be created and tracked for each individual experiment.
+
+The file at `config/dynamic-testing.yml` is a small-scale "experiment" used for
+testing.
+
+### DVC
+
+While `snakemake` is used to run the actual experiments, `dvc` is deployed as a
+wrapper around `snakemake` to store the results in a (hopefully) sane manner.
+Note that `dvc` is only necessary/useful in the context of running experiments;
+for testing and development it is easier to simply run `snakemake` directly.
+
+The `dvc` 'pipeline' (see `dvc.yaml`) consistes of one stage whose sole purpose
+is to run `snakemake`. Generally `dvc.yaml` doesn't need to be edited.
+
+The behavior of `dvc` is controlled using `config/dvc-params.yml`. Here the
+configuration file and the profile for `snakemake` (as described above) can be
+set. This should be modified for each experiment.
+
+Upon running `dvc repro` (see below) the `dvc.lock` file will link the
+config/profile paramaters, the configuration file itself, and model results to a
+specific git commit. These can then be pushed to an external data store (S3)
+using `dvc push` and then imported somewhere else using `dvc import` and the
+desired git commit which holds the `dvc.lock` data.
+
 ## Deployment
 
 Install the environment to run in snakemake by running this command at the root
@@ -76,29 +129,17 @@ experiment branch or create an entirely new experiment.
 
 Don't merge any experiment branches back into master.
 
-NOTE: `config/dynamic.yml` can technically be any name one desires, but it is
-currently hardcoded in `dvc.yaml` so it is best to leave as is.
-
 ## Running the Pipeline
 
-This pipeline uses `snakemake` to process the data and build the models and
-`dvc` to store the results in a hopefully-sane way.
+### Auto (dvc + snakemake)
 
-`dvc` is implemented using a single stage pipeline which called the `snakemake`
-pipeline. It's sole input is the `config/dynamic.yaml` file (which fully
-describes an experiment) and its outputs are the contents of
-`results/annotated_inputs` and `results/ebm` (which contain the input dataframes
-and model results respectively).
+Edit the dvc params with your favorite text editor to change the profile and
+config as desired. If running on Nisaba, set the profile to "nisaba" (otherwise
+local):
 
-Results can then be retrieved for a specific experiment by referencing the tag
-(or commit if not available) of the version of this git repo used to generate
-it.
-
-NOTE: `config/dynamic.yml` should only be created on experimental branches (see
-above), and also must be specified manually on the command line via
-`--configfile`.
-
-### Auto
+```
+notepad config/dvc-params.yml
+```
 
 Run the entire pipeline and store results in the cloud:
 
@@ -107,12 +148,16 @@ dvc repro
 dvc push
 ```
 
-### Manual
+`dvc repro` will block the terminal so it is recommended to run it in the
+background with `&` or use your favorite multiplexer (which is `tmux`).
 
-Run the entire pipeline via snakemake with the following:
+### Manual (snakemake only)
+
+Run the entire pipeline via `snakemake` with the following (substitute any
+options as desired in the place of `--profile`):
 
 ```
-snakemake -p --verbose -r -j 1 --use-conda --rerun-incomplete --configfile config/dynamic.yml
+snakemake --profile workflow/profiles/<profname> --configfile=config/<confname.yml>
 ```
 
 Store results in the cloud:
@@ -122,29 +167,28 @@ dvc commit
 dvc push
 ```
 
-### Slurm/Nisaba
+### Manual on Nisaba (snakemake only)
 
-This repository has a profile to run the pipeline using slurm on the NIST Nisaba
-cluster.
-
-Run it with this:
+Use the nisaba profile:
 
 ```
-snakemake --configfile config/dynamic.yml --profile workflow/profiles/nisaba --cores 4
+snakemake --configfile config/dynamic.yml --profile workflow/profiles/nisaba
 ```
 
 See the [profile](workflow/profiles/nisaba/config.yaml) for slurm/snakemake
 options that are set.
 
-The `cores` option will only affect the number of cores used for EBM training;
-snakemake will submit up to 500 jobs to run rules in parallel. The slurm logs
-will be found in `cluster_logs`, partitioned by each rule.
+The slurm logs will be found in `cluster_logs`, partitioned by each rule.
 
 Note that this command will block the terminal so it is recommended to run it in
 the background with `&` or use a multiplexer like `tmux`.
 
-This does not invoke `dvc` so `dvc commit/push` will need to be run manually
-to put the results in the cloud.
+Commit and push as desired:
+
+```
+dvc commit
+dvc push
+```
 
 ## Retrieving Results
 

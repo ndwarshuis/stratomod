@@ -1,3 +1,7 @@
+# 4.5.0
+
+- make dvc repro actually nice to use and configure
+
 # 4.4.2
 
 - fix vcfeval tmp dir clash
