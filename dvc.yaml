@@ -6,6 +6,9 @@ stages:
     cmd: snakemake --configfile=config/${config} --profile workflow/profiles/${profile}
     deps:
     - config/${config}
+    - resources/inputs/HC_Somatic.vcf.gz
+    - resources/bench/HC_Somatic_1.2.bed
+    - resources/bench/HC_Somatic_1.2.vcf.gz
     outs:
     - results/annotated_input:
         persist: true
