@@ -15,7 +15,7 @@ header = [
     idx["end"],
     *map(
         lambda f: fmt_vcf_feature(snakemake.config, f),
-        ["qual", "filter", "gt", "gq", "dp", "vaf", "len"],
+        ["qual", "filter", "gt", "gq", "dp", "ad_sum", "vaf", "len"],
     ),
     label_name,
 ]
@@ -27,9 +27,27 @@ lines = f.readlines()
 f_out.write("{}\n".format("\t".join(header)))
 f_out.flush()
 
+NAN = "NaN"
+
 
 def lookup_maybe(d, k):
-    return d[k] if k in d else "NaN"
+    return d[k] if k in d else NAN
+
+
+def ad_maybe(d):
+    try:
+        return str(sum(map(int, d["AD"].split(","))))
+    except (ValueError, KeyError):
+        return NAN
+
+
+def vaf_maybe(d):
+    if "VAF" in d:
+        return d["VAF"]
+    elif "AF" in d:
+        return d["VAF"]
+    else:
+        return NAN
 
 
 # TODO different VCFs have different fields, we want to have DP and VAF almost
@@ -84,10 +102,16 @@ for line in lines:
             str(pos_plus_length_ref),
             qual,
             filt,
+            # some of these might not be present in the VCF; we will deal with
+            # cases later where one can be calculated from two others (eg VAF
+            # from DP and AD)
             lookup_maybe(named_sample, "GT"),
             lookup_maybe(named_sample, "GQ"),
             lookup_maybe(named_sample, "DP"),
-            lookup_maybe(named_sample, "VAF"),
+            ad_maybe(named_sample),
+            # "VAF" might also be called "AF" (we call it "VAF" here because
+            # extra letters make us sound smarter)
+            vaf_maybe(named_sample),
             str(indel_length),
             label_val,
         ]
