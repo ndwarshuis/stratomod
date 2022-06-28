@@ -1,17 +1,17 @@
 schema: '2.0'
 stages:
   snakemake:
-    cmd: snakemake -p --verbose -r -j 1 --use-conda --cores 1
+    cmd: snakemake --configfile=config/dynamic.yml --profile workflow/profiles/nisaba
     deps:
     - path: config/dynamic.yml
-      md5: f0c0fb7df39d83becc1627adbb680ee8
-      size: 938
+      md5: f00efb2377d5519c49749d708737a0a9
+      size: 3291
     outs:
     - path: results/annotated_input
-      md5: ae83be756a34f40ae6ccc99a72ff0351.dir
-      size: 56351472
-      nfiles: 8
+      md5: 5cd0a1965ec762372a7516f17a7e44fc.dir
+      size: 1344686355
+      nfiles: 20
     - path: results/ebm
-      md5: 2671b947a3fe45e68d84624b59a3c02b.dir
-      size: 17515224
-      nfiles: 40
+      md5: 82f45daf70249d54b6f8339810650906.dir
+      size: 4354855687
+      nfiles: 102
