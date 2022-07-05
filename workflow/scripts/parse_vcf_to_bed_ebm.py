@@ -15,7 +15,7 @@ header = [
     idx["end"],
     *map(
         lambda f: fmt_vcf_feature(snakemake.config, f),
-        ["qual", "filter", "gt", "gq", "dp", "ad_sum", "vaf", "len"],
+        ["qual", "filter", "gt", "gq", "dp", "ad", "vaf", "len"],
     ),
     label_name,
 ]
@@ -32,13 +32,6 @@ NAN = "NaN"
 
 def lookup_maybe(d, k):
     return d[k] if k in d else NAN
-
-
-def ad_maybe(d):
-    try:
-        return str(sum(map(int, d["AD"].split(","))))
-    except (ValueError, KeyError):
-        return NAN
 
 
 def vaf_maybe(d):
@@ -108,7 +101,7 @@ for line in lines:
             lookup_maybe(named_sample, "GT"),
             lookup_maybe(named_sample, "GQ"),
             lookup_maybe(named_sample, "DP"),
-            ad_maybe(named_sample),
+            lookup_maybe(named_sample, "AD"),
             # "VAF" might also be called "AF" (we call it "VAF" here because
             # extra letters make us sound smarter)
             vaf_maybe(named_sample),
