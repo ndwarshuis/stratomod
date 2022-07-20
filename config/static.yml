@@ -44,7 +44,6 @@ features:
       gt: GT
       gq: GQ
       dp: DP
-      ad_sum: AD_sum
       vaf: VAF
       len: indel_length
 

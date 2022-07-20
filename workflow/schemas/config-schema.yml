@@ -218,9 +218,6 @@ properties:
               dp:
                 <<: *column
                 description: the DP column name
-              ad_sum:
-                <<: *column
-                description: the AD column name (sum of all individual ADs)
               vaf:
                 <<: *column
                 description: the VAF column name
