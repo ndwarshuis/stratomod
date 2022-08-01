@@ -1,14 +1,19 @@
 inputs:
+  HG002_Illumina_Draft:
+    url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh38/SupplementaryFiles/inputvcfsandbeds/HG002_GRCh38_1_22_PacBio_HiFi_DeepVariant.vcf.gz
+    ref: GRCh38
+    benchmark: draft_v2.7_xy
+    chr_filter: [chrX, chrY]
   HG002_Hifi_Draft:
     url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh38/SupplementaryFiles/inputvcfsandbeds/HG002_GRCh38_1_22_PacBio_HiFi_DeepVariant.vcf.gz
     ref: GRCh38
-    benchmark: draft_v0.005
+    benchmark: draft_v2.7_xy
     chr_filter: [chrX, chrY]
 
 ebm_runs:
   hifi_v_draft_fn_v1:
     inputs:
-      - [HG002_Hifi_Draft]
+      - [HG002_Hifi_Draft, HG002_Illumina_Draft]
     filter: [SNP, INDEL]
     error_labels: [fn]
     filtered_are_candidates: false
@@ -72,35 +77,3 @@ ebm_runs:
         visualization:
           plot_type: bar
           truncate: {upper: 50}
-
-  hifi_v_draft_fp_v1:
-    inputs:
-      - [HG002_Hifi_Draft]
-    filter: [SNP, INDEL]
-    ebm_settings:
-      <<: *ebm_settings
-    error_labels: [fp]
-    filtered_are_candidates: true
-    features: 
-      <<: *base_features
-      VCF_VAF: {}
-      VCF_DP:
-        visualization:
-          plot_type: bar
-          truncate: {lower: 0, upper: 100}
-
-  hifi_v_draft_combined_v1:
-    inputs:
-      - [HG002_Hifi_Draft]
-    filter: [SNP, INDEL]
-    ebm_settings:
-      <<: *ebm_settings
-    error_labels: [fp, fn]
-    filtered_are_candidates: false
-    features: 
-      <<: *base_features
-      VCF_VAF: {}
-      VCF_DP:
-        visualization:
-          plot_type: bar
-          truncate: {lower: 0, upper: 100}
