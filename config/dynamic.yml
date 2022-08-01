@@ -1,10 +1,10 @@
 inputs:
-  HG002_Illumina_Draft:
+  HG002_Illumina_DV:
     url: null
     ref: GRCh38
     benchmark: draft_v2.7_xy
     chr_filter: [chrX, chrY]
-  HG002_Hifi_Draft:
+  HG002_Hifi_DV:
     url: https://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/data/AshkenazimTrio/analysis/PacBio_CCS_15kb_20kb_chemistry2_10312019/GRCh38/deepvariant_HG002_GRCh38_15kb_37X_SequelII.vcf.gz
     ref: GRCh38
     benchmark: draft_v2.7_xy
@@ -13,7 +13,7 @@ inputs:
 ebm_runs:
   xy_fn_v1:
     inputs:
-      - [HG002_Hifi_Draft, HG002_Illumina_Draft]
+      - [HG002_Hifi_DV, HG002_Illumina_DV]
     filter: [SNP, INDEL]
     error_labels: [fn]
     filtered_are_candidates: false
