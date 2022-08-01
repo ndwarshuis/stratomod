@@ -1,0 +1,106 @@
+inputs:
+  HG002_Hifi_Draft:
+    url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh38/SupplementaryFiles/inputvcfsandbeds/HG002_GRCh38_1_22_PacBio_HiFi_DeepVariant.vcf.gz
+    ref: GRCh38
+    benchmark: draft_v0.005
+    chr_filter: [chrX, chrY]
+
+ebm_runs:
+  hifi_v_draft_fn_v1:
+    inputs:
+      - [HG002_Hifi_Draft]
+    filter: [SNP, INDEL]
+    error_labels: [fn]
+    filtered_are_candidates: false
+    ebm_settings: &ebm_settings
+      split_parameters:
+        test_size: 0.2
+    features: &base_features
+      VCF_indel_length:
+        visualization:
+          truncate: {lower: -50, upper: 50}
+
+      HOMOPOL_AT_length:
+        visualization:
+          plot_type: bar
+          truncate: {lower: 0, upper: 50}
+      HOMOPOL_GC_length:
+        visualization:
+          plot_type: bar
+          truncate: {lower: 0, upper: 50}
+      HOMOPOL_AT_total_imperfect_frac:
+        fill_na: -1
+        visualization:
+          split_missing: 0
+      HOMOPOL_GC_total_imperfect_frac:
+        fill_na: -1
+        visualization:
+          split_missing: 0
+
+      TR_unit_size_max:
+        visualization:
+          plot_type: bar
+          truncate: {lower: 0, upper: 50}
+      TR_unit_copies_max:
+        visualization:
+          truncate: {lower: 0, upper: 50}
+      TR_identity_min: {}
+      TR_score_max: {}
+      TR_percent_AT_median:
+        fill_na: -1
+        visualization:
+          split_missing: 0
+
+      REPMASK_SINE_length:
+        transform: binary
+        alt_name: REPMASK_SINE
+        feature_type: categorical
+      REPMASK_LTR_length:
+        transform: binary
+        alt_name: REPMASK_LTR
+        feature_type: categorical
+      REPMASK_LINE_length: {}
+
+      MAP_difficult_250bp:
+        feature_type: categorical
+      MAP_difficult_100bp:
+        feature_type: categorical
+
+      SEGDUP_size_max: {}
+      SEGDUP_identity_mean: {}
+      SEGDUP_count:
+        visualization:
+          plot_type: bar
+          truncate: {upper: 50}
+
+  hifi_v_draft_fp_v1:
+    inputs:
+      - [HG002_Hifi_Draft]
+    filter: [SNP, INDEL]
+    ebm_settings:
+      <<: *ebm_settings
+    error_labels: [fp]
+    filtered_are_candidates: true
+    features: 
+      <<: *base_features
+      VCF_VAF: {}
+      VCF_DP:
+        visualization:
+          plot_type: bar
+          truncate: {lower: 0, upper: 100}
+
+  hifi_v_draft_combined_v1:
+    inputs:
+      - [HG002_Hifi_Draft]
+    filter: [SNP, INDEL]
+    ebm_settings:
+      <<: *ebm_settings
+    error_labels: [fp, fn]
+    filtered_are_candidates: false
+    features: 
+      <<: *base_features
+      VCF_VAF: {}
+      VCF_DP:
+        visualization:
+          plot_type: bar
+          truncate: {lower: 0, upper: 100}
