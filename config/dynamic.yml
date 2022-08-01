@@ -1,6 +1,6 @@
 inputs:
-  HG002_Illumina_DV:
-    url: null
+  HG002_Illumina_PCR_free_DV:
+    url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG002.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
     ref: GRCh38
     benchmark: draft_v2.7_xy
     chr_filter: [chrX, chrY]
@@ -13,7 +13,7 @@ inputs:
 ebm_runs:
   xy_fn_v1:
     inputs:
-      - [HG002_Hifi_DV, HG002_Illumina_DV]
+      - [HG002_Hifi_DV, HG002_Illumina_PCR_free_DV]
     filter: [SNP, INDEL]
     error_labels: [fn]
     filtered_are_candidates: false
