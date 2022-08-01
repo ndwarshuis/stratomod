@@ -1,3 +1,8 @@
+# 4.6.0
+
+- add 2.7 xy benchmark to static configuration
+- remove tbi_url config options (we calculate tbi on the fly now)
+
 # 4.5.0
 
 - make dvc repro actually nice to use and configure
