@@ -17,7 +17,7 @@ from common.config import (
 def filter_chromosomes(df, chr_filter):
     if len(chr_filter) > 0:
         logging.info("Pre-filtering chromosomes: %s", ", ".join(chr_filter))
-        return df[df.iloc[:, 0].isin(chr_filter)]
+        return df[df.iloc[:, 0].isin(chr_filter)].copy()
     return df
 
 

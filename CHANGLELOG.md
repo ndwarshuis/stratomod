@@ -1,3 +1,8 @@
+# 4.6.1
+
+- fix super silly bug that scrambled the tandem repeat length feature
+- don't include tandem repeats whose unit size is 1bp (these are homopolymers)
+
 # 4.6.0
 
 - add 2.7 xy benchmark to static configuration
