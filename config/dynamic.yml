@@ -82,7 +82,7 @@ ebm_runs:
       SEGDUP_size_max: {}
       SEGDUP_identity_mean:
         visualization:
-          split_missing: 0
+          split_missing: 0.85
       SEGDUP_count:
         visualization:
           plot_type: bar
