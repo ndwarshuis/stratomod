@@ -431,7 +431,7 @@ properties:
                   transform:
                     description: |
                       Apply transformation to the feature. Must be one of 'log'
-                      (log transform) or 'binary' (present values become 1,
+                      (log10 transform) or 'binary' (present values become 1,
                       absent values become 0; note that this ignores 'fill_na'
                       and is best used with 'feature_type' set to 'categorical')
                     default: null
