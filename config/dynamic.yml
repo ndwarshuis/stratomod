@@ -68,6 +68,10 @@ ebm_runs:
         fill_na: -1
         visualization:
           split_missing: 0
+      TR_length:
+        transform: log
+        visualization:
+          split_missing: 0
 
       REPMASK_SINE_length:
         transform: binary
@@ -85,7 +89,9 @@ ebm_runs:
         feature_type: categorical
 
       SEGDUP_size_max: {}
-      SEGDUP_identity_mean: {}
+      SEGDUP_identity_mean:
+        visualization:
+          split_missing: 0.85
       SEGDUP_count:
         visualization:
           plot_type: bar
