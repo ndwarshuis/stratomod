@@ -1,3 +1,7 @@
+# 4.6.2
+
+- use log10 for transforms instead of natural log
+
 # 4.6.1
 
 - fix super silly bug that scrambled the tandem repeat length feature
