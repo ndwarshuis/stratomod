@@ -20,7 +20,11 @@ ebm_runs:
     ebm_settings: &ebm_settings
       split_parameters:
         test_size: 0.2
+    interactions:
+      - VCF_input
     features: &base_features
+      VCF_input:
+        feature_type: categorical
       VCF_indel_length:
         visualization:
           truncate: {lower: -50, upper: 50}
@@ -56,6 +60,7 @@ ebm_runs:
         visualization:
           split_missing: 0
       TR_length:
+        transform: log
         visualization:
           split_missing: 0
 
@@ -75,7 +80,9 @@ ebm_runs:
         feature_type: categorical
 
       SEGDUP_size_max: {}
-      SEGDUP_identity_mean: {}
+      SEGDUP_identity_mean:
+        visualization:
+          split_missing: 0
       SEGDUP_count:
         visualization:
           plot_type: bar
