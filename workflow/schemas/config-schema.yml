@@ -32,21 +32,18 @@ properties:
     additionalProperties: false
     patternProperties:
       ^[\w\.\_]+$:
-        required:
-          - url
-          - ref
-          - benchmark
+        required: [url, ref, benchmark, predict]
         additionalProperties: false
         properties:
           benchmark:
             description: the benchmark index to use for this input
             type: string
 
-          ref:
+          ref: &input_ref
             description: the reference index to use for this input
             type: string
 
-          url:
+          url: &input_url
             description: the url to use in obtaining this input vcf
             anyOf:
               - type: string
@@ -62,6 +59,19 @@ properties:
             items:
               type: string
             default: []
+
+          predict:
+            description: vcf files with which to predict using the trained EBM
+            type: array
+            default: []
+            allOf:
+              - type: object
+                # TODO add benchmark if we want to get labels for these
+                required: [url, ref]
+                additionalProperties: false
+                properties:
+                  ref: *input_ref
+                  url: *input_url
 
 ################################################################################
 # resources
