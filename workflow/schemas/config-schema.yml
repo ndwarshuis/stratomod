@@ -78,23 +78,17 @@ properties:
         patternProperties:
           ^[\w\.\-]+$:
             additionalProperties: false
-            required:
-              - vcf_url
-              - bed_url
-              - tbi_url
+            required: [vcf_url, bed_url]
             properties:
               vcf_url:
                 description: the url for the benchmark VCF to use
-                type: string
-                format: uri
-              tbi_url:
-                description: the url for the benchmark VCF TBI to use
-                type: string
-                format: uri
+                oneOf: &bench_url_type
+                  - type: string
+                    format: uri
+                  - type: "null"
               bed_url:
                 description: the url for the benchmark bed to use
-                type: string
-                format: uri
+                oneOf: *bench_url_type
 
       references:
         additionalProperties: false
@@ -437,7 +431,7 @@ properties:
                   transform:
                     description: |
                       Apply transformation to the feature. Must be one of 'log'
-                      (log transform) or 'binary' (present values become 1,
+                      (log10 transform) or 'binary' (present values become 1,
                       absent values become 0; note that this ignores 'fill_na'
                       and is best used with 'feature_type' set to 'categorical')
                     default: null

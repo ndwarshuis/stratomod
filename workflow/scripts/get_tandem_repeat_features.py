@@ -26,8 +26,8 @@ def format_base(bs_prefix, base):
     return f"{bs_prefix}_{base}"
 
 
-def read_tandem_repeats(path, fconf, bed_cols):
-    fmt_base = partial(fmt_tandem_repeat_base, snakemake.config)
+def read_tandem_repeats(path, fconf, bed_cols, sconf):
+    fmt_base = partial(fmt_tandem_repeat_base, sconf)
     cols = fconf["columns"]
     perc_a_col = fmt_base("A")
     perc_t_col = fmt_base("T")
@@ -48,7 +48,13 @@ def read_tandem_repeats(path, fconf, bed_cols):
     df = read_bed_df(path, bed_mapping, feature_cols, snakemake.params["filt"])
     df[fmt_base("AT")] = df[perc_a_col] + df[perc_t_col]
     df[fmt_base("GC")] = df[perc_g_col] + df[perc_c_col]
-    return df
+    # Filter out all TRs that have period == 1, since those by definition are
+    # homopolymers. NOTE, there is a difference between period and consensusSize
+    # in this database; however, it turns out that at least for GRCh38 that the
+    # sets of TRs where either == 1 are identical, so just use period here
+    # since I can easily refer to it.
+    logger.info("Removing TRs with unitsize == 1")
+    return df[df[cols["period"]] > 1]
 
 
 def merge_tandem_repeats(gfile, df, fconf, bed_cols):
@@ -59,21 +65,20 @@ def merge_tandem_repeats(gfile, df, fconf, bed_cols):
         prefix,
         df,
     )
-
     merged_df = bed.slop(b=SLOP, g=gfile).to_dataframe(names=names)
-    # use the original dataframe to get the region length since we added slop to
-    # the merged version
     len_col = f"{prefix}_{fconf['other']['len']}"
-    merged_df[len_col] = df[bed_cols["end"]] - df[bed_cols["start"]]
-
+    merged_df[len_col] = (
+        merged_df[bed_cols["end"]] - merged_df[bed_cols["start"]] - SLOP * 2
+    )
     return merged_df
 
 
 def main():
     i = snakemake.input
-    bed_cols = lookup_bed_cols(snakemake.config)
-    fconf = snakemake.config["features"]["tandem_repeats"]
-    repeat_df = read_tandem_repeats(i.src[0], fconf, bed_cols)
+    sconf = snakemake.config
+    bed_cols = lookup_bed_cols(sconf)
+    fconf = sconf["features"]["tandem_repeats"]
+    repeat_df = read_tandem_repeats(i.src[0], fconf, bed_cols, sconf)
     merged_df = merge_tandem_repeats(i.genome[0], repeat_df, fconf, bed_cols)
     write_tsv(snakemake.output[0], merged_df, header=True)
 
