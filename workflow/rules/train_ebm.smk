@@ -160,7 +160,7 @@ rule train_ebm:
     benchmark:
         ebm_log_dir / "model.bench"
     script:
-        str(scripts_dir / "run_ebm.py")
+        str(scripts_dir / "train_ebm.py")
 
 
 rule decompose_ebm:

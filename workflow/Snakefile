@@ -109,7 +109,7 @@ results_dir = Path(conf_paths["results"])
 
 include: "rules/labels/get_labels.smk"
 include: "rules/annotations/get_annotations.smk"
-include: "rules/run_ebm.smk"
+include: "rules/train_ebm.smk"
 
 
 ################################################################################

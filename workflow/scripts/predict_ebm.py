@@ -6,7 +6,8 @@ setup_logging(snakemake.log[0])
 
 
 def write_csv(path, df):
-    df.to_csv(path, header=True, index=False)
+    # TODO write the header when I have column headers worth writing
+    df.to_csv(path, header=False, index=False)
 
 
 def predict_from_x(ebm, df):
@@ -23,8 +24,8 @@ def main():
     ebm = read_model(sin["model"])
     predict_x = pd.read_csv(sin["predict_x"])
     ps, xs = predict_from_x(ebm, predict_x)
-    write_csv(sout["train_x"], ps)
-    write_csv(sout["train_y"], xs)
+    write_csv(sout["predictions"], ps)
+    write_csv(sout["explanations"], xs)
 
 
 main()
