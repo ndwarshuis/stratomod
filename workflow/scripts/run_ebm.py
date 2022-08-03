@@ -1,21 +1,13 @@
 import random
-import pickle
 import yaml
 from more_itertools import flatten
-from dash import html
-from interpret import set_visualize_provider
-from interpret.provider import InlineProvider
 from sklearn.model_selection import train_test_split
 from interpret.glassbox import ExplainableBoostingClassifier
 from common.tsv import read_tsv
 from common.cli import setup_logging
+from common.ebm import write_model
 
 logger = setup_logging(snakemake.log[0])
-
-
-def write_model(obj):
-    with open(snakemake.output["model"], "wb") as f:
-        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 
 
 def write_csv(key, df):
@@ -88,7 +80,7 @@ def train_ebm(config, label, df):
     )
     ebm.fit(X_train, y_train)
 
-    write_model(ebm)
+    write_model(snakemake.output["model"], ebm)
     write_csv("train_x", X_train)
     write_csv("train_y", y_train)
     write_csv("test_x", X_test)
