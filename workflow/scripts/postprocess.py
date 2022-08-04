@@ -34,7 +34,7 @@ def process_series(opts, ser):
         return (~_ser.isnull()).astype(int)
     else:
         fillval = opts["fill_na"]
-        return (np.log(_ser) if trans == "log" else _ser).fillna(fillval)
+        return (np.log10(_ser) if trans == "log" else _ser).fillna(fillval)
 
 
 def process_chr(ser):
