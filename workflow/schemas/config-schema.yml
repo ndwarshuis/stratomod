@@ -32,7 +32,7 @@ properties:
     additionalProperties: false
     patternProperties:
       ^[\w\.\_]+$:
-        required: [train, ref, predict, chr_filter]
+        required: [train, predict, chr_filter]
         additionalProperties: false
         properties:
           chr_filter:
@@ -45,11 +45,7 @@ properties:
               type: string
             default: []
 
-          ref:
-            description: the reference index to use for this input
-            type: string
-
-          train:
+          train: &input_train
             required: [benchmark, ref, url]
             additionalProperties: false
             properties:
@@ -57,7 +53,11 @@ properties:
                 description: the benchmark index to use for this input
                 type: string
 
-              url: &input_url
+              ref:
+                description: the reference index to use for this input
+                type: string
+
+              url:
                 description: the url to use in obtaining this input vcf
                 anyOf:
                   - type: string
@@ -65,11 +65,12 @@ properties:
                   - type: "null"
 
           predict:
-            # TODO add benchmark if we want to get labels for these
-            additionalProperties: false
-            default: {}
-            properties:
-              url: *input_url
+            description: the vcf(s) to use for prediction testing
+            default: []
+            type: array
+            items:
+              allOf:
+                - <<: *input_train
 
 ################################################################################
 # resources
