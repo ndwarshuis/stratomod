@@ -31,3 +31,18 @@ include: "homopolymers.smk"
 include: "mappability.smk"
 include: "tandem_repeats.smk"
 include: "segdups.smk"
+
+annotation_tsvs = [
+    rules.get_repeat_masker_classes.output,
+    rules.get_tandem_repeats.output,
+    rules.get_mappability_high_src.output,
+    rules.subtract_high_from_low_mappability.output,
+    rules.get_segdups.output,
+    expand(
+        rules.get_homopolymers.output,
+        bases=config["features"]["homopolymers"]["bases"],
+        allow_missing=True,
+    ),
+]
+
+

@@ -66,11 +66,10 @@ properties:
 
           predict:
             description: the vcf(s) to use for prediction testing
-            default: []
-            type: array
-            items:
-              allOf:
-                - <<: *input_train
+            additionalProperties: false
+            patternProperties:
+              ^[\w\.\_]+$:
+                <<: *input_train
 
 ################################################################################
 # resources

@@ -16,10 +16,13 @@ def lookup_ebm_run(wildcards):
 
 git_tag = get_git_tag()
 
-ebm_dir = results_dir / "ebm" / ("%s-{input_keys}-{filter_key}-{run_key}" % git_tag)
-ebm_log_dir = ebm_dir / "log"
+train_dir = results_dir / "ebm" / ("%s-{input_keys}-{filter_key}-{run_key}" % git_tag)
+train_log_dir = train_dir / "log"
 
 input_delim = "&"
+
+test_dir = train_dir / "test" / "{test_key}"
+test_log_dir = test_dir / "log"
 
 ################################################################################
 # add annotations
@@ -31,18 +34,7 @@ annotated_input_dir = results_dir / "annotated_input" / "{input_key}"
 rule add_annotations:
     input:
         variants=rules.concat_tsv_files.output,
-        tsvs=[
-            expand(
-                rules.get_homopolymers.output,
-                bases=config["features"]["homopolymers"]["bases"],
-                allow_missing=True,
-            ),
-            rules.get_repeat_masker_classes.output,
-            rules.get_tandem_repeats.output,
-            rules.get_mappability_high_src.output,
-            rules.subtract_high_from_low_mappability.output,
-            rules.get_segdups.output,
-        ],
+        annotations=annotation_tsvs,
     output:
         annotated_input_dir / "{filter_key}.tsv",
     conda:
@@ -99,10 +91,13 @@ rule all_summary:
 
 
 ################################################################################
-# postprocess output
+# training
+#
+# assume that this will take care of test/train split, actual training, and
+# pickling
 
 
-rule postprocess_output:
+rule prepare_train_data:
     input:
         lambda wildcards: expand(
             rules.add_annotations.output,
@@ -110,33 +105,26 @@ rule postprocess_output:
             input_key=wildcards.input_keys.split(input_delim),
         ),
     output:
-        df=ebm_dir / "input.tsv",
-        paths=ebm_dir / "input_paths.json",
+        df=train_dir / "train.tsv",
+        paths=train_dir / "input_paths.json",
     params:
         config=lambda wildcards: lookup_ebm_run(wildcards),
     log:
-        ebm_log_dir / "postprocess.log",
+        train_log_dir / "prepare.log",
     benchmark:
-        ebm_log_dir / "postprocess.bench"
+        train_log_dir / "prepare.bench"
     resources:
         mem_mb=attempt_mem_gb(8),
     script:
-        str(scripts_dir / "postprocess.py")
+        str(scripts_dir / "prepare_train.py")
 
 
-################################################################################
-# run EBM
-#
-# assume that this will take care of test/train split, actual training, and
-# pickling
-
-
-rule train_ebm:
+rule train_model:
     input:
         rules.postprocess_output.output,
     output:
         **{
-            n: str((ebm_dir / n).with_suffix(".csv"))
+            n: str((train_dir / n).with_suffix(".csv"))
             for n in [
                 "train_x",
                 "train_y",
@@ -144,55 +132,110 @@ rule train_ebm:
                 "test_y",
             ]
         },
-        model=ebm_dir / "model.pickle",
-        config=ebm_dir / "config.yml",
+        model=train_dir / "model.pickle",
+        config=train_dir / "config.yml",
     params:
         config=lambda wildcards: lookup_ebm_run(wildcards),
     conda:
         str(envs_dir / "ebm.yml")
     log:
-        ebm_log_dir / "model.log",
+        train_log_dir / "model.log",
     threads: 1
     # ASSUME total memory is proportional the number of EBMs that are trained in
     # parallel (see outer_bags parameter in the EBM function call)
     resources:
         mem_mb=lambda wildcards, threads, attempt: 16000 * threads * 2 ** (attempt - 1),
     benchmark:
-        ebm_log_dir / "model.bench"
+        train_log_dir / "model.bench"
     script:
         str(scripts_dir / "train_ebm.py")
 
 
-rule decompose_ebm:
+rule decompose_model:
     input:
-        **rules.train_ebm.output,
+        **rules.train_model.output,
     output:
-        model=ebm_dir / "model.json",
-        predictions=ebm_dir / "predictions.csv",
+        model=train_dir / "model.json",
+        predictions=train_dir / "predictions.csv",
     conda:
         str(envs_dir / "ebm.yml")
     log:
-        ebm_log_dir / "decompose.log",
+        train_log_dir / "decompose.log",
     resources:
         mem_mb=attempt_mem_gb(2),
     script:
         str(scripts_dir / "decompose_model.py")
 
 
-rule summarize_ebm:
+rule summarize_model:
     input:
-        **rules.decompose_ebm.output,
-        paths=rules.postprocess_output.output.paths,
+        **rules.decompose_model.output,
+        paths=rules.prepare_train_data.output.paths,
     output:
-        ebm_dir / "summary.html",
+        train_dir / "summary.html",
     conda:
         str(envs_dir / "rmarkdown.yml")
     benchmark:
-        ebm_dir / "summary.bench"
+        train_dir / "summary.bench"
     resources:
         mem_mb=attempt_mem_gb(2),
     script:
         str(scripts_dir / "rmarkdown" / "model_summary.Rmd")
+
+
+################################################################################
+# testing
+
+
+# TODO this somehow needs to be made aware of which input key the predict key
+# is under so that the path column can be populated
+rule prepare_test_data:
+    input:
+        annotated=lambda wildcards: expand(
+            rules.add_annotations.output,
+            allow_missing=True,
+            input_key=wildcards.predict_key,
+        ),
+        paths=rules.postprocess_outpput.output.paths,
+    output:
+        test_x=test_dir / "test_x.tsv",
+        test_y=test_dir / "test_y.tsv",
+    params:
+        config=lambda wildcards: lookup_ebm_run(wildcards),
+    log:
+        test_log_dir / "prepare.log",
+    benchmark:
+        test_log_dir / "prepare.bench"
+    resources:
+        mem_mb=attempt_mem_gb(8),
+    script:
+        str(scripts_dir / "prepare_test.py")
+
+
+rule test_ebm:
+    input:
+        model=rules.train_ebm.output.model,
+        test_x=rules.prepare_test_data.output.test_x,
+    output:
+        predictions=test_dir / "predictions.csv",
+        explanations=test_dir / "explanation.csv",
+    conda:
+        str(envs_dir / "ebm.yml")
+    # TODO will likely need this later to get the features for headers
+    # params:
+    #     config=lambda wildcards: lookup_ebm_run(wildcards),
+    log:
+        test_log_dir / "model.log",
+    resources:
+        mem_mb=attempt_mem_gb(2),
+    benchmark:
+        test_log_dir / "model.bench"
+    script:
+        str(scripts_dir / "test_ebm.py")
+
+
+################################################################################
+# global targets
 
 
 def all_ebm_files():
