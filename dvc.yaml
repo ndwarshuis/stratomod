@@ -1,5 +1,6 @@
 vars:
-  - config/dvc-params.yml
+  - config: dynamic
+  - profile: local
 
 stages:
   snakemake:

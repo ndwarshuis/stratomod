@@ -13,9 +13,7 @@ ebm_runs:
       split_parameters:
         test_size: 0.2
     error_labels: [fp]
-    # NOTE this is true here because we want to include all refcalls in the FP
-    # analysis comparison
-    filtered_are_candidates: true
+    filtered_are_candidates: false
 
     features: &base_features
       VCF_input:

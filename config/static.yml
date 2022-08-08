@@ -15,6 +15,9 @@ resources:
     draft_v2.7_xy:
       vcf_url: null
       bed_url: null
+    HC_Somatic_1.2:
+      vcf_url: null
+      bed_url: null
   references:
     GRCh38:
       sdf: https://s3.amazonaws.com/rtg-datasets/references/GRCh38.sdf.zip
