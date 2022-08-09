@@ -13,14 +13,17 @@ labels = ["fp", "fn", "tp"]
 def lookup_input(wildcards, *args):
     return lookup_config(config, "inputs", wildcards.input_key, *args)
 
+def lookup_train(wildcards, key):
+    return lookup_input(wildcards, "train", key)
+
 
 def lookup_chr_filter(wildcards):
     # make something that looks like 'chr1\b\|chr2\b...'
     return "\\|".join([f + "\\b" for f in lookup_input(wildcards, "chr_filter")])
 
 
-def lookup_input_bench(path, wildcards):
-    return expand(path, bench_key=lookup_input(wildcards, "benchmark"))
+def lookup_train_bench(path, wildcards):
+    return expand(path, bench_key=lookup_train(wildcards, "benchmark"))
 
 
 include: "download_resources.smk"
@@ -34,7 +37,7 @@ rule get_input_vcf:
     output:
         inputs_dir / "{input_key}.vcf.gz",
     params:
-        url=lambda wildcards: lookup_input(wildcards, "url"),
+        url=lambda wildcards: lookup_train(wildcards, "url"),
     conda:
         str(envs_dir / "utils.yml")
     shell:
@@ -95,7 +98,7 @@ rule filter_query_vcf:
 
 use rule filter_query_vcf as filter_bench_vcf with:
     input:
-        partial(lookup_input_bench, rules.get_bench_vcf.output),
+        partial(lookup_train_bench, rules.get_bench_vcf.output),
     output:
         vcf=alt_bench_dir / "filtered.vcf.gz",
         tbi=alt_bench_dir / "filtered.vcf.gz.tbi",
@@ -103,7 +106,7 @@ use rule filter_query_vcf as filter_bench_vcf with:
 
 rule filter_bench_bed:
     input:
-        partial(lookup_input_bench, rules.get_bench_bed.output),
+        partial(lookup_train_bench, rules.get_bench_bed.output),
     output:
         alt_bench_dir / "filtered.bed",
     params:
@@ -144,7 +147,7 @@ def get_truth_inputs(wildcards):
         key: expand(
             path,
             input_key=wildcards.input_key,
-            bench_key=lookup_input(wildcards, "benchmark"),
+            bench_key=lookup_train(wildcards, "benchmark"),
         )
         for key, path in zip(["truth_vcf", "truth_bed", "truth_tbi"], paths)
     }
@@ -172,7 +175,7 @@ rule get_vcf_labels:
         unpack(get_query_inputs),
         sdf=lambda wildcards: expand(
             rules.get_ref_sdf.output,
-            ref_key=lookup_input(wildcards, "ref"),
+            ref_key=lookup_train(wildcards, "ref"),
         ),
     output:
         [rtg_dir / f"{lbl}.vcf.gz" for lbl in labels],

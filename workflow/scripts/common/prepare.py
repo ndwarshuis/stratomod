@@ -1,30 +1,14 @@
-import json
 import pandas as pd
 import numpy as np
-from functools import partial
 from more_itertools import duplicates_everseen
-from common.tsv import read_tsv, write_tsv
-from common.cli import setup_logging
-from common.config import fmt_vcf_feature
-
-logger = setup_logging(snakemake.log[0])
-
-_fmt_vcf_feature = partial(fmt_vcf_feature, snakemake.config)
 
 TP_LABEL = "tp"
 TN_LABEL = "tn"
 FP_LABEL = "fp"
 FN_LABEL = "fn"
 
+# TODO don't hardcode this (and also turn into a list)
 FILTERED_VAL = "RefCall"
-
-
-def read_inputs(paths, input_col):
-    eps = [*enumerate(paths)]
-    return (
-        pd.concat([read_tsv(p).assign(**{input_col: i}) for i, p in eps]),
-        {p: i for i, p in eps},
-    )
 
 
 def process_series(opts, ser):
@@ -120,28 +104,3 @@ def process_data(
             mask_labels(filtered_are_candidates, label_col, filter_col, df),
         ),
     )
-
-
-def main():
-    ps = snakemake.params.config
-    fconf = snakemake.config["features"]
-    label_col = fconf["label"]
-    chrom_col = fconf["index"]["chr"]
-    filter_col = _fmt_vcf_feature("filter")
-    input_col = _fmt_vcf_feature("input")
-    raw_df, mapped_paths = read_inputs(snakemake.input, input_col)
-    processed = process_data(
-        ps["features"],
-        ps["error_labels"],
-        ps["filtered_are_candidates"],
-        chrom_col,
-        filter_col,
-        label_col,
-        raw_df,
-    )
-    with open(snakemake.output["paths"], "w") as f:
-        json.dump(mapped_paths, f)
-    write_tsv(snakemake.output["df"], processed)
-
-
-main()

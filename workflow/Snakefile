@@ -1,7 +1,7 @@
 from more_itertools import unzip, duplicates_everseen
 from pathlib import Path
 from snakemake.utils import min_version, validate
-from scripts.common.config import all_feature_names
+from scripts.common.config import all_feature_names, input_set, expand_rules
 
 min_version("6.12")
 
@@ -129,17 +129,14 @@ rule all:
 rule all_resources:
     input:
         expand(rules.get_input_vcf.output, input_key=[*config["inputs"]]),
+        expand(rules.get_ref_sdf.output, ref_key=input_set(config, "ref")),
         expand(
-            rules.get_ref_sdf.output,
-            ref_key=set(i["ref"] for i in config["inputs"].values()),
-        ),
-        expand(
-            [
-                *rules.get_bench_vcf.output,
-                *rules.get_bench_bed.output,
-                *rules.get_bench_tbi.output,
-            ],
-            bench_key=set(i["benchmark"] for i in config["inputs"].values()),
+            expand_rules(
+                rules,
+                ["get_bench_vcf", "get_bench_bed", "get_bench_tbi"],
+                "output",
+            ),
+            bench_key=input_set(config, "benchmark"),
         ),
         # TODO all these implicitly depend on the reference
         rules.get_genome.output,

@@ -1,16 +1,32 @@
-# the VCF file to annotate and analyze via EBMs and associated metadata
 inputs:
   HG002_Hifi_DV:
-    url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh38/SupplementaryFiles/inputvcfsandbeds/HG002_GRCh38_1_22_PacBio_HiFi_DeepVariant.vcf.gz
-    ref: GRCh38
-    benchmark: v4.2.1
     chr_filter: [chr21]
+    train:
+      url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh38/SupplementaryFiles/inputvcfsandbeds/HG002_GRCh38_1_22_PacBio_HiFi_DeepVariant.vcf.gz
+      ref: GRCh38
+      benchmark: HG002_v4.2.1
+    test:
+      HG005_Hifi_DV:
+        url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh38/SupplementaryFiles/inputvcfsandbeds/HG005_GRCh38_1_22_PacBio_HiFi_DeepVariant.vcf.gz
+        ref: GRCh38
+        benchmark: HG005_v4.2.1
+  HG002_Illumina_DV:
+    chr_filter: [chr21]
+    train:
+      url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG002.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
+      ref: GRCh38
+      benchmark: HG002_v4.2.1
+    test:
+      HG005_Illumina_DV:
+        url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG005.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
+        ref: GRCh38
+        benchmark: HG005_v4.2.1
 
-# settings for each ebm run
 ebm_runs:
   small_set_v3:
     inputs:
-      - [HG002_Hifi_DV]
+      - HG002_Hifi_DV: [HG005_Hifi_DV]
+        HG002_Illumina_DV: [HG005_Illumina_DV]
     filter: [SNP, INDEL]
     ebm_settings: &ebm_settings
       split_parameters:

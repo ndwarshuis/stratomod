@@ -10,10 +10,6 @@ def get_git_tag():
     return sp.run(args, capture_output=True).stdout.strip().decode()
 
 
-def lookup_ebm_run(wildcards):
-    return config["ebm_runs"][wildcards.run_key]
-
-
 git_tag = get_git_tag()
 
 train_dir = results_dir / "ebm" / ("%s-{input_keys}-{filter_key}-{run_key}" % git_tag)
@@ -21,7 +17,7 @@ train_log_dir = train_dir / "log"
 
 input_delim = "&"
 
-test_dir = train_dir / "test" / "{test_key}"
+test_dir = train_dir / "test" / "{input_key}@{test_key}"
 test_log_dir = test_dir / "log"
 
 ################################################################################
@@ -107,8 +103,6 @@ rule prepare_train_data:
     output:
         df=train_dir / "train.tsv",
         paths=train_dir / "input_paths.json",
-    params:
-        config=lambda wildcards: lookup_ebm_run(wildcards),
     log:
         train_log_dir / "prepare.log",
     benchmark:
@@ -121,7 +115,7 @@ rule prepare_train_data:
 
 rule train_model:
     input:
-        rules.postprocess_output.output,
+        rules.prepare_train_data.output,
     output:
         **{
             n: str((train_dir / n).with_suffix(".csv"))
@@ -134,8 +128,6 @@ rule train_model:
         },
         model=train_dir / "model.pickle",
         config=train_dir / "config.yml",
-    params:
-        config=lambda wildcards: lookup_ebm_run(wildcards),
     conda:
         str(envs_dir / "ebm.yml")
     log:
@@ -196,12 +188,10 @@ rule prepare_test_data:
             allow_missing=True,
             input_key=wildcards.predict_key,
         ),
-        paths=rules.postprocess_outpput.output.paths,
+        paths=rules.prepare_train_data.output.paths,
     output:
         test_x=test_dir / "test_x.tsv",
         test_y=test_dir / "test_y.tsv",
-    params:
-        config=lambda wildcards: lookup_ebm_run(wildcards),
     log:
         test_log_dir / "prepare.log",
     benchmark:
@@ -212,18 +202,16 @@ rule prepare_test_data:
         str(scripts_dir / "prepare_test.py")
 
 
+# TODO will likely need this later to get the features for headers
 rule test_ebm:
     input:
-        model=rules.train_ebm.output.model,
+        model=rules.train_model.output.model,
         test_x=rules.prepare_test_data.output.test_x,
     output:
         predictions=test_dir / "predictions.csv",
         explanations=test_dir / "explanation.csv",
     conda:
         str(envs_dir / "ebm.yml")
-    # TODO will likely need this later to get the features for headers
-    # params:
-    #     config=lambda wildcards: lookup_ebm_run(wildcards),
     log:
         test_log_dir / "model.log",
     resources:
@@ -238,22 +226,63 @@ rule test_ebm:
 # global targets
 
 
+# def all_ebm_files():
+#     run_keys, combined_input_keys, filter_keys = unzip(
+#         [
+#             (k, input_delim.join(i), f)
+#             for k, v in config["ebm_runs"].items()
+#             for f in v["filter"]
+#             for i in v["inputs"]
+#         ]
+#     )
+#     all_train = expand(
+#         rules.summarize_ebm.output,
+#         zip,
+#         run_key=[*run_keys],
+#         input_keys=[*combined_input_keys],
+#         filter_key=[*filter_keys],
+#     )
+#     all_test = expand(
+#         rules.test_ebm.output,
+#         run_key=[*run_keys],
+#         input_keys=[*combined_input_keys],
+#         filter_key=[*filter_keys],
+#     )
+#     return all_train + all_test
+
+
 def all_ebm_files():
-    run_keys, combined_input_keys, filter_keys = unzip(
-        [
-            (k, input_delim.join(i), f)
-            for k, v in config["ebm_runs"].items()
-            for f in v["filter"]
-            for i in v["inputs"]
-        ]
-    )
-    return expand(
-        rules.summarize_ebm.output,
-        zip,
-        run_key=[*run_keys],
-        input_keys=[*combined_input_keys],
-        filter_key=[*filter_keys],
-    )
+    def expand_unzip(path, wildcards, combinations):
+        kwargs = {w: [*c] for w, c in zip(wildcards, unzip(combinations))}
+        return expand(path, zip, **kwargs)
+
+    def run_set_train(run_set):
+        return expand_unzip(
+            rules.summarize_model.output,
+            ["run_key", "filter_key", "input_keys"],
+            [(r, f, c) for r, f, _, c in run_set],
+        )
+
+    def run_set_test(run_set):
+        return expand_unzip(
+            rules.summarize_model.output,
+            ["run_key", "filter_key", "input_keys", "input_key", "test_key"],
+            [
+                (k, f, c, i, t)
+                for k, f, ns, c in run_set
+                for n in ns
+                for i, ts in ns.items()
+                for t in ts
+            ],
+        )
+
+    run_set = [
+        (k, f, ns, input_delim.join([*ns]))
+        for k, rs in config["ebm_runs"].items()
+        for f in rs["filter"]
+        for ns in rs["inputs"]
+    ]
+    return run_set_train(run_set) + run_set_test(run_set)
 
 
 rule all_ebm:

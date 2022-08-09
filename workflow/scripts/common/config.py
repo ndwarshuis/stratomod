@@ -2,10 +2,41 @@ from more_itertools import flatten
 from itertools import product
 from functools import partial
 
+# ------------------------------------------------------------------------------
+# resources
+
 
 def attempt_mem_gb(mem_gb):
     # double initial memory on each attempt
     return lambda wildcards, attempt: mem_gb * 1000 * 2 ** (attempt - 1)
+
+
+# ------------------------------------------------------------------------------
+# "macros" for rule expansion
+
+
+def expand_rules(rules, names, attr):
+    return [p for r in names for p in getattr(getattr(rules, r), attr)]
+
+
+# ------------------------------------------------------------------------------
+# wildcard sets (for building targets)
+
+
+def input_set(config, attr):
+    return (
+        set(
+            flatten(
+                [t[attr], *nv["train"][attr]]
+                for nk, nv in config["inputs"].items()
+                for t in nv["test"].values()
+            )
+        ),
+    )
+
+
+# ------------------------------------------------------------------------------
+# general lookup
 
 
 def lookup_config(config, *keys):
@@ -28,6 +59,20 @@ def lookup_annotations(config):
 
 def lookup_global_chr_filter(config):
     return [*set(flatten(i["chr_filter"] for i in config["inputs"].values()))]
+
+
+def lookup_ebm_run(config, run_key):
+    return config["ebm_runs"][run_key]
+
+
+# ------------------------------------------------------------------------------
+# feature naming lookup (enter if you dare)
+
+# NOTE: The reason this is so convoluted is because I wanted to have a way to
+# test if a given feature set is valid, which means we need to know a priori
+# what the total possible feature set is. If this seems unjustified, imagine
+# running a gigantic configuration on a cluster, only to have it fail at the
+# training step after several hours because a feature was named incorrectly.
 
 
 def lookup_bed_cols(config):
