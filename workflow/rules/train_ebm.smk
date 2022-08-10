@@ -12,12 +12,14 @@ def get_git_tag():
 
 git_tag = get_git_tag()
 
-train_dir = results_dir / "ebm" / ("%s-{input_keys}-{filter_key}-{run_key}" % git_tag)
+train_dir = (
+    results_dir / "ebm" / ("%s-{input_keys}-{filter_key}-{run_key,[^/]+}" % git_tag)
+)
 train_log_dir = train_dir / "log"
 
 input_delim = "&"
 
-test_dir = train_dir / "test" / "{input_key}@{test_key}"
+test_dir = train_dir / "test" / "{test_key}@{input_key}"
 test_log_dir = test_dir / "log"
 
 ################################################################################
@@ -186,7 +188,7 @@ rule prepare_test_data:
         annotated=lambda wildcards: expand(
             rules.add_annotations.output,
             allow_missing=True,
-            input_key=wildcards.predict_key,
+            input_key=wildcards.test_key,
         ),
         paths=rules.prepare_train_data.output.paths,
     output:
@@ -265,7 +267,7 @@ def all_ebm_files():
 
     def run_set_test(run_set):
         return expand_unzip(
-            rules.summarize_model.output,
+            rules.test_ebm.output,
             ["run_key", "filter_key", "input_keys", "input_key", "test_key"],
             [
                 (k, f, c, i, t)
@@ -282,7 +284,8 @@ def all_ebm_files():
         for f in rs["filter"]
         for ns in rs["inputs"]
     ]
-    return run_set_train(run_set) + run_set_test(run_set)
+    # return run_set_train(run_set) + run_set_test(run_set)
+    return run_set_test(run_set)
 
 
 rule all_ebm:

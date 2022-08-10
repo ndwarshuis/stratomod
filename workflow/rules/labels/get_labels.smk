@@ -1,5 +1,5 @@
 from functools import partial
-from scripts.common.config import lookup_config, attempt_mem_gb
+from scripts.common.config import lookup_config, attempt_mem_gb, flat_inputs, flat_chr_filters
 
 inputs_dir = resources_dir / "inputs"
 
@@ -14,12 +14,16 @@ def lookup_input(wildcards, *args):
     return lookup_config(config, "inputs", wildcards.input_key, *args)
 
 def lookup_train(wildcards, key):
-    return lookup_input(wildcards, "train", key)
+    ns = flat_inputs(config)
+    return ns[wildcards.input_key][key]
+    # return lookup_input(wildcards, "train", key)
 
 
 def lookup_chr_filter(wildcards):
+    fs = flat_chr_filters(config)[wildcards.input_key]
     # make something that looks like 'chr1\b\|chr2\b...'
-    return "\\|".join([f + "\\b" for f in lookup_input(wildcards, "chr_filter")])
+    # return "\\|".join([f + "\\b" for f in lookup_input(wildcards, "chr_filter")])
+    return "\\|".join([f + "\\b" for f in fs])
 
 
 def lookup_train_bench(path, wildcards):
@@ -136,7 +140,7 @@ def get_truth_inputs(wildcards):
             rules.get_bench_bed.output,
             rules.get_bench_tbi.output,
         ]
-        if len(lookup_input(wildcards, "chr_filter")) == 0
+        if lookup_chr_filter(wildcards) == ""
         else [
             rules.filter_bench_vcf.output.vcf,
             rules.filter_bench_bed.output,
@@ -160,7 +164,7 @@ def get_query_inputs(wildcards):
             rules.preprocess_vcf.output,
             rules.index_vcf.output,
         ]
-        if len(lookup_input(wildcards, "chr_filter")) == 0
+        if lookup_chr_filter(wildcards) == ""
         else [
             rules.filter_query_vcf.output.vcf,
             rules.filter_query_vcf.output.tbi,

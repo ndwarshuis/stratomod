@@ -6,6 +6,7 @@ from interpret.glassbox import ExplainableBoostingClassifier
 from common.tsv import read_tsv
 from common.cli import setup_logging
 from common.ebm import write_model
+from common.config import lookup_ebm_run
 
 logger = setup_logging(snakemake.log[0])
 
@@ -88,10 +89,11 @@ def train_ebm(config, label, df):
 
 
 def main():
-    params = snakemake.params
+    sconf = snakemake.config
+    rconf = lookup_ebm_run(sconf, snakemake.wildcards.run_key)
     df = read_tsv(snakemake.input[0])
-    train_ebm(params.config, snakemake.config["features"]["label"], df)
-    dump_config(params.config)
+    train_ebm(rconf, sconf["features"]["label"], df)
+    dump_config(rconf)
 
 
 main()

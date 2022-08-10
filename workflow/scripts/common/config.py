@@ -39,6 +39,23 @@ def input_set(config, attr):
 # general lookup
 
 
+def flat_inputs(config):
+    return dict(
+        flatten(
+            [(k, v["train"]), *v["test"].items()] for k, v in config["inputs"].items()
+        )
+    )
+
+
+def flat_chr_filters(config):
+    return dict(
+        flatten(
+            [(k, v["chr_filter"]), *[(t, v["chr_filter"]) for t in v["test"]]]
+            for k, v in config["inputs"].items()
+        )
+    )
+
+
 def lookup_config(config, *keys):
     k = keys[0]
     ks = keys[1:]

@@ -27,7 +27,7 @@ def main():
     wcs = snakemake.wildcards
     _fmt_vcf_feature = partial(fmt_vcf_feature, sconf)
     raw_df = read_input(
-        sin["annotated"],
+        sin["annotated"][0],
         sin["paths"],
         wcs["input_key"],
         _fmt_vcf_feature("input"),
@@ -44,7 +44,7 @@ def main():
         label_col,
         raw_df,
     )
-    write_tsv(sout["test_x"], processed.drop([label_col]))
+    write_tsv(sout["test_x"], processed.drop([label_col], axis=1))
     write_tsv(sout["test_y"], processed[label_col])
 
 
