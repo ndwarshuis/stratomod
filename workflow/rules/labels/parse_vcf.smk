@@ -284,7 +284,6 @@ rule unzip_vcf:
         "gunzip {input} -c > {output}"
 
 
-# TODO need to make this work without a label argument
 rule parse_unlabeled_vcf:
     input:
         rules.unzip_vcf.output,
@@ -296,6 +295,3 @@ rule parse_unlabeled_vcf:
         unlabeled_dir / "{input_key}.bench"
     script:
         str(scripts_dir / "parse_vcf_to_bed_ebm.py")
-
-
-# TODO add sort step here

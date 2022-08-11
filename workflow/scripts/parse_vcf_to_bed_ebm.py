@@ -3,22 +3,32 @@ from common.config import fmt_vcf_feature
 
 logger = setup_logging(snakemake.log[0])
 
-label_val = snakemake.wildcards.label
-vartype = snakemake.wildcards.filter_key
+wcs = snakemake.wildcards
+has_label = "label" in [*wcs]
+label_val = [wcs.label] if has_label else []
+vartype = wcs.filter_key
 
-fconf = snakemake.config["features"]["vcf"]
-label_name = snakemake.config["features"]["label"]
-idx = snakemake.config["features"]["index"]
-header = [
-    idx["chr"],
-    idx["start"],
-    idx["end"],
-    *map(
-        lambda f: fmt_vcf_feature(snakemake.config, f),
-        ["qual", "filter", "gt", "gq", "dp", "vaf", "len"],
-    ),
-    label_name,
-]
+sconf = snakemake.config
+fconf = sconf["features"]
+vconf = fconf["vcf"]
+idx = fconf["index"]
+
+
+def make_header(has_label):
+    base_cols = [
+        idx["chr"],
+        idx["start"],
+        idx["end"],
+        *map(
+            lambda f: fmt_vcf_feature(sconf, f),
+            ["qual", "filter", "gt", "gq", "dp", "vaf", "len"],
+        ),
+    ]
+    return base_cols if has_label else [*base_cols, fconf["label"]]
+
+
+header = make_header(label_val)
+
 
 f = open(snakemake.input[0], "r")
 f_out = open(snakemake.output[0], "w+")
@@ -89,7 +99,7 @@ for line in lines:
             lookup_maybe(named_sample, "DP"),
             lookup_maybe(named_sample, "VAF"),
             str(indel_length),
-            label_val,
+            *label_val,
         ]
     )
     f_out.write(f"{to_write_out}\n")

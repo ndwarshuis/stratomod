@@ -317,19 +317,29 @@ def all_ebm_files():
             [(r, f, c) for r, f, _, c in run_set],
         )
 
-    # TODO need to partition this by whether or not a benchmark url is present
-    def run_set_test(run_set):
+    def test_has_bench(train_key, test_key):
+        return config["inputs"][train_key]["test"][test_key]["benchmark"] is not None
+
+    def expand_unzip_test(path, combinations):
         return expand_unzip(
-            rules.test_labeled_ebm.output,
+            path,
             ["run_key", "filter_key", "input_keys", "input_key", "test_key"],
-            [
-                (k, f, c, i, t)
-                for k, f, ns, c in run_set
-                for n in ns
-                for i, ts in ns.items()
-                for t in ts
-            ],
+            combinations,
         )
+
+    # TODO this should eventually point to the test summary htmls
+    def run_set_test(run_set):
+        test_set = [
+            (k, f, c, i, t)
+            for k, f, ns, c in run_set
+            for n in ns
+            for i, ts in ns.items()
+            for t in ts
+        ]
+        labeled, unlabeled = partition(lambda s: test_has_bench(s[3], s[4]), test_set)
+        return expand_unzip_test(
+            rules.test_labeled_ebm.output, labeled
+        ) + expand_unzip_test(rules.test_unlabeled_ebm.output, unlabeled)
 
     run_set = [
         (k, f, ns, input_delim.join([*ns]))
