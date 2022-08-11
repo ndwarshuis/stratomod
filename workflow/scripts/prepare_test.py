@@ -4,7 +4,7 @@ from functools import partial
 from common.tsv import read_tsv, write_tsv
 from common.cli import setup_logging
 from common.config import fmt_vcf_feature, lookup_ebm_run
-from common.prepare import process_data
+from common.prepare import process_labeled_data, process_unlabeled_data
 
 logger = setup_logging(snakemake.log[0])
 
@@ -18,6 +18,30 @@ def read_vcf_input(path, input_key):
 def read_input(df_path, mapping_path, input_key, input_col):
     vcf_input = read_vcf_input(mapping_path, input_key)
     return read_tsv(df_path).assign(**{input_col: vcf_input})
+
+
+def write_labeled(xpath, ypath, fconf, rconf, filter_col, df):
+    label_col = fconf["label_col"]
+    processed = process_labeled_data(
+        rconf["features"],
+        rconf["error_labels"],
+        rconf["filtered_are_candidates"],
+        fconf["index"]["chr"],
+        filter_col,
+        label_col,
+        df,
+    )
+    write_tsv(xpath, processed.drop([label_col], axis=1))
+    write_tsv(ypath, processed[label_col])
+
+
+def write_unlabeled(xpath, fconf, rconf, df):
+    processed = process_unlabeled_data(
+        rconf["features"],
+        fconf["index"]["chr"],
+        df,
+    )
+    write_tsv(xpath, processed)
 
 
 def main():
@@ -34,18 +58,17 @@ def main():
     )
     rconf = lookup_ebm_run(sconf, wcs.run_key)
     fconf = sconf["features"]
-    label_col = fconf["label"]
-    processed = process_data(
-        rconf["features"],
-        rconf["error_labels"],
-        rconf["filtered_are_candidates"],
-        fconf["index"]["chr"],
-        _fmt_vcf_feature("filter"),
-        label_col,
-        raw_df,
-    )
-    write_tsv(sout["test_x"], processed.drop([label_col], axis=1))
-    write_tsv(sout["test_y"], processed[label_col])
+    if "test_y" in sout:
+        write_labeled(
+            sout["test_x"],
+            sout["test_y"],
+            fconf,
+            rconf,
+            _fmt_vcf_feature("filter"),
+            raw_df,
+        )
+    else:
+        write_unlabeled(sout["test_x"], fconf, rconf, raw_df)
 
 
 main()

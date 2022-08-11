@@ -20,10 +20,10 @@ def lookup_benchmark(key, wildcards):
 
 
 ################################################################################
-# get reference
+# download reference
 
 
-rule get_ref_sdf:
+rule download_ref_sdf:
     output:
         directory(ref_resources_dir / "{ref_key}.sdf"),
     params:
@@ -39,7 +39,7 @@ rule get_ref_sdf:
 # to put it
 rule sdf_to_fasta:
     input:
-        rules.get_ref_sdf.output,
+        rules.download_ref_sdf.output,
     output:
         ref_results_dir / "{ref_key}.fa",
     # if filter is empty, this will produce a blank string and rtg sdf2fasta
@@ -60,7 +60,7 @@ rule sdf_to_fasta:
 
 
 ################################################################################
-# get benchmark files
+# download benchmark files
 
 
 def download_bench_vcf_cmd(wildcards, output):
@@ -74,7 +74,7 @@ def download_bench_vcf_cmd(wildcards, output):
     return cmd.format(u=lookup_benchmark("vcf_url", wildcards), o=output)
 
 
-rule get_bench_vcf:
+rule download_bench_vcf:
     output:
         bench_dir / "{bench_key}.vcf.gz",
     params:
@@ -85,7 +85,7 @@ rule get_bench_vcf:
         "{params.cmd}"
 
 
-rule get_bench_bed:
+rule download_bench_bed:
     output:
         bench_dir / "{bench_key}.bed",
     params:
@@ -96,9 +96,9 @@ rule get_bench_bed:
         "curl -Ss -o {output} {params.url}"
 
 
-rule get_bench_tbi:
+rule generate_bench_tbi:
     input:
-        rules.get_bench_vcf.output,
+        rules.download_bench_vcf.output,
     output:
         bench_dir / "{bench_key}.vcf.gz.tbi",
     conda:

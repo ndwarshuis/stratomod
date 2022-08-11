@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from functools import reduce, partial
 from more_itertools import duplicates_everseen
 
 TP_LABEL = "tp"
@@ -29,6 +30,15 @@ def process_chr(ser):
     )
 
 
+def process_columns(features, chrom_col, df):
+    for col, opts in features.items():
+        if col == chrom_col:
+            df[col] = process_chr(df[col])
+        else:
+            df[col] = process_series(opts, df[col])
+    return df
+
+
 def check_columns(wanted_cols, df_cols):
     def assert_dups(xs, msg):
         dups = [*duplicates_everseen(xs)]
@@ -46,7 +56,7 @@ def check_columns(wanted_cols, df_cols):
 
 
 def select_columns(features, label_col, df):
-    wanted_cols = [*features, label_col]
+    wanted_cols = [*features] if label_col is None else [*features, label_col]
     check_columns(wanted_cols, df.columns.tolist())
     to_rename = {k: n for k, v in features.items() if (n := v["alt_name"]) is not None}
     return df[wanted_cols].rename(columns=to_rename)
@@ -79,7 +89,11 @@ def collapse_labels(error_labels, label_col, df):
     )
 
 
-def process_data(
+def compose(*fs):
+    return reduce(lambda f, g: lambda x: f(g(x)), fs, lambda x: x)
+
+
+def process_labeled_data(
     features,
     error_labels,
     filtered_are_candidates,
@@ -88,19 +102,32 @@ def process_data(
     label_col,
     df,
 ):
-    for col, opts in features.items():
-        if col == chrom_col:
-            df[col] = process_chr(df[col])
-        else:
-            df[col] = process_series(opts, df[col])
     # select columns after transforms to avoid pandas asking me to make a
     # deep copy (which will happen on a slice of a slice)
-    return collapse_labels(
-        error_labels,
-        label_col,
-        select_columns(
-            features,
-            label_col,
-            mask_labels(filtered_are_candidates, label_col, filter_col, df),
-        ),
-    )
+    return compose(
+        partial(collapse_labels, error_labels, label_col),
+        partial(select_columns, features, label_col),
+        partial(mask_labels, filtered_are_candidates, label_col, filter_col),
+        partial(process_columns, features, chrom_col),
+    )(df)
+    # for col, opts in features.items():
+    #     if col == chrom_col:
+    #         df[col] = process_chr(df[col])
+    #     else:
+    #         df[col] = process_series(opts, df[col])
+    # return collapse_labels(
+    #     error_labels,
+    #     label_col,
+    #     select_columns(
+    #         features,
+    #         label_col,
+    #         mask_labels(filtered_are_candidates, label_col, filter_col, df),
+    #     ),
+    # )
+
+
+def process_unlabeled_data(features, chrom_col, df):
+    return compose(
+        partial(select_columns, features, None),
+        partial(process_columns, features, chrom_col),
+    )(df)
