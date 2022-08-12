@@ -340,7 +340,12 @@ use rule summarize_labeled_test as summarize_unlabeled_test with:
 
 
 def expand_unzip(path, keys, key_set):
-    subkeys = [[getattr(s, k) for k in keys] for s in key_set]
+    if isinstance(keys, dict):
+        lookup = keys.values()
+        keys = [*keys]
+    else:
+        lookup = keys
+    subkeys = [[getattr(s, l) for l in lookup] for s in key_set]
     return expand(path, zip, **{k: [*s] for k, s in zip(keys, unzip(subkeys))})
 
 
@@ -399,16 +404,14 @@ test_set = [
     for i, ts in r.inputs.items()
     for t in ts
 ]
-unlabeled_test_set, labeled_test_set = partition(test_has_bench, test_set)
+unlabeled_test_set, labeled_test_set = map(list, partition(test_has_bench, test_set))
 
 
 def all_input_summary_files():
-    keys = ["run_key", "filter_key", "input_key"]
-
     def labeled_targets(key_set):
         return expand_unzip(
             rules.summarize_labeled_input.output,
-            keys,
+            ["run_key", "filter_key", "input_key"],
             train_set,
         )
 
@@ -416,7 +419,11 @@ def all_input_summary_files():
     labeled_test = labeled_targets(labeled_test_set)
     unlabeled_test = expand_unzip(
         rules.summarize_unlabeled_input.output,
-        keys,
+        {
+            "run_key": "run_key",
+            "filter_key": "filter_key",
+            "input_key": "test_key",
+        },
         unlabeled_test_set,
     )
     return train + labeled_test + unlabeled_test
