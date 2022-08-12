@@ -30,7 +30,7 @@ rule download_ref_sdf:
         url=lookup_reference,
         dir=lambda _, output: dirname(output[0]),
     conda:
-        str(envs_dir / "utils.yml")
+        envs_path("utils.yml")
     shell:
         "curl -Ss {params.url} | bsdtar -xf - -C {params.dir}"
 
@@ -47,7 +47,7 @@ rule sdf_to_fasta:
     params:
         filt=" ".join(lookup_global_chr_filter(config)),
     conda:
-        str(envs_dir / "rtg.yml")
+        envs_path("rtg.yml")
     benchmark:
         ref_results_dir / "{ref_key}.bench",
     shell:
@@ -80,7 +80,7 @@ rule download_bench_vcf:
     params:
         cmd=download_bench_vcf_cmd,
     conda:
-        str(envs_dir / "utils.yml")
+        envs_path("utils.yml")
     shell:
         "{params.cmd}"
 
@@ -91,7 +91,7 @@ rule download_bench_bed:
     params:
         url=partial(lookup_benchmark, "bed_url"),
     conda:
-        str(envs_dir / "utils.yml")
+        envs_path("utils.yml")
     shell:
         "curl -Ss -o {output} {params.url}"
 
@@ -102,6 +102,6 @@ rule generate_bench_tbi:
     output:
         bench_dir / "{bench_key}.vcf.gz.tbi",
     conda:
-        str(envs_dir / "utils.yml")
+        envs_path("utils.yml")
     shell:
         "tabix -p vcf {input}"

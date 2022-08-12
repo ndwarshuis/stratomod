@@ -61,7 +61,7 @@ rule annotate_labeled_tsv:
     output:
         labeled_annotated_dir / annotated_tsv,
     conda:
-        str(envs_dir / "bedtools.yml")
+        envs_path("bedtools.yml")
     log:
         labeled_annotated_dir / annotated_log,
     benchmark:
@@ -69,7 +69,7 @@ rule annotate_labeled_tsv:
     resources:
         mem_mb=attempt_mem_gb(32),
     script:
-        str(scripts_dir / "annotate.py")
+        scripts_path("annotate.py")
 
 
 use rule annotate_labeled_tsv as annotate_unlabeled_tsv with:
@@ -96,13 +96,13 @@ rule summarize_labeled_input:
     output:
         labeled_annotated_dir / summary_output,
     conda:
-        str(envs_dir / "rmarkdown.yml")
+        envs_path("rmarkdown.yml")
     benchmark:
         labeled_annotated_dir / summary_bench
     resources:
         mem_mb=attempt_mem_gb(16),
     script:
-        str(scripts_dir / "rmarkdown" / "input_summary.Rmd")
+        rmd_path("input_summary.Rmd")
 
 
 use rule summarize_labeled_input as summarize_unlabeled_input with:
@@ -138,7 +138,7 @@ rule prepare_train_data:
     resources:
         mem_mb=attempt_mem_gb(8),
     script:
-        str(scripts_dir / "prepare_train.py")
+        scripts_path("prepare_train.py")
 
 
 rule train_model:
@@ -157,7 +157,7 @@ rule train_model:
         model=train_dir / "model.pickle",
         config=train_dir / "config.yml",
     conda:
-        str(envs_dir / "ebm.yml")
+        envs_path("ebm.yml")
     log:
         train_log_dir / "model.log",
     threads: 1
@@ -168,7 +168,7 @@ rule train_model:
     benchmark:
         train_log_dir / "model.bench"
     script:
-        str(scripts_dir / "train_ebm.py")
+        scripts_path("train_ebm.py")
 
 
 rule decompose_model:
@@ -178,13 +178,13 @@ rule decompose_model:
         model=train_dir / "model.json",
         predictions=train_dir / "predictions.csv",
     conda:
-        str(envs_dir / "ebm.yml")
+        envs_path("ebm.yml")
     log:
         train_log_dir / "decompose.log",
     resources:
         mem_mb=attempt_mem_gb(2),
     script:
-        str(scripts_dir / "decompose_model.py")
+        scripts_path("decompose_model.py")
 
 
 rule summarize_model:
@@ -194,13 +194,13 @@ rule summarize_model:
     output:
         train_dir / "summary.html",
     conda:
-        str(envs_dir / "rmarkdown.yml")
+        envs_path("rmarkdown.yml")
     benchmark:
         train_dir / "summary.bench"
     resources:
         mem_mb=attempt_mem_gb(2),
     script:
-        str(scripts_dir / "rmarkdown" / "train_summary.Rmd")
+        rmd_path("train_summary.Rmd")
 
 
 ################################################################################
@@ -238,7 +238,7 @@ rule prepare_labeled_test_data:
     resources:
         mem_mb=attempt_mem_gb(8),
     script:
-        str(scripts_dir / "prepare_test.py")
+        scripts_path("prepare_test.py")
 
 
 use rule prepare_labeled_test_data as prepare_unlabeled_test_data with:
@@ -277,7 +277,7 @@ rule test_labeled_ebm:
     output:
         **test_ebm_output(labeled_test_dir),
     conda:
-        str(envs_dir / "ebm.yml")
+        envs_path("ebm.yml")
     log:
         labeled_test_dir / test_log_file,
     resources:
@@ -285,7 +285,7 @@ rule test_labeled_ebm:
     benchmark:
         labeled_test_dir / test_bench_file
     script:
-        str(scripts_dir / "test_ebm.py")
+        scripts_path("test_ebm.py")
 
 
 use rule test_labeled_ebm as test_unlabeled_ebm with:
@@ -313,13 +313,13 @@ rule summarize_labeled_test:
     output:
         labeled_test_dir / test_summary_file,
     conda:
-        str(envs_dir / "rmarkdown.yml")
+        envs_path("rmarkdown.yml")
     benchmark:
         labeled_test_dir / test_summary_bench
     resources:
         mem_mb=attempt_mem_gb(2),
     script:
-        str(scripts_dir / "rmarkdown" / "test_summary.Rmd")
+        rmd_path("test_summary.Rmd")
 
 
 use rule summarize_labeled_test as summarize_unlabeled_test with:

@@ -17,7 +17,7 @@ rule get_repeat_masker_src:
     params:
         url=lookup_annotations(config)["repeat_masker"],
     conda:
-        str(envs_dir / "utils.yml")
+        envs_path("utils.yml")
     shell:
         "curl -Ss {params.url} | gunzip -c > {output}"
 
@@ -34,7 +34,7 @@ rule get_repeat_masker_classes:
             for fam in fams
         ],
     conda:
-        str(envs_dir / "bedtools.yml")
+        envs_path("bedtools.yml")
     log:
         rmsk_results_dir / "rmsk.log",
     params:
@@ -45,4 +45,4 @@ rule get_repeat_masker_classes:
     resources:
         mem_mb=attempt_mem_gb(2),
     script:
-        str(scripts_dir / "get_repeat_masker_features.py")
+        scripts_path("get_repeat_masker_features.py")

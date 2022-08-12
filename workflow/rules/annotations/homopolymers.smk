@@ -11,9 +11,9 @@ rule find_simple_repeats:
     output:
         homopolymers_results_dir / "simple_repeats_p3.bed",
     conda:
-        str(envs_dir / "find_simple_repeats.yml")
+        envs_path("find_simple_repeats.yml")
     params:
-        script=str(scripts_dir / "find_regions.py"),
+        script=scripts_path("find_regions.py"),
     benchmark:
         homopolymers_results_dir / "find_regions.bench"
     resources:
@@ -36,7 +36,7 @@ rule sort_and_filter_simple_repeats:
     log:
         homopolymers_results_dir / "sorted.log",
     conda:
-        str(envs_dir / "bedtools.yml")
+        envs_path("bedtools.yml")
     benchmark:
         homopolymers_results_dir / "sorted.bench"
     resources:
@@ -56,7 +56,7 @@ rule get_homopolymers:
     output:
         homopolymers_results_dir / "homopolymers_{bases}.tsv",
     conda:
-        str(envs_dir / "bedtools.yml")
+        envs_path("bedtools.yml")
     log:
         homopolymers_results_dir / "homopolymers_{bases}.log",
     benchmark:
@@ -64,4 +64,4 @@ rule get_homopolymers:
     resources:
         mem_mb=attempt_mem_gb(16),
     script:
-        str(scripts_dir / "get_homopoly_features.py")
+        scripts_path("get_homopoly_features.py")

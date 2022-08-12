@@ -26,7 +26,7 @@ rule get_mappability_high_src:
         url=mappability_config["high"],
         feature_name=fmt_mappability_feature(config, "high"),
     conda:
-        str(envs_dir / "utils.yml")
+        envs_path("utils.yml")
     shell:
         """
         echo 'chrom\tstart\tend\t{params.feature_name}' > {output}
@@ -53,8 +53,8 @@ rule subtract_high_from_low_mappability:
     output:
         mappability_results_dir / "mappability_low_no_high.tsv",
     conda:
-        str(envs_dir / "bedtools.yml")
+        envs_path("bedtools.yml")
     resources:
         mem_mb=attempt_mem_gb(2),
     script:
-        str(scripts_dir / "get_mappability_features.py")
+        scripts_path("get_mappability_features.py")

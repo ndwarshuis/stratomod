@@ -1,4 +1,5 @@
 from more_itertools import unzip, duplicates_everseen
+from functools import partial
 from pathlib import Path
 from snakemake.utils import min_version, validate
 from scripts.common.config import all_feature_names, input_set, expand_rules
@@ -95,13 +96,21 @@ validate_features(config)
 ################################################################################
 # Paths
 
-# this is necessary as envs are apparently resolved locally in each rule file
-envs_dir = Path("workflow/envs").resolve()
-scripts_dir = Path("workflow/scripts").resolve()
-
 conf_paths = config["paths"]
 resources_dir = Path(conf_paths["resources"])
 results_dir = Path(conf_paths["results"])
+_scripts_dir = Path("workflow/scripts")
+
+# this is necessary as envs/scripts are apparently resolved locally in each rule
+# file
+def build_abs_path(relpath, basename):
+    return str(relpath.resolve() / basename)
+
+
+envs_path = partial(build_abs_path, Path("workflow/envs"))
+scripts_path = partial(build_abs_path, _scripts_dir)
+rmd_path = partial(build_abs_path, _scripts_dir / "rmarkdown")
+
 
 ################################################################################
 # Import Subworkflows

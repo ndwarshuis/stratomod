@@ -54,7 +54,7 @@ rule download_input_vcf:
     params:
         url=lambda wildcards: lookup_train(wildcards, "url"),
     conda:
-        str(envs_dir / "utils.yml")
+        envs_path("utils.yml")
     shell:
         "curl -sS -o {output} {params.url}"
 
@@ -66,7 +66,7 @@ rule fix_refcall_gt_field:
     output:
         labeled_dir / "query.vcf.gz",
     conda:
-        str(envs_dir / "utils.yml")
+        envs_path("utils.yml")
     shell:
         """
         gunzip -c {input} | \
@@ -82,7 +82,7 @@ rule index_vcf:
     output:
         labeled_dir / "query.vcf.gz.tbi",
     conda:
-        str(envs_dir / "utils.yml")
+        envs_path("utils.yml")
     shell:
         "tabix -p vcf {input}"
 
@@ -96,7 +96,7 @@ rule filter_query_vcf:
     params:
         filt=lookup_chr_filter,
     conda:
-        str(envs_dir / "utils.yml")
+        envs_path("utils.yml")
     shell:
         """
         gunzip -c {input} | \
@@ -195,7 +195,7 @@ rule label_vcf:
     output:
         [rtg_dir / f"{lbl}.vcf.gz" for lbl in LABELS],
     conda:
-        str(envs_dir / "rtg.yml")
+        envs_path("rtg.yml")
     params:
         extra="--ref-overlap --all-records",
         tmp_dir=lambda wildcards: f"/tmp/vcfeval_{wildcards.input_key}",
@@ -245,7 +245,7 @@ rule parse_labeled_vcf:
     benchmark:
         labeled_dir / "{filter_key}_{label}.bench"
     script:
-        str(scripts_dir / "parse_vcf_to_bed_ebm.py")
+        scripts_path("parse_vcf_to_bed_ebm.py")
 
 
 rule concat_labeled_tsvs:
@@ -254,13 +254,13 @@ rule concat_labeled_tsvs:
     output:
         labeled_dir / "{filter_key}_labeled.tsv",
     conda:
-        str(envs_dir / "bedtools.yml")
+        envs_path("bedtools.yml")
     benchmark:
         labeled_dir / "{filter_key}_concat.bench"
     resources:
         mem_mb=attempt_mem_gb(4),
     script:
-        str(scripts_dir / "concat_tsv.py")
+        scripts_path("concat_tsv.py")
 
 
 ################################################################################
@@ -294,4 +294,4 @@ rule parse_unlabeled_vcf:
     benchmark:
         unlabeled_dir / "{input_key}%{filter_key}.bench"
     script:
-        str(scripts_dir / "parse_vcf_to_bed_ebm.py")
+        scripts_path("parse_vcf_to_bed_ebm.py")

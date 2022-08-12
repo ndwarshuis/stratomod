@@ -15,7 +15,7 @@ rule get_superdups_src:
     params:
         url=lookup_annotations(config)["superdups"],
     conda:
-        str(envs_dir / "utils.yml")
+        envs_path("utils.yml")
     shell:
         "curl -Ss {params.url} | gunzip -c > {output}"
 
@@ -27,7 +27,7 @@ rule get_segdups:
     output:
         segdups_results_dir / "segdups.tsv",
     conda:
-        str(envs_dir / "bedtools.yml")
+        envs_path("bedtools.yml")
     params:
         filt=lookup_global_chr_filter(config),
     log:
@@ -37,4 +37,4 @@ rule get_segdups:
     resources:
         mem_mb=attempt_mem_gb(1),
     script:
-        str(scripts_dir / "get_segdup_features.py")
+        scripts_path("get_segdup_features.py")

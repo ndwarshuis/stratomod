@@ -15,7 +15,7 @@ rule get_simreps_src:
     params:
         url=lookup_annotations(config)["simreps"],
     conda:
-        str(envs_dir / "utils.yml")
+        envs_path("utils.yml")
     shell:
         "curl -Ss {params.url} | gunzip -c > {output}"
 
@@ -28,7 +28,7 @@ rule get_tandem_repeats:
     output:
         tandem_repeats_results_dir / "tandem_repeats.tsv",
     conda:
-        str(envs_dir / "bedtools.yml")
+        envs_path("bedtools.yml")
     params:
         filt=lookup_global_chr_filter(config),
     log:
@@ -38,4 +38,4 @@ rule get_tandem_repeats:
     resources:
         mem_mb=attempt_mem_gb(1),
     script:
-        str(scripts_dir / "get_tandem_repeat_features.py")
+        scripts_path("get_tandem_repeat_features.py")
