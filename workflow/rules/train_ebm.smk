@@ -87,7 +87,7 @@ use rule annotate_labeled_tsv as annotate_unlabeled_tsv with:
 # summarize annotated input
 
 summary_output = "{filter_key}_summary.html"
-summary_bench = "{filter_key}_summary.html"
+summary_bench = "{filter_key}_summary.bench"
 
 
 rule summarize_labeled_input:
@@ -101,6 +101,8 @@ rule summarize_labeled_input:
         labeled_annotated_dir / summary_bench
     resources:
         mem_mb=attempt_mem_gb(16),
+    params:
+        has_label=True,
     script:
         rmd_path("input_summary.Rmd")
 
@@ -112,6 +114,8 @@ use rule summarize_labeled_input as summarize_unlabeled_input with:
         unlabeled_annotated_dir / summary_output,
     benchmark:
         unlabeled_annotated_dir / summary_bench
+    params:
+        has_label=False,
 
 
 ################################################################################

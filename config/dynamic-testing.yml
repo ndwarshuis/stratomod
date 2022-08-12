@@ -20,7 +20,7 @@ inputs:
       HG005_Illumina_DV:
         url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG005.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
         ref: GRCh38
-        benchmark: HG005_v4.2.1
+        benchmark: null
 
 ebm_runs:
   small_set_v3:
