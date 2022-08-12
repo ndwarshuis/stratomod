@@ -4,7 +4,7 @@ from functools import partial
 from common.tsv import read_tsv, write_tsv
 from common.cli import setup_logging
 from common.config import fmt_vcf_feature, lookup_ebm_run
-from common.prepare import process_data
+from common.prepare import process_labeled_data
 
 logger = setup_logging(snakemake.log[0])
 
@@ -31,7 +31,7 @@ def main():
     filter_col = _fmt_vcf_feature("filter")
     input_col = _fmt_vcf_feature("input")
     raw_df, mapped_paths = read_inputs(snakemake.input, input_col)
-    processed = process_data(
+    processed = process_labeled_data(
         rconf["features"],
         rconf["error_labels"],
         rconf["filtered_are_candidates"],

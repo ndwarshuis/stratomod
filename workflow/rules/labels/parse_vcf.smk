@@ -89,7 +89,7 @@ rule index_vcf:
 
 rule filter_query_vcf:
     input:
-        rules.preprocess_vcf.output,
+        rules.fix_refcall_gt_field.output,
     output:
         vcf=labeled_dir / "query_filtered.vcf.gz",
         tbi=labeled_dir / "query_filtered.vcf.gz.tbi",
@@ -113,7 +113,7 @@ rule filter_query_vcf:
 
 use rule filter_query_vcf as filter_bench_vcf with:
     input:
-        partial(lookup_train_bench, rules.get_bench_vcf.output),
+        partial(lookup_train_bench, rules.download_bench_vcf.output),
     output:
         vcf=alt_bench_dir / "filtered.vcf.gz",
         tbi=alt_bench_dir / "filtered.vcf.gz.tbi",
@@ -121,7 +121,7 @@ use rule filter_query_vcf as filter_bench_vcf with:
 
 rule filter_bench_bed:
     input:
-        partial(lookup_train_bench, rules.get_bench_bed.output),
+        partial(lookup_train_bench, rules.download_bench_bed.output),
     output:
         alt_bench_dir / "filtered.bed",
     params:
@@ -189,7 +189,7 @@ rule label_vcf:
         unpack(get_truth_inputs),
         unpack(get_query_inputs),
         sdf=lambda wildcards: expand(
-            rules.get_ref_sdf.output,
+            rules.download_ref_sdf.output,
             ref_key=lookup_train(wildcards, "ref"),
         ),
     output:
@@ -288,10 +288,10 @@ rule parse_unlabeled_vcf:
     input:
         rules.unzip_vcf.output,
     output:
-        unlabeled_dir / "{input_key}.tsv",
+        unlabeled_dir / "{input_key}%{filter_key}.tsv",
     log:
-        unlabeled_dir / "{input_key}.log",
+        unlabeled_dir / "{input_key}%{filter_key}.log",
     benchmark:
-        unlabeled_dir / "{input_key}.bench"
+        unlabeled_dir / "{input_key}%{filter_key}.bench"
     script:
         str(scripts_dir / "parse_vcf_to_bed_ebm.py")

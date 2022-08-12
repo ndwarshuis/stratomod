@@ -21,7 +21,7 @@ def read_input(df_path, mapping_path, input_key, input_col):
 
 
 def write_labeled(xpath, ypath, fconf, rconf, filter_col, df):
-    label_col = fconf["label_col"]
+    label_col = fconf["label"]
     processed = process_labeled_data(
         rconf["features"],
         rconf["error_labels"],
@@ -58,7 +58,7 @@ def main():
     )
     rconf = lookup_ebm_run(sconf, wcs.run_key)
     fconf = sconf["features"]
-    if "test_y" in sout:
+    if "test_y" in dict(sout):
         write_labeled(
             sout["test_x"],
             sout["test_y"],

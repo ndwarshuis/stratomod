@@ -4,7 +4,7 @@ from common.config import fmt_vcf_feature
 logger = setup_logging(snakemake.log[0])
 
 wcs = snakemake.wildcards
-has_label = "label" in [*wcs]
+has_label = hasattr(wcs, "label")
 label_val = [wcs.label] if has_label else []
 vartype = wcs.filter_key
 
@@ -24,7 +24,7 @@ def make_header(has_label):
             ["qual", "filter", "gt", "gq", "dp", "vaf", "len"],
         ),
     ]
-    return base_cols if has_label else [*base_cols, fconf["label"]]
+    return [*base_cols, fconf["label"]] if has_label else base_cols
 
 
 header = make_header(label_val)

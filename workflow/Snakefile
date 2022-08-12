@@ -107,7 +107,7 @@ results_dir = Path(conf_paths["results"])
 # Import Subworkflows
 
 
-include: "rules/labels/get_labels.smk"
+include: "rules/labels/parse_vcf.smk"
 include: "rules/annotations/get_annotations.smk"
 include: "rules/train_ebm.smk"
 
@@ -128,12 +128,16 @@ rule all:
 
 rule all_resources:
     input:
-        expand(rules.get_input_vcf.output, input_key=[*config["inputs"]]),
-        expand(rules.get_ref_sdf.output, ref_key=input_set(config, "ref")),
+        expand(rules.download_input_vcf.output, input_key=[*config["inputs"]]),
+        expand(rules.download_ref_sdf.output, ref_key=input_set(config, "ref")),
         expand(
             expand_rules(
                 rules,
-                ["get_bench_vcf", "get_bench_bed", "get_bench_tbi"],
+                [
+                    "download_bench_vcf",
+                    "download_bench_bed",
+                    "generate_bench_tbi",
+                ],
                 "output",
             ),
             bench_key=input_set(config, "benchmark"),
