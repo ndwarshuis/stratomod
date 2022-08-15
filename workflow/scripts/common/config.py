@@ -1,6 +1,117 @@
-from more_itertools import flatten
+import re
+from more_itertools import flatten, duplicates_everseen
 from itertools import product
 from functools import partial
+
+# ------------------------------------------------------------------------------
+# too useful...
+
+
+def fmt_strs(ss):
+    return ", ".join(ss)
+
+
+# ------------------------------------------------------------------------------
+# assertions
+
+
+def assert_empty(xs, msg):
+    assert len(xs) == 0, f"{msg}: {fmt_strs(xs)}"
+
+
+def assert_no_dups(xs, msg):
+    assert_empty(set(duplicates_everseen(xs)), msg)
+
+
+# ------------------------------------------------------------------------------
+# Validation
+#
+# These functions are necessary to validate properties of the config file(s)
+# that are not possible using JSON schema validation.
+#
+# In particular:
+# - For each in 'ebm_runs', make sure there are no duplicated feature names
+#   (especially considering that features can be renamed on-the-fly with
+#   'alt_name' and make sure 'alt_name' features have the same prefix as
+#   their parent feature name if they exist
+# - For each in 'ebm_runs', make sure explicitly named interaction terms are
+#   also in the feature set
+# - Make sure input files in for each in 'ebm_runs' are in the 'inputs' section
+# - Ensure all keys in input section (the keys under 'inputs' and the keys
+#   under each 'test') are unique
+
+
+def validate_inputs(config):
+    train = input_train_keys(config)
+    test = input_test_keys(config)
+    assert_no_dups(train + test, "Duplicate input keys found")
+
+
+# TODO make unittests for these
+def validate_ebm_features(config):
+    def assert_1(run_name, feature_list, feature):
+        assert (
+            feature in feature_list
+        ), f"Interaction {feature} not found in feature set for run {run_name}"
+
+    def assert_N(run_name, feature_list, ints):
+        for i in ints:
+            assert_1(run_name, feature_list, i)
+
+    def flatten_features(fs):
+        return [k if v["alt_name"] is None else v["alt_name"] for k, v in fs.items()]
+
+    flat = [
+        (k, ints, v["features"])
+        for k, v in config["ebm_runs"].items()
+        if "interactions" in v and isinstance(ints := v["interactions"], list)
+    ]
+
+    for run_name, ints, features in flat:
+        # test that all feature names are valid
+        valid_features = set(all_feature_names(config))
+        fs = set(list(features))
+        assert (
+            fs <= valid_features
+        ), f"Invalid features: {fmt_strs(fs - valid_features)}"
+
+        for k, v in features.items():
+            # test feature alt names
+            alt = v["alt_name"]
+            if alt is not None:
+                prefix = re.match("^[^_]+", k)[0]
+                alt_prefix = re.match("^[^_]+", alt)[0]
+                assert alt_prefix == prefix, f"Alt prefix must match for {k}"
+
+            # test truncation values
+            truncate = v["visualization"]["truncate"]
+            tlower = truncate["lower"]
+            tupper = truncate["upper"]
+            if tlower is not None and tupper is not None:
+                assert tlower < tupper, f"Non-positive truncation for {k}"
+
+        # test duplicate alt names
+        flat_feature_names = flatten_features(features)
+        assert_no_dups(flat_feature_names, "Duplicated features")
+
+        # test for matching interaction terms
+        for i in ints:
+            check = assert_N if isinstance(i, list) else assert_1
+            check(run_name, flat_feature_names, i)
+
+
+def validate_ebm_inputs(config):
+    def assert_keys_exist(what, get_input_keys, get_ebm_keys):
+        iks = get_input_keys(config)
+        eks = [*flatten(get_ebm_keys(e) for e in config["ebm_runs"].values())]
+        assert_empty(
+            set(iks) - set(eks),
+            f"EBM {what} keys not found in input keys",
+        )
+
+    assert_keys_exist("train", input_train_keys, ebm_run_train_keys)
+    assert_keys_exist("test", input_test_keys, ebm_run_test_keys)
+
 
 # ------------------------------------------------------------------------------
 # resources
@@ -36,24 +147,7 @@ def input_set(config, attr):
 
 
 # ------------------------------------------------------------------------------
-# general lookup
-
-
-def flat_inputs(config):
-    return dict(
-        flatten(
-            [(k, v["train"]), *v["test"].items()] for k, v in config["inputs"].items()
-        )
-    )
-
-
-def flat_chr_filters(config):
-    return dict(
-        flatten(
-            [(k, v["chr_filter"]), *[(t, v["chr_filter"]) for t in v["test"]]]
-            for k, v in config["inputs"].items()
-        )
-    )
+# global lookup
 
 
 def lookup_config(config, *keys):
@@ -74,12 +168,87 @@ def lookup_annotations(config):
     )
 
 
+# ------------------------------------------------------------------------------
+# input lookup
+
+
+def lookup_inputs(config):
+    return config["inputs"]
+
+
+def lookup_train(config, train_key):
+    return config["inputs"][train_key]
+
+
+def lookup_all_train(config):
+    return [(k, v["train"]) for k, v in lookup_inputs(config).items()]
+
+
+def lookup_all_test(config):
+    return [ts for i in lookup_inputs(config).values() for ts in i["test"].items()]
+
+
+def lookup_test(config, test_key):
+    return dict(lookup_all_test(config))[test_key]
+
+
+def input_train_keys(config):
+    return [*lookup_inputs(config)]
+
+
+def input_test_keys(config):
+    return [i[0] for i in lookup_all_test(config)]
+
+
+def flat_inputs_(config):
+    return flatten(
+        [(k, v["train"]), *v["test"].items()] for k, v in config["inputs"].items()
+    )
+
+
+def flat_input_names(config):
+    return [i[0] for i in flat_inputs_(config)]
+
+
+def flat_inputs(config):
+    return dict(
+        flatten(
+            [(k, v["train"]), *v["test"].items()] for k, v in config["inputs"].items()
+        )
+    )
+
+
+def lookup_train_test_input(config, input_key):
+    return flat_inputs(config)[input_key]
+
+
+def flat_chr_filters(config):
+    return dict(
+        flatten(
+            [(k, v["chr_filter"]), *[(t, v["chr_filter"]) for t in v["test"]]]
+            for k, v in config["inputs"].items()
+        )
+    )
+
+
 def lookup_global_chr_filter(config):
     return [*set(flatten(i["chr_filter"] for i in config["inputs"].values()))]
 
 
+# ------------------------------------------------------------------------------
+# ebm run lookup
+
+
 def lookup_ebm_run(config, run_key):
     return config["ebm_runs"][run_key]
+
+
+def ebm_run_train_keys(ebm_run):
+    return [*flatten([[*i] for i in ebm_run["inputs"]])]
+
+
+def ebm_run_test_keys(ebm_run):
+    return [*flatten([[*ts] for i in ebm_run["inputs"] for ts in i.values()])]
 
 
 # ------------------------------------------------------------------------------

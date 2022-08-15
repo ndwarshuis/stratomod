@@ -1,6 +1,6 @@
 from functools import partial
 from common.cli import setup_logging
-from common.config import fmt_vcf_feature
+from common.config import fmt_vcf_feature, lookup_train_test_input
 
 logger = setup_logging(snakemake.log[0])
 
@@ -48,10 +48,14 @@ def const_na(_):
     return NAN
 
 
-parse = sconf["inputs"][wildcards.input_key]["parse"]
+parse = lookup_train_test_input(sconf, wcs.input_key)["parse"]
 
-vaf_parser = partial(lookup_maybe, "VAF") if parse["vaf"] else const_na
-dp_parser = partial(lookup_maybe, "DP") if parse["dp"] else const_na
+vaf_parser = (
+    partial(lookup_maybe, "VAF") if parse is not None and parse["vaf"] else const_na
+)
+dp_parser = (
+    partial(lookup_maybe, "DP") if parse is not None and parse["dp"] else const_na
+)
 
 
 # TODO different VCFs have different fields, we want to have DP and VAF almost
@@ -76,28 +80,32 @@ for line in lines:
     alt_length = len(alt)
     # if we want INDELs skip everything that has REF/ALT of one BP or the same
     # number of BPs
-    if wildcards.filter_key == "INDEL" and (
+    if wcs.filter_key == "INDEL" and (
         (ref_length == alt_length == 1) or ref_length == alt_length
     ):
         continue
     # if we want SNPs, skip everything that isn't REF/ALT with one BP
-    if wildcards.filter_key == "SNP" and not (ref_length == alt_length == 1):
+    if wcs.filter_key == "SNP" and not (ref_length == alt_length == 1):
         continue
     indel_length = alt_length - ref_length
     filt = split_line[6]
-    fmt = split_line[8].split(":")
-    # rstrip the newline off at the end
-    sample = split_line[9].rstrip().split(":")
-    if len(fmt) != len(sample):
-        logger.warn(
-            "FORMAT/SAMPLE have different cardinality: %s %d %d",
-            chrom,
-            start,
-            end,
-        )
-        continue
+    if parse is not None:
+        fmt = split_line[8].split(":")
+        # rstrip the newline off at the end
+        sample = split_line[9].rstrip().split(":")
+        if len(fmt) != len(sample):
+            logger.warn(
+                "FORMAT/SAMPLE have different cardinality: %s %d %d",
+                chrom,
+                start,
+                end,
+            )
+            continue
 
-    named_sample = dict(zip(fmt, sample))
+        named_sample = dict(zip(fmt, sample))
+    else:
+        named_sample = {}
+
     pos_plus_length_ref = int(pos) + len(alt)
     to_write_out = "\t".join(
         [
