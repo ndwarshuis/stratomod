@@ -39,7 +39,7 @@ properties:
             default: []
 
           train:
-            required: [benchmark, ref, url]
+            required: [benchmark, ref, url, parse]
             additionalProperties: false
             properties:
               benchmark:
@@ -57,8 +57,28 @@ properties:
                     format: uri
                   - type: "null"
 
+              parse: &input_parse
+                required: [vaf, dp]
+                additionalProperties: false
+                properties:
+                  # TODO this is one place where we can control parsing of different
+                  # VCF "standards"
+                  vaf:
+                    description: |
+                      If true, parse the VAF field in this VCF; if false, this
+                      column will be filled with NaNs
+                    type: boolean
+                    default: true
+                  dp:
+                    description: |
+                      If true, parse the DP field in this VCF; if false, this
+                      column will be filled with NaNs
+                    type: boolean
+                    default: true
+
           test:
             description: the vcf(s) to use for prediction testing
+            required: [ref, url, benchmark, parse]
             additionalProperties: false
             patternProperties:
               ^[\w\.\_]+$:
@@ -69,6 +89,8 @@ properties:
                   anyOf:
                     - type: string
                     - type: "null"
+
+                parse: *input_parse
 
 ################################################################################
 # resources

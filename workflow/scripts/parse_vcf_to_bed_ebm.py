@@ -1,3 +1,4 @@
+from functools import partial
 from common.cli import setup_logging
 from common.config import fmt_vcf_feature
 
@@ -29,7 +30,6 @@ def make_header(has_label):
 
 header = make_header(label_val)
 
-
 f = open(snakemake.input[0], "r")
 f_out = open(snakemake.output[0], "w+")
 lines = f.readlines()
@@ -37,9 +37,21 @@ lines = f.readlines()
 f_out.write("{}\n".format("\t".join(header)))
 f_out.flush()
 
+NAN = "NaN"
 
-def lookup_maybe(d, k):
-    return d[k] if k in d else "NaN"
+
+def lookup_maybe(k, d):
+    return d[k] if k in d else NAN
+
+
+def const_na(_):
+    return NAN
+
+
+parse = sconf["inputs"][wildcards.input_key]["parse"]
+
+vaf_parser = partial(lookup_maybe, "VAF") if parse["vaf"] else const_na
+dp_parser = partial(lookup_maybe, "DP") if parse["dp"] else const_na
 
 
 # TODO different VCFs have different fields, we want to have DP and VAF almost
@@ -64,12 +76,12 @@ for line in lines:
     alt_length = len(alt)
     # if we want INDELs skip everything that has REF/ALT of one BP or the same
     # number of BPs
-    if vartype == "INDEL" and (
+    if wildcards.filter_key == "INDEL" and (
         (ref_length == alt_length == 1) or ref_length == alt_length
     ):
         continue
     # if we want SNPs, skip everything that isn't REF/ALT with one BP
-    if vartype == "SNP" and not (ref_length == alt_length == 1):
+    if wildcards.filter_key == "SNP" and not (ref_length == alt_length == 1):
         continue
     indel_length = alt_length - ref_length
     filt = split_line[6]
@@ -94,10 +106,10 @@ for line in lines:
             str(pos_plus_length_ref),
             qual,
             filt,
-            lookup_maybe(named_sample, "GT"),
-            lookup_maybe(named_sample, "GQ"),
-            lookup_maybe(named_sample, "DP"),
-            lookup_maybe(named_sample, "VAF"),
+            lookup_maybe("GT", named_sample),
+            lookup_maybe("GQ", named_sample),
+            dp_parser(named_sample),
+            vaf_parser(named_sample),
             str(indel_length),
             *label_val,
         ]
