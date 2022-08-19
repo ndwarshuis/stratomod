@@ -133,7 +133,7 @@ def add_length_and_filter(indel_len_col, start_col, end_col, filter_key, df):
     multi_alts = df[ALT].str.contains(",")
     alt_len = df[ALT].str.len()
     ref_len = df[REF].str.len()
-    df[indel_len_col] = alt_len - alt_len
+    df[indel_len_col] = alt_len - ref_len
     df[end_col] = df[start_col] + ref_len
     mask = filter_mask(ref_len, alt_len, filter_key) & ~multi_alts
     return df[mask].copy()
