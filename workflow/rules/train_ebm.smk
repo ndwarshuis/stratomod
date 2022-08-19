@@ -3,7 +3,7 @@ import json
 import subprocess as sp
 from collections import namedtuple
 from more_itertools import flatten, partition
-from scripts.common.config import attempt_mem_gb
+from scripts.python.common.config import attempt_mem_gb
 
 
 def get_git_tag():
@@ -69,7 +69,7 @@ rule annotate_labeled_tsv:
     resources:
         mem_mb=attempt_mem_gb(32),
     script:
-        scripts_path("annotate.py")
+        python_path("annotate.py")
 
 
 use rule annotate_labeled_tsv as annotate_unlabeled_tsv with:
@@ -142,7 +142,7 @@ rule prepare_train_data:
     resources:
         mem_mb=attempt_mem_gb(8),
     script:
-        scripts_path("prepare_train.py")
+        python_path("prepare_train.py")
 
 
 rule train_model:
@@ -172,7 +172,7 @@ rule train_model:
     benchmark:
         train_log_dir / "model.bench"
     script:
-        scripts_path("train_ebm.py")
+        python_path("train_ebm.py")
 
 
 rule decompose_model:
@@ -188,7 +188,7 @@ rule decompose_model:
     resources:
         mem_mb=attempt_mem_gb(2),
     script:
-        scripts_path("decompose_model.py")
+        python_path("decompose_model.py")
 
 
 rule summarize_model:
@@ -242,12 +242,12 @@ rule prepare_labeled_test_data:
     resources:
         mem_mb=attempt_mem_gb(8),
     script:
-        scripts_path("prepare_test.py")
+        python_path("prepare_test.py")
 
 
 use rule prepare_labeled_test_data as prepare_unlabeled_test_data with:
     input:
-        unpack(partial(test_data_input, rules.annotate_labeled_tsv.output)),
+        unpack(partial(test_data_input, rules.annotate_unlabeled_tsv.output)),
     output:
         test_x=unlabeled_test_dir / prepare_x_file,
     log:
@@ -289,7 +289,7 @@ rule test_labeled_ebm:
     benchmark:
         labeled_test_dir / test_bench_file
     script:
-        scripts_path("test_ebm.py")
+        python_path("test_ebm.py")
 
 
 use rule test_labeled_ebm as test_unlabeled_ebm with:
@@ -416,7 +416,16 @@ def all_input_summary_files():
         )
 
     train = labeled_targets(train_set)
-    labeled_test = labeled_targets(labeled_test_set)
+    # labeled_test = labeled_targets(labeled_test_set)
+    labeled_test = expand_unzip(
+        rules.summarize_labeled_input.output,
+        {
+            "run_key": "run_key",
+            "filter_key": "filter_key",
+            "input_key": "test_key",
+        },
+        labeled_test_set,
+    )
     unlabeled_test = expand_unzip(
         rules.summarize_unlabeled_input.output,
         {

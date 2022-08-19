@@ -105,7 +105,7 @@ def validate_ebm_inputs(config):
         iks = get_input_keys(config)
         eks = [*flatten(get_ebm_keys(e) for e in config["ebm_runs"].values())]
         assert_empty(
-            set(iks) - set(eks),
+            set(eks) - set(iks),
             f"EBM {what} keys not found in input keys",
         )
 
@@ -135,14 +135,14 @@ def expand_rules(rules, names, attr):
 
 
 def input_set(config, attr):
-    return (
-        set(
-            flatten(
-                [t[attr], *nv["train"][attr]]
-                for nk, nv in config["inputs"].items()
-                for t in nv["test"].values()
-            )
-        ),
+    return set(
+        flatten(
+            [
+                *[a for t in nv["test"].values() if (a := t[attr]) is not None],
+                nv["train"][attr],
+            ]
+            for nk, nv in config["inputs"].items()
+        )
     )
 
 

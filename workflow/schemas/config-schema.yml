@@ -30,12 +30,15 @@ properties:
         properties:
           chr_filter:
             description: |
-              A list of chromosomes filter when running all analyses. Empty
-              list means include all chromosomes.
+              A list of chromosomes filter when running all analyses. Empty list
+              means include all chromosomes. Each chromosome is representated as
+              an integer, where 23 = X and 24 = Y.
             type: array
             uniqueItems: true
             items:
-              type: string
+              type: number
+              minimum: 1
+              maximum: 24
             default: []
 
           train:
@@ -50,6 +53,16 @@ properties:
                 description: the reference index to use for this input
                 type: string
 
+              chr_prefix: &input_chr
+                description: |
+                  The prefix at the front of each chromosome. 'None' implies
+                  whatever is the default for the indicated reference ('chr' for
+                  hg38 and '' for hg37). Isn't genomics wonderful?
+                default: null
+                oneOf:
+                  - type: string
+                  - type: "null"
+
               url: &input_url
                 description: the url to use in obtaining this input vcf
                 anyOf:
@@ -57,28 +70,37 @@ properties:
                     format: uri
                   - type: "null"
 
-              parse_format: &input_parse
-                description: |
-                  Control how the FORMAT column is parsed. If none it won't be
-                  parsed and any columns that normally come out of it will be
-                  NaN'ed
-                # TODO not sure why I need to do the entire thing here
-                default: {vaf: true, dp: true}
-                oneOf:
-                  - type: "null"
-                  - required: [vaf, dp]
-                    additionalProperties: false
-                    properties:
-                      vaf:
-                        description: |
-                          If true, parse the VAF field in this VCF; if false,
-                          this column will be filled with NaNs
-                        type: boolean
-                      dp:
-                        description: |
-                          If true, parse the DP field in this VCF; if false,
-                          this column will be filled with NaNs
-                        type: boolean
+              format_fields: &input_parse
+                additionalProperties: false
+                default: {}
+                properties:
+                  vaf: &field
+                    description: |
+                      The name of the VAF field in FORMAT to parse (or none if
+                      not required)
+                    default: VAF
+                    anyOf:
+                      - type: "null"
+                      - type: string
+                        pattern: ^\w+$
+                  dp:
+                    description: |
+                      The name of the DP field in FORMAT to parse (or none if
+                      not required)
+                    default: DP
+                    <<: *field
+                  gt:
+                    description: |
+                      The name of the GT field in FORMAT to parse (or none if
+                      not required)
+                    default: GT
+                    <<: *field
+                  gq:
+                    description: |
+                      The name of the GQ field in FORMAT to parse (or none if
+                      not required)
+                    default: GQ
+                    <<: *field
 
           test:
             description: the vcf(s) to use for prediction testing
@@ -95,7 +117,9 @@ properties:
                       - type: string
                       - type: "null"
   
-                  parse_format: *input_parse
+                  format_fields: *input_parse
+
+                  chr_prefix: *input_chr
 
 ################################################################################
 # resources

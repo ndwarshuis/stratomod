@@ -1,5 +1,5 @@
 from functools import partial
-from scripts.common.config import (
+from scripts.python.common.config import (
     lookup_config,
     attempt_mem_gb,
     flat_inputs,
@@ -8,12 +8,14 @@ from scripts.common.config import (
 
 inputs_dir = resources_dir / "inputs"
 
-labeled_dir = results_dir / "labeled" / "{input_key}"
+input_results_dir = results_dir / "inputs" / "{input_key,[^/]+}"
+
+prepare_dir = input_results_dir / "prepare"
+labeled_dir = input_results_dir / "labeled"
+unlabeled_dir = input_results_dir / "unlabeled"
+alt_bench_dir = input_results_dir / "bench"
+
 rtg_dir = labeled_dir / "rtg"
-
-unlabeled_dir = results_dir / "unlabeled"
-
-alt_bench_dir = results_dir / "bench" / "{input_key}"
 
 LABELS = ["fp", "fn", "tp"]
 
@@ -27,14 +29,16 @@ def lookup_train(wildcards, key):
     return ns[wildcards.input_key][key]
 
 
-# return lookup_input(wildcards, "train", key)
-
-
 def lookup_chr_filter(wildcards):
-    fs = flat_chr_filters(config)[wildcards.input_key]
-    # make something that looks like 'chr1\b\|chr2\b...'
-    # return "\\|".join([f + "\\b" for f in lookup_input(wildcards, "chr_filter")])
-    return "\\|".join([f + "\\b" for f in fs])
+    ref = lookup_train(wildcards, "ref")
+    prefix = lookup_train(wildcards, "chr_prefix")
+    fs = [
+        ("X" if i == 23 else ("Y" if i == 24 else str(i)))
+        for i in flat_chr_filters(config)[wildcards.input_key]
+    ]
+    # GRCh38 is like 'chr1, chr2, etc'
+    pr = prefix if prefix is not None else ("chr" if ref == "GRCh38" else "")
+    return "\\|".join([f"{pr}{f}\\b" for f in fs])
 
 
 def lookup_train_bench(path, wildcards):
@@ -48,92 +52,147 @@ include: "download_resources.smk"
 # query vcf preprocessing
 
 
-rule download_input_vcf:
+rule download_query_vcf:
     output:
-        inputs_dir / "{input_key}.vcf.gz",
+        inputs_dir / "{input_key}.vcf",
     params:
         url=lambda wildcards: lookup_train(wildcards, "url"),
     conda:
         envs_path("utils.yml")
     shell:
-        "curl -sS -o {output} {params.url}"
+        f"{sh_path('download_bedlike')} gzip {{params.url}} > {{output}}"
 
 
-# TODO this is (probably) just for DV VCFs
-rule fix_refcall_gt_field:
+rule filter_query_vcf:
     input:
-        rules.download_input_vcf.output,
+        rules.download_query_vcf.output,
     output:
-        labeled_dir / "query.vcf.gz",
+        prepare_dir / "filtered.vcf",
+    params:
+        filt=lookup_chr_filter,
     conda:
         envs_path("utils.yml")
     shell:
-        """
-        gunzip -c {input} | \
-        sed -e '/.RefCall./ s/\.\/\./0\/1/g' | \
-        sed -e '/.RefCall./ s/0\/0/0\/1/g' | \
-        bgzip -c > {output}
-        """
+        "sed -n '/^\(#\|{params.filt}\)/p' {input} > {output}"
 
 
-rule index_vcf:
+# TODO this is (probably) just for DV VCFs
+rule fix_refcall_query_vcf:
     input:
-        rules.fix_refcall_gt_field.output,
+        rules.filter_query_vcf.output,
     output:
-        labeled_dir / "query.vcf.gz.tbi",
+        prepare_dir / "fixed_refcall.vcf",
+    conda:
+        envs_path("utils.yml")
+    shell:
+        f"""
+        cat {{input}} | \
+        sed -e '/.RefCall./ s/\.\/\./0\/1/g' | \
+        sed -e '/.RefCall./ s/0\/0/0\/1/g' \
+        > {{output}}
+        """
+
+
+################################################################################
+# vcf -> tsv (labeled)
+
+# NOTE: Tabix won't work unless the input vcf is compressed, which is why we
+# need to do this weird bgzip acrobatics with the query/bench
+
+
+def rule_output_suffix(rule, suffix):
+    return f"{getattr(rules, rule).output[0]}.{suffix}"
+
+
+rule zip_query_vcf:
+    input:
+        rules.fix_refcall_query_vcf.output,
+    output:
+        rule_output_suffix("filter_query_vcf", "gz"),
+    conda:
+        envs_path("utils.yml")
+    shell:
+        "bgzip -c {input} > {output}"
+
+
+rule generate_query_tbi:
+    input:
+        rules.zip_query_vcf.output,
+    output:
+        rule_output_suffix("zip_query_vcf", "tbi"),
     conda:
         envs_path("utils.yml")
     shell:
         "tabix -p vcf {input}"
 
 
-rule filter_query_vcf:
-    input:
-        rules.fix_refcall_gt_field.output,
-    output:
-        vcf=labeled_dir / "query_filtered.vcf.gz",
-        tbi=labeled_dir / "query_filtered.vcf.gz.tbi",
-    params:
-        filt=lookup_chr_filter,
-    conda:
-        envs_path("utils.yml")
-    shell:
-        """
-        gunzip -c {input} | \
-        sed -n '/^\(#\|{params.filt}\)/p' | \
-        bgzip -c > {output.vcf}
-
-        tabix -p vcf {output.vcf}
-        """
-
-
-################################################################################
-# bench vcf preprocessing
-
-
 use rule filter_query_vcf as filter_bench_vcf with:
     input:
         partial(lookup_train_bench, rules.download_bench_vcf.output),
     output:
-        vcf=alt_bench_dir / "filtered.vcf.gz",
-        tbi=alt_bench_dir / "filtered.vcf.gz.tbi",
+        alt_bench_dir / "filtered.vcf",
 
 
-rule filter_bench_bed:
+use rule filter_query_vcf as filter_bench_bed with:
     input:
         partial(lookup_train_bench, rules.download_bench_bed.output),
     output:
         alt_bench_dir / "filtered.bed",
-    params:
-        filt=lookup_chr_filter,
-    shell:
-        """
-        sed -n '/^\(#\|{params.filt}\)/p' {input} > {output}
-        """
 
 
-################################################################################
-# vcf -> tsv (labeled)
+use rule zip_query_vcf as zip_bench_vcf with:
+    input:
+        rules.filter_bench_vcf.output,
+    output:
+        rule_output_suffix("filter_bench_vcf", "gz"),
+
+
+use rule generate_query_tbi as generate_bench_tbi with:
+    input:
+        rules.zip_bench_vcf.output,
+    output:
+        rule_output_suffix("zip_bench_vcf", "tbi"),
+
+
+# def get_truth_inputs(wildcards):
+#     # NOTE: tbi file not used in vcfeval CLI but still needed
+#     paths = (
+#         [
+#             rules.get_bench_vcf.output,
+#             rules.get_bench_bed.output,
+#             rules.get_bench_tbi.output,
+#         ]
+#         if lookup_chr_filter(wildcards) == ""
+#         else [
+#             rules.filter_bench_vcf.output.vcf,
+#             rules.filter_bench_bed.output,
+#             rules.filter_bench_vcf.output.tbi,
+#         ]
+#     )
+#     return {
+#         key: expand(
+#             path,
+#             input_key=wildcards.input_key,
+#             bench_key=lookup_train(wildcards, "benchmark"),
+#         )
+#         for key, path in zip(["truth_vcf", "truth_bed", "truth_tbi"], paths)
+#     }
+
+
+# def get_query_inputs(wildcards):
+#     # NOTE: tbi file not used in vcfeval CLI but still needed
+#     paths = (
+#         [
+#             rules.preprocess_vcf.output,
+#             rules.index_vcf.output,
+#         ]
+#         if lookup_chr_filter(wildcards) == ""
+#         else [
+#             rules.filter_query_vcf.output.vcf,
+#             rules.filter_query_vcf.output.tbi,
+#         ]
+#     )
+#     return dict(zip(["query_vcf", "query_tbi"], paths))
 
 
 # rtg won't output to a directory that already exists, so do this weird temp
@@ -143,57 +202,19 @@ rule filter_bench_bed:
 # for this
 
 
-def get_truth_inputs(wildcards):
-    # NOTE: tbi file not used in vcfeval CLI but still needed
-    paths = (
-        [
-            rules.get_bench_vcf.output,
-            rules.get_bench_bed.output,
-            rules.get_bench_tbi.output,
-        ]
-        if lookup_chr_filter(wildcards) == ""
-        else [
-            rules.filter_bench_vcf.output.vcf,
-            rules.filter_bench_bed.output,
-            rules.filter_bench_vcf.output.tbi,
-        ]
-    )
-    return {
-        key: expand(
-            path,
-            input_key=wildcards.input_key,
-            bench_key=lookup_train(wildcards, "benchmark"),
-        )
-        for key, path in zip(["truth_vcf", "truth_bed", "truth_tbi"], paths)
-    }
-
-
-def get_query_inputs(wildcards):
-    # NOTE: tbi file not used in vcfeval CLI but still needed
-    paths = (
-        [
-            rules.preprocess_vcf.output,
-            rules.index_vcf.output,
-        ]
-        if lookup_chr_filter(wildcards) == ""
-        else [
-            rules.filter_query_vcf.output.vcf,
-            rules.filter_query_vcf.output.tbi,
-        ]
-    )
-    return dict(zip(["query_vcf", "query_tbi"], paths))
-
-
 rule label_vcf:
     input:
-        unpack(get_truth_inputs),
-        unpack(get_query_inputs),
+        query_vcf=rules.zip_query_vcf.output,
+        query_tbi=rules.generate_query_tbi.output,
+        bench_vcf=rules.zip_bench_vcf.output,
+        bench_bed=rules.filter_bench_bed.output,
+        bench_tbi=rules.generate_bench_tbi.output,
         sdf=lambda wildcards: expand(
             rules.download_ref_sdf.output,
             ref_key=lookup_train(wildcards, "ref"),
         ),
     output:
-        [rtg_dir / f"{lbl}.vcf.gz" for lbl in LABELS],
+        [rtg_dir / f"{lbl}.vcf" for lbl in LABELS],
     conda:
         envs_path("rtg.yml")
     params:
@@ -214,8 +235,9 @@ rule label_vcf:
         rtg RTG_MEM=$(({resources.mem_mb}*80/100))M \
         vcfeval {params.extra} \
         --threads={threads} \
-        -b {input.truth_vcf} \
-        -e {input.truth_bed} \
+        --no-gzip \
+        -b {input.bench_vcf} \
+        -e {input.bench_bed} \
         -c {input.query_vcf} \
         -o {params.tmp_dir} \
         -t {input.sdf} > {log} 2>&1
@@ -226,26 +248,19 @@ rule label_vcf:
         """
 
 
-rule unzip_labeled_vcf:
-    input:
-        rtg_dir / "{label}.vcf.gz",
-    output:
-        labeled_dir / "{label}.vcf",
-    shell:
-        "gunzip {input} -c > {output}"
-
-
 rule parse_labeled_vcf:
     input:
-        rules.unzip_labeled_vcf.output,
+        rtg_dir / "{label}.vcf",
     output:
         labeled_dir / "{filter_key}_{label}.tsv",
     log:
         labeled_dir / "{filter_key}_{label}.log",
     benchmark:
         labeled_dir / "{filter_key}_{label}.bench"
+    conda:
+        envs_path("bedtools.yml")
     script:
-        scripts_path("parse_vcf_to_bed_ebm.py")
+        python_path("parse_vcf_to_bed_ebm.py")
 
 
 rule concat_labeled_tsvs:
@@ -260,38 +275,19 @@ rule concat_labeled_tsvs:
     resources:
         mem_mb=attempt_mem_gb(4),
     script:
-        scripts_path("concat_tsv.py")
+        python_path("concat_tsv.py")
 
 
 ################################################################################
 # vcf -> tsv (unlabeled)
 
 
-def get_query_input(wildcards):
-    return (
-        rules.preprocess_vcf.output
-        if lookup_chr_filter(wildcards) == ""
-        else rules.filter_query_vcf.output.vcf
-    )
-
-
-rule unzip_vcf:
+use rule parse_labeled_vcf as parse_unlabeled_vcf with:
     input:
-        get_query_input,
-    output:
-        unlabeled_dir / "{input_key}.vcf",
-    shell:
-        "gunzip {input} -c > {output}"
-
-
-rule parse_unlabeled_vcf:
-    input:
-        rules.unzip_vcf.output,
+        rules.filter_query_vcf.output,
     output:
         unlabeled_dir / "{input_key}%{filter_key}.tsv",
     log:
         unlabeled_dir / "{input_key}%{filter_key}.log",
     benchmark:
         unlabeled_dir / "{input_key}%{filter_key}.bench"
-    script:
-        scripts_path("parse_vcf_to_bed_ebm.py")

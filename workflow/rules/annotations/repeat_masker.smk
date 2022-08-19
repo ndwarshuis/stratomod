@@ -1,4 +1,4 @@
-from scripts.common.config import (
+from scripts.python.common.config import (
     lookup_global_chr_filter,
     lookup_annotations,
     attempt_mem_gb,
@@ -19,7 +19,7 @@ rule get_repeat_masker_src:
     conda:
         envs_path("utils.yml")
     shell:
-        "curl -Ss {params.url} | gunzip -c > {output}"
+        f"{sh_path('download_standardized')} gzip {{params.url}} 6 > {{output}}"
 
 
 # NOTE sorting/filtering chromosomes is done internally by this script
@@ -45,4 +45,4 @@ rule get_repeat_masker_classes:
     resources:
         mem_mb=attempt_mem_gb(2),
     script:
-        scripts_path("get_repeat_masker_features.py")
+        python_path("get_repeat_masker_features.py")

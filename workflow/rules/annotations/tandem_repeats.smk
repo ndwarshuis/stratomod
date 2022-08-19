@@ -1,4 +1,4 @@
-from scripts.common.config import (
+from scripts.python.common.config import (
     lookup_global_chr_filter,
     lookup_annotations,
     attempt_mem_gb,
@@ -17,7 +17,7 @@ rule get_simreps_src:
     conda:
         envs_path("utils.yml")
     shell:
-        "curl -Ss {params.url} | gunzip -c > {output}"
+        f"{sh_path('download_standardized')} gzip {{params.url}} 2 > {{output}}"
 
 
 # NOTE sorting is done internally by the script
@@ -38,4 +38,4 @@ rule get_tandem_repeats:
     resources:
         mem_mb=attempt_mem_gb(1),
     script:
-        scripts_path("get_tandem_repeat_features.py")
+        python_path("get_tandem_repeat_features.py")

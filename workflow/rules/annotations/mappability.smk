@@ -1,4 +1,4 @@
-from scripts.common.config import (
+from scripts.python.common.config import (
     lookup_annotations,
     fmt_mappability_feature,
     attempt_mem_gb,
@@ -28,13 +28,13 @@ rule get_mappability_high_src:
     conda:
         envs_path("utils.yml")
     shell:
-        """
-        echo 'chrom\tstart\tend\t{params.feature_name}' > {output}
-        curl -sS -L {params.url} | \
-        gunzip -c | \
+        f"""
+        echo 'chrom\tstart\tend\t{{params.feature_name}}' > {{output}}
+
+        {sh_path('download_standardized')} gzip {{params.url}} 1 | \
         sed 's/$/\t1/' | \
         tail -n+2 \
-        >> {output}
+        >> {{output}}
         """
 
 
@@ -57,4 +57,4 @@ rule subtract_high_from_low_mappability:
     resources:
         mem_mb=attempt_mem_gb(2),
     script:
-        scripts_path("get_mappability_features.py")
+        python_path("get_mappability_features.py")

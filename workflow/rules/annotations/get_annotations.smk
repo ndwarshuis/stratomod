@@ -14,16 +14,11 @@ rule get_genome:
     conda:
         envs_path("utils.yml")
     shell:
-        """
-        curl -Ss {params.url} | \
-        gunzip -c | \
+        f"""
+        {sh_path('download_standardized')} gzip {{params.url}} 1 | \
         cut -f1,2 | \
-        sed -n '/^chr\([0-9XY][[:space:]]\|[0-9]\{{2\}}[[:space:]]\)/p' | \
-        sed 's/^chr//' | \
-        sed 's/^X/23/;s/^Y/24/' | \
-        sort -k1,1n | \
-        sed 's/^23/X/;s/^24/Y/;s/^/chr/' \
-        > {output}
+        sort -k1,1n \
+        > {{output}}
         """
 
 include: "repeat_masker.smk"

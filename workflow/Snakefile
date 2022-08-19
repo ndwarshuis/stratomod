@@ -2,7 +2,7 @@ from more_itertools import unzip
 from functools import partial
 from pathlib import Path
 from snakemake.utils import min_version, validate
-from scripts.common.config import (
+from scripts.python.common.config import (
     input_set,
     expand_rules,
     validate_inputs,
@@ -28,7 +28,7 @@ validate_ebm_inputs(config)
 conf_paths = config["paths"]
 resources_dir = Path(conf_paths["resources"])
 results_dir = Path(conf_paths["results"])
-_scripts_dir = Path("workflow/scripts")
+scripts_root = Path("workflow/scripts")
 
 # this is necessary as envs/scripts are apparently resolved locally in each rule
 # file
@@ -37,8 +37,9 @@ def build_abs_path(relpath, basename):
 
 
 envs_path = partial(build_abs_path, Path("workflow/envs"))
-scripts_path = partial(build_abs_path, _scripts_dir)
-rmd_path = partial(build_abs_path, _scripts_dir / "rmarkdown")
+python_path = partial(build_abs_path, scripts_root / "python")
+sh_path = partial(build_abs_path, scripts_root / "shell")
+rmd_path = partial(build_abs_path, scripts_root / "rmarkdown")
 
 
 ################################################################################
@@ -66,16 +67,12 @@ rule all:
 
 rule all_resources:
     input:
-        expand(rules.download_input_vcf.output, input_key=[*config["inputs"]]),
+        expand(rules.download_query_vcf.output, input_key=[*config["inputs"]]),
         expand(rules.download_ref_sdf.output, ref_key=input_set(config, "ref")),
         expand(
             expand_rules(
                 rules,
-                [
-                    "download_bench_vcf",
-                    "download_bench_bed",
-                    "generate_bench_tbi",
-                ],
+                ["download_bench_vcf", "download_bench_bed"],
                 "output",
             ),
             bench_key=input_set(config, "benchmark"),
