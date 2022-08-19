@@ -154,48 +154,7 @@ use rule generate_query_tbi as generate_bench_tbi with:
         rule_output_suffix("zip_bench_vcf", "tbi"),
 
 
-# def get_truth_inputs(wildcards):
-#     # NOTE: tbi file not used in vcfeval CLI but still needed
-#     paths = (
-#         [
-#             rules.get_bench_vcf.output,
-#             rules.get_bench_bed.output,
-#             rules.get_bench_tbi.output,
-#         ]
-#         if lookup_chr_filter(wildcards) == ""
-#         else [
-#             rules.filter_bench_vcf.output.vcf,
-#             rules.filter_bench_bed.output,
-#             rules.filter_bench_vcf.output.tbi,
-#         ]
-#     )
-#     return {
-#         key: expand(
-#             path,
-#             input_key=wildcards.input_key,
-#             bench_key=lookup_train(wildcards, "benchmark"),
-#         )
-#         for key, path in zip(["truth_vcf", "truth_bed", "truth_tbi"], paths)
-#     }
-
-
-# def get_query_inputs(wildcards):
-#     # NOTE: tbi file not used in vcfeval CLI but still needed
-#     paths = (
-#         [
-#             rules.preprocess_vcf.output,
-#             rules.index_vcf.output,
-#         ]
-#         if lookup_chr_filter(wildcards) == ""
-#         else [
-#             rules.filter_query_vcf.output.vcf,
-#             rules.filter_query_vcf.output.tbi,
-#         ]
-#     )
-#     return dict(zip(["query_vcf", "query_tbi"], paths))
-
-
-# rtg won't output to a directory that already exists, so do this weird temp
+# NOTE rtg won't write to a directory that already exists, so do this weird tmp
 # file thing
 # TODO add option to switch of the "--ref-overlap --all-records" thingy
 # TODO --all-records = use all records including those that fail, make an option
