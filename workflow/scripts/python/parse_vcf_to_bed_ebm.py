@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from more_itertools import partition, unzip
 from common.tsv import write_tsv
-from common.bed import standardize_chr_series
+from common.bed import standardize_chr_column
 from common.cli import setup_logging
 from common.config import (
     fmt_vcf_feature,
@@ -46,11 +46,6 @@ def read_vcf(input_cols, path):
     )
     # NOTE: if FORMAT/SAMPLE don't exist these will just be NaNs
     return df
-
-
-def standardize_chrs(chr_col, df):
-    df[chr_col] = standardize_chr_series(df[chr_col])
-    return df.dropna(subset=[chr_col]).astype({chr_col: int})
 
 
 def fix_dot_alts(df):
@@ -232,7 +227,7 @@ def main():
         partial(add_label_maybe, label, fconf["label"]),
         partial(select_nonlabel_columns, non_field_cols, fields),
         partial(assign_format_sample_fields, chrom, pos, fields),
-        partial(standardize_chrs, chrom),
+        partial(standardize_chr_column, chrom),
         partial(
             add_length_and_filter,
             fmt_vcf_feature(sconf, "len"),

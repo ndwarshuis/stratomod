@@ -42,8 +42,7 @@ rule sort_and_filter_simple_repeats:
     shell:
         f"""
         cat {{input}} | \
-        {sh_path('standardize_chrs')} 1 | \
-        python {python_path('sort_and_filter_bed.py')} -c "#" \
+        python {python_path('sort_and_filter_bed.py')} -c "#" -s 0 \
         2> {{log}} > {{output}}
         """
 

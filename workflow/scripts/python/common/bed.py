@@ -33,25 +33,21 @@ def standardize_chr_series(ser):
     return pd.to_numeric(_ser, errors="coerce").astype("Int64")
 
 
+def standardize_chr_column(chr_col, df):
+    logging.info("Standardizing chromosome column: %s", chr_col)
+    df[chr_col] = standardize_chr_series(df[chr_col])
+    logging.info(
+        "Removing %i rows with non-standard chromosomes",
+        df[chr_col].isna().sum(),
+    )
+    return df.dropna(subset=[chr_col]).astype({chr_col: int})
+
+
 def sort_bed_numerically(df, drop_chr=True):
     # ASSUME: the first three columns correspond to a bed file and the first
     # column has already been standardized (eg all chromosomes are numbered 1 to
     # 24 and there are no incomplete chromosomes)
     cols = df.columns.tolist()
-
-    # def log_unique(msg, df):
-    #     logging.info("%s: %s", msg, ", ".join(df[cols[0]].unique().tolist()))
-
-    # def log_nrows(msg, df):
-    #     logging.info("%s: %s", msg, df.shape[0])
-
-    # if drop_chr is True:
-    #     logging.info("Filtering bed for complete chomosomes")
-    #     log_nrows("Number of entries before filtering", df)
-    #     log_unique("Unique chromosomes before filtering", df)
-    #     df = df.dropna(axis=0, subset=[cols[0]])
-    #     log_nrows("Number of entries before filtering", df)
-    #     log_unique("Unique chromosomes after filtering", df)
 
     logging.info("Numerically sorting bed")
     return df.sort_values(
