@@ -12,7 +12,7 @@ from common.config import (
     lookup_train_test_input,
     fmt_strs,
 )
-from common.prepare import compose
+from common.functional import compose
 
 logger = setup_logging(snakemake.log[0])
 

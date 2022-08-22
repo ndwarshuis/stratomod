@@ -46,7 +46,7 @@ rmd_path = partial(build_abs_path, scripts_root / "rmarkdown")
 # Import Subworkflows
 
 
-include: "rules/labels/parse_vcf.smk"
+include: "rules/labels/inputs.smk"
 include: "rules/annotations/main.smk"
 include: "rules/train_ebm.smk"
 

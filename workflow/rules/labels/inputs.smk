@@ -6,6 +6,10 @@ from scripts.python.common.config import (
     flat_chr_filters,
 )
 
+
+include: "reference.smk"
+
+
 inputs_dir = resources_dir / "inputs"
 
 input_results_dir = results_dir / "inputs" / "{input_key,[^/]+}"
@@ -13,6 +17,8 @@ input_results_dir = results_dir / "inputs" / "{input_key,[^/]+}"
 prepare_dir = input_results_dir / "prepare"
 labeled_dir = input_results_dir / "labeled"
 unlabeled_dir = input_results_dir / "unlabeled"
+
+bench_dir = resources_dir / "bench"
 alt_bench_dir = input_results_dir / "bench"
 
 rtg_dir = labeled_dir / "rtg"
@@ -45,22 +51,47 @@ def lookup_train_bench(path, wildcards):
     return expand(path, bench_key=lookup_train(wildcards, "benchmark"))
 
 
-include: "download_resources.smk"
+def lookup_benchmark(key, wildcards):
+    return lookup_config(
+        config,
+        "resources",
+        "benchmarks",
+        wildcards.bench_key,
+        key,
+    )
+
+
+def rule_output_suffix(rule, suffix):
+    return f"{getattr(rules, rule).output[0]}.{suffix}"
+
+
+def lookup_benchmark_vcf(wildcards):
+    bk = lookup_train(wildcards, "benchmark")
+    if bk == "HG002_v4.2.1":
+        return rules.fix_HG002_bench_vcf.output
+    elif bk == "HG005_v4.2.1":
+        return rules.fix_HG005_bench_vcf.output
+    # TODO this isn't very scalable but at least it will fail if I change the
+    # static config rather than silently permit us to publish 'good' results
+    elif bk in ["draft_v0.005", "draft_v2.7_xy"]:
+        return rules.filter_bench_vcf.output
+    else:
+        assert False, f"{bk} not legal benchmark key"
 
 
 ################################################################################
-# query vcf preprocessing
+# query vcf
 
 
 rule download_query_vcf:
     output:
-        inputs_dir / "{input_key}.vcf",
+        inputs_dir / "{input_key}.vcf.gz",
     params:
         url=lambda wildcards: lookup_train(wildcards, "url"),
     conda:
         envs_path("utils.yml")
     shell:
-        f"{sh_path('download_bedlike')} gzip {{params.url}} > {{output}}"
+        "curl -sS -L -o {output} {params.url}"
 
 
 rule filter_query_vcf:
@@ -73,7 +104,11 @@ rule filter_query_vcf:
     conda:
         envs_path("utils.yml")
     shell:
-        "sed -n '/^\(#\|{params.filt}\)/p' {input} > {output}"
+        """
+        gunzip -c {input} | \
+        sed -n '/^\(#\|{params.filt}\)/p' \
+        > {output}
+        """
 
 
 # TODO this is (probably) just for DV VCFs
@@ -94,14 +129,10 @@ rule fix_refcall_query_vcf:
 
 
 ################################################################################
-# vcf -> tsv (labeled)
+# query vcf label preprocessing
 
 # NOTE: Tabix won't work unless the input vcf is compressed, which is why we
 # need to do this weird bgzip acrobatics with the query/bench
-
-
-def rule_output_suffix(rule, suffix):
-    return f"{getattr(rules, rule).output[0]}.{suffix}"
 
 
 rule zip_query_vcf:
@@ -126,6 +157,21 @@ rule generate_query_tbi:
         "tabix -p vcf {input}"
 
 
+################################################################################
+# benchmark vcf
+
+
+rule download_bench_vcf:
+    output:
+        bench_dir / "{bench_key}.vcf.gz",
+    params:
+        url=partial(lookup_benchmark, "vcf_url"),
+    conda:
+        envs_path("utils.yml")
+    shell:
+        "curl -sS -L -o {output} {params.url}"
+
+
 use rule filter_query_vcf as filter_bench_vcf with:
     input:
         partial(lookup_train_bench, rules.download_bench_vcf.output),
@@ -133,18 +179,38 @@ use rule filter_query_vcf as filter_bench_vcf with:
         alt_bench_dir / "filtered.vcf",
 
 
-use rule filter_query_vcf as filter_bench_bed with:
+rule fix_HG002_bench_vcf:
     input:
-        partial(lookup_train_bench, rules.download_bench_bed.output),
+        rules.filter_bench_vcf.output,
     output:
-        alt_bench_dir / "filtered.bed",
+        alt_bench_dir / "HG002_fixed.vcf",
+    conda:
+        envs_path("utils.yml")
+    shell:
+        "grep -v 'GT:AD:PS' {input} > {output}"
+
+
+rule fix_HG005_bench_vcf:
+    input:
+        rules.filter_bench_vcf.output,
+    output:
+        alt_bench_dir / "HG005_fixed.vcf",
+    conda:
+        envs_path("utils.yml")
+    shell:
+        """
+        cat {input} | \
+        sed 's/:IPS\t/\t/' | \
+        sed 's/:[^:]\+$//' \
+        > {output}
+        """
 
 
 use rule zip_query_vcf as zip_bench_vcf with:
     input:
-        rules.filter_bench_vcf.output,
+        lookup_benchmark_vcf,
     output:
-        rule_output_suffix("filter_bench_vcf", "gz"),
+        alt_bench_dir / "final_bench.vcf.gz",
 
 
 use rule generate_query_tbi as generate_bench_tbi with:
@@ -153,6 +219,38 @@ use rule generate_query_tbi as generate_bench_tbi with:
     output:
         rule_output_suffix("zip_bench_vcf", "tbi"),
 
+
+################################################################################
+# benchmark bed
+
+
+rule download_bench_bed:
+    output:
+        bench_dir / "{bench_key}.bed",
+    params:
+        url=partial(lookup_benchmark, "bed_url"),
+    conda:
+        envs_path("utils.yml")
+    shell:
+        "curl -sS -L -o {output} {params.url}"
+
+
+# NOTE this is identical to the vcf version but without gunzip
+rule filter_bench_bed:
+    input:
+        partial(lookup_train_bench, rules.download_bench_bed.output),
+    output:
+        alt_bench_dir / "filtered.bed",
+    params:
+        filt=lookup_chr_filter,
+    conda:
+        envs_path("utils.yml")
+    shell:
+        "sed -n '/^\(#\|{params.filt}\)/p' {input} > {output}"
+
+
+################################################################################
+# vcf -> tsv (labeled)
 
 # NOTE rtg won't write to a directory that already exists, so do this weird tmp
 # file thing

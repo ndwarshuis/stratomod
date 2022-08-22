@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from functools import partial
 from more_itertools import duplicates_everseen
-from common.function import compose
+from common.functional import compose
 
 TP_LABEL = "tp"
 TN_LABEL = "tn"
