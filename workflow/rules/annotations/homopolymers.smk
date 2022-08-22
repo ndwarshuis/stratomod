@@ -12,17 +12,15 @@ rule find_simple_repeats:
         homopolymers_results_dir / "simple_repeats_p3.bed",
     conda:
         envs_path("find_simple_repeats.yml")
-    params:
-        script=python_path("find_regions.py"),
     benchmark:
         homopolymers_results_dir / "find_regions.bench"
     resources:
         mem_mb=attempt_mem_gb(4),
     shell:
-        """
-        python {params.script} \
+        f"""
+        python {python_path("find_regions.py")} \
         -p 3 -d 100000 -t 100000 -q 100000 \
-        {input} {output}
+        {{input}} {{output}}
         """
 
 
