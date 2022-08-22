@@ -1,4 +1,3 @@
-from more_itertools import unzip
 from functools import partial
 from pathlib import Path
 from snakemake.utils import min_version, validate
@@ -28,7 +27,6 @@ validate_ebm_inputs(config)
 conf_paths = config["paths"]
 resources_dir = Path(conf_paths["resources"])
 results_dir = Path(conf_paths["results"])
-scripts_root = Path("workflow/scripts")
 
 # this is necessary as envs/scripts are apparently resolved locally in each rule
 # file
@@ -38,7 +36,6 @@ def build_abs_path(relpath, basename):
 
 envs_path = partial(build_abs_path, Path("workflow/envs"))
 python_path = partial(build_abs_path, scripts_root / "python")
-sh_path = partial(build_abs_path, scripts_root / "shell")
 rmd_path = partial(build_abs_path, scripts_root / "rmarkdown")
 
 
