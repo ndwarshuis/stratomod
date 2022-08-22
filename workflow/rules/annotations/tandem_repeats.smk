@@ -9,21 +9,22 @@ tandem_repeats_results_dir = annotations_tsv_dir / "tandem_repeats"
 
 
 # download this entire table as-is, we will select the right columns in a script
-rule get_simreps_src:
+rule download_tandem_repeats:
     output:
-        tandem_repeats_src_dir / "simple_repeats.tsv",
+        tandem_repeats_src_dir / "simple_repeats.txt.gz",
     params:
         url=lookup_annotations(config)["simreps"],
     conda:
         envs_path("utils.yml")
     shell:
-        f"{sh_path('download_standardized')} gzip {{params.url}} 2 > {{output}}"
+        "curl -sS -L -o {output} {params.url}"
+        # f"{sh_path('download_standardized')} gzip {{params.url}} 2 > {{output}}"
 
 
 # NOTE sorting is done internally by the script
 rule get_tandem_repeats:
     input:
-        src=rules.get_simreps_src.output,
+        src=rules.download_tandem_repeats.output,
         genome=rules.get_genome.output,
     output:
         tandem_repeats_results_dir / "tandem_repeats.tsv",

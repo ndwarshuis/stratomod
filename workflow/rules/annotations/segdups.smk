@@ -9,21 +9,22 @@ segdups_results_dir = annotations_tsv_dir / "segdups"
 
 
 # download this entire table as-is, we will select the right columns in a script
-rule get_superdups_src:
+rule download_superdups:
     output:
-        segdups_src_dir / "superdups.txt",
+        segdups_src_dir / "superdups.txt.gz",
     params:
         url=lookup_annotations(config)["superdups"],
     conda:
         envs_path("utils.yml")
     shell:
-        f"{sh_path('download_standardized')} gzip {{params.url}} 2 > {{output}}"
+        "curl -sS -L -o {output} {params.url}"
+        # f"{sh_path('download_standardized')} gzip {{params.url}} 2 > {{output}}"
 
 
 # NOTE sorting is done internally by the script
 rule get_segdups:
     input:
-        rules.get_superdups_src.output,
+        rules.download_superdups.output,
     output:
         segdups_results_dir / "segdups.tsv",
     conda:

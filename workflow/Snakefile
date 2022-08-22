@@ -47,7 +47,7 @@ rmd_path = partial(build_abs_path, scripts_root / "rmarkdown")
 
 
 include: "rules/labels/parse_vcf.smk"
-include: "rules/annotations/get_annotations.smk"
+include: "rules/annotations/main.smk"
 include: "rules/train_ebm.smk"
 
 
@@ -78,9 +78,9 @@ rule all_resources:
             bench_key=input_set(config, "benchmark"),
         ),
         # TODO all these implicitly depend on the reference
-        rules.get_genome.output,
+        rules.download_genome.output,
         rules.download_mappability_high.output,
         rules.download_mappability_low.output,
-        rules.get_repeat_masker_src.output,
-        rules.get_superdups_src.output,
-        rules.get_simreps_src.output,
+        rules.download_repeat_masker.output,
+        rules.download_superdups.output,
+        rules.download_tandem_repeats.output,

@@ -10,22 +10,22 @@ rmsk_file_prefix = "repeat_masker"
 rmsk_classes = config["features"]["repeat_masker"]["classes"]
 
 
-# download the genoName, genoStart, genoEnd, repClass columns for this table
-rule get_repeat_masker_src:
+rule download_repeat_masker:
     output:
-        rmsk_src_dir / "repeat_masker.tsv",
+        rmsk_src_dir / "repeat_masker.txt.gz",
     params:
         url=lookup_annotations(config)["repeat_masker"],
     conda:
         envs_path("utils.yml")
     shell:
-        f"{sh_path('download_standardized')} gzip {{params.url}} 6 > {{output}}"
+        "curl -sS -L -o {output} {params.url}"
+        # f"{sh_path('download_standardized')} gzip {{params.url}} 6 > {{output}}"
 
 
 # NOTE sorting/filtering chromosomes is done internally by this script
 rule get_repeat_masker_classes:
     input:
-        rules.get_repeat_masker_src.output,
+        rules.download_repeat_masker.output,
     output:
         [rmsk_results_dir / (f"{rmsk_file_prefix}_{cls}.tsv") for cls in rmsk_classes],
         [

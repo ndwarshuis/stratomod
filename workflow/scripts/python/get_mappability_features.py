@@ -1,6 +1,6 @@
 from pybedtools import BedTool as bt
 from common.tsv import read_tsv, write_tsv
-from common.bed import read_bed_df, standardize_chr_column
+from common.bed import standardize_chr_column
 from common.config import bed_cols_indexed, lookup_bed_cols, fmt_mappability_feature
 from common.cli import setup_logging
 

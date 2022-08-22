@@ -1,8 +1,10 @@
 import logging
-import pandas as pd
-from common.tsv import read_tsv
+from functools import partial
 from itertools import product
 from more_itertools import unzip
+import pandas as pd
+from common.tsv import read_tsv
+from common.functional import compose
 from common.config import (
     fmt_count_feature,
     fmt_merged_feature,
@@ -10,12 +12,8 @@ from common.config import (
     fmt_strs,
 )
 
-# BED_CHR = "chrom"
-# BED_START = "chromStart"
-# BED_END = "chromEnd"
 
-
-def filter_chromosomes(df, chr_filter):
+def filter_chromosomes(chr_filter, df):
     if len(chr_filter) > 0:
         logging.info(
             "Pre-filtering chromosomes: %s",
@@ -58,9 +56,13 @@ def sort_bed_numerically(df, drop_chr=True):
 
 def read_bed_df(path, bed_mapping, col_mapping, filt):
     mapping = {**bed_mapping, **col_mapping}
-    dtypes = {0: int, 1: int, 2: int}
-    df = read_tsv(path, header=None, dtype=dtypes)[[*mapping]].rename(columns=mapping)
-    return sort_bed_numerically(filter_chromosomes(df, filt))
+    df = read_tsv(path, header=None)[[*mapping]].rename(columns=mapping)
+    chr_col = df.columns.tolist()[0]
+    return compose(
+        sort_bed_numerically,
+        partial(filter_chromosomes, filt),
+        partial(standardize_chr_column, chr_col),
+    )(df.astype({chr_col: str}))
 
 
 def merge_and_apply_stats(merge_stats, bed_cols, prefix, bed_df):
