@@ -18,7 +18,6 @@ rule download_tandem_repeats:
         envs_path("utils.yml")
     shell:
         "curl -sS -L -o {output} {params.url}"
-        # f"{sh_path('download_standardized')} gzip {{params.url}} 2 > {{output}}"
 
 
 # NOTE sorting is done internally by the script

@@ -8,7 +8,6 @@ segdups_src_dir = annotations_src_dir / "segdups"
 segdups_results_dir = annotations_tsv_dir / "segdups"
 
 
-# download this entire table as-is, we will select the right columns in a script
 rule download_superdups:
     output:
         segdups_src_dir / "superdups.txt.gz",
@@ -18,10 +17,8 @@ rule download_superdups:
         envs_path("utils.yml")
     shell:
         "curl -sS -L -o {output} {params.url}"
-        # f"{sh_path('download_standardized')} gzip {{params.url}} 2 > {{output}}"
 
 
-# NOTE sorting is done internally by the script
 rule get_segdups:
     input:
         rules.download_superdups.output,

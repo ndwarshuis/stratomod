@@ -19,10 +19,8 @@ rule download_repeat_masker:
         envs_path("utils.yml")
     shell:
         "curl -sS -L -o {output} {params.url}"
-        # f"{sh_path('download_standardized')} gzip {{params.url}} 6 > {{output}}"
 
 
-# NOTE sorting/filtering chromosomes is done internally by this script
 rule get_repeat_masker_classes:
     input:
         rules.download_repeat_masker.output,

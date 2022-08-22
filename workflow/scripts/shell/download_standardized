@@ -1,6 +1,0 @@
-#! /bin/bash
-
-# Download a bedlike file and standardize the chromosome column
-
-this_dir=$(dirname "$0")
-"$this_dir"/download_bedlike "$1" "$2" | "$this_dir"/standardize_chrs "$3"
