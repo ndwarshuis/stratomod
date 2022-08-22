@@ -79,8 +79,8 @@ rule all_resources:
         ),
         # TODO all these implicitly depend on the reference
         rules.get_genome.output,
-        rules.get_mappability_high_src.output,
-        rules.get_mappability_low_src.output,
+        rules.download_mappability_high.output,
+        rules.download_mappability_low.output,
         rules.get_repeat_masker_src.output,
         rules.get_superdups_src.output,
         rules.get_simreps_src.output,

@@ -35,8 +35,8 @@ def annotation_input(tsv_path):
         "annotations": [
             rules.get_repeat_masker_classes.output,
             rules.get_tandem_repeats.output,
-            rules.get_mappability_high_src.output,
-            rules.subtract_high_from_low_mappability.output,
+            rules.get_mappability.output.high,
+            rules.get_mappability.output.low,
             rules.get_segdups.output,
             expand(
                 rules.get_homopolymers.output,
