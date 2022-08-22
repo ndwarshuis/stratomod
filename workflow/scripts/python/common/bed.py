@@ -3,7 +3,6 @@ import pandas as pd
 from common.tsv import read_tsv
 from itertools import product
 from more_itertools import unzip
-from pybedtools import BedTool as bt
 from common.config import (
     fmt_count_feature,
     fmt_merged_feature,
@@ -65,6 +64,10 @@ def read_bed_df(path, bed_mapping, col_mapping, filt):
 
 
 def merge_and_apply_stats(merge_stats, bed_cols, prefix, bed_df):
+    # import this here so we can import other functions in this module
+    # without pulling in bedtools
+    from pybedtools import BedTool as bt
+
     # compute stats on all columns except the first 3
     drop_n = 3
     stat_cols = bed_df.columns.tolist()[drop_n:]

@@ -1,7 +1,8 @@
 import pandas as pd
 import numpy as np
-from functools import reduce, partial
+from functools import partial
 from more_itertools import duplicates_everseen
+from common.function import compose
 
 TP_LABEL = "tp"
 TN_LABEL = "tn"
@@ -87,10 +88,6 @@ def collapse_labels(error_labels, label_col, df):
     return df[df[label_col].apply(lambda x: x in all_labels)].assign(
         **{label_col: lambda x: (x[label_col] == TP_LABEL).astype(int)}
     )
-
-
-def compose(*fs):
-    return reduce(lambda f, g: lambda x: f(g(x)), fs, lambda x: x)
 
 
 def process_labeled_data(
