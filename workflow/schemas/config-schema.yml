@@ -70,6 +70,17 @@ properties:
                     format: uri
                   - type: "null"
 
+              max_length: &input_max_length
+                description: |
+                  The maximum absolute variant length (as defined by the REF
+                  column) that will be processed after parsing. This is mostly
+                  useful to prevent memory issues when testing in the case
+                  of some unusually long variants, which would intersect with
+                  enough annotations to cause combinatorial blowout.
+                default: 1000000
+                type: number
+                minimum: 1
+
               format_fields: &input_parse
                 additionalProperties: false
                 default: {}
@@ -111,15 +122,15 @@ properties:
                 properties:
                   ref: *input_ref
                   url: *input_url
+                  format_fields: *input_parse
+                  chr_prefix: *input_chr
+                  max_length: *input_max_length
                   benchmark:
                     description: the benchmark index to use for this input
                     anyOf:
                       - type: string
                       - type: "null"
   
-                  format_fields: *input_parse
-
-                  chr_prefix: *input_chr
 
 ################################################################################
 # resources

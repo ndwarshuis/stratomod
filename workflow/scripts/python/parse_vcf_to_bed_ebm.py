@@ -6,7 +6,12 @@ from more_itertools import partition, unzip
 from common.tsv import write_tsv
 from common.bed import standardize_chr_series
 from common.cli import setup_logging
-from common.config import fmt_vcf_feature, assert_empty, lookup_train_test_input
+from common.config import (
+    fmt_vcf_feature,
+    assert_empty,
+    lookup_train_test_input,
+    fmt_strs,
+)
 from common.prepare import compose
 
 logger = setup_logging(snakemake.log[0])
@@ -56,7 +61,9 @@ def fix_dot_alts(df):
 
 def remove_multialleles(df):
     # ASSUME there are no NaNs in alt at this point
-    return df[~df[ALT].str.contains(",")]
+    multi = df[ALT].str.contains(",")
+    logger.info("Removing %i rows with multi-allelic ALT", multi.sum())
+    return df[~multi]
 
 
 def lookup_maybe(k, d):
@@ -64,22 +71,36 @@ def lookup_maybe(k, d):
 
 
 def assign_format_sample_fields(chrom, start, fields, df):
-    fill_fields_gen, nan_fields_gen = partition(
-        lambda x: x[1] is None,
-        fields.items(),
-    )
-    for dest_col, _ in nan_fields_gen:
-        df[dest_col] = np.nan
-
-    fill_fields = [*fill_fields_gen]
+    def log_split(what, xs):
+        logger.info(
+            "Splitting FORMAT/SAMPLE into %i %s columns.",
+            len(xs),
+            what,
+        )
 
     # Any fields that we don't want to parse will just get filled with NaNs. If
     # all fields are like this, our job is super easy and we don't need to
     # bother with zipping the FORMAT/SAMPLE columns
+    fill_fields, nan_fields = map(
+        list,
+        partition(
+            lambda x: x[1] is None,
+            fields.items(),
+        ),
+    )
+
+    log_split("NaN", nan_fields)
+    log_split("filled", fill_fields)
+
+    for dest_col, _ in nan_fields:
+        df[dest_col] = np.nan
+
+    # If all columns are NaN'd, we are done
     if len(fill_fields) == 0:
         return df
 
-    # split format and sample fields into lists
+    # For all columns that aren't to be NaN'd, split format and sample fields
+    # into lists (to be zipped later).
     def split_col(n):
         split_ser = df[n].str.split(":")
         len_ser = split_ser.str.len()
@@ -122,25 +143,44 @@ def assign_format_sample_fields(chrom, start, fields, df):
     )
 
 
-def filter_mask(ref_len, alt_len, filter_key):
+def filter_mask(ref_len, alt_len, max_length, filter_key):
     assert filter_key in ["INDEL", "SNP"], f"Invalid filter key: {filter_key}"
     snps = (ref_len == 1) & (alt_len == 1)
-    return ~snps & ~(ref_len == alt_len) if filter_key == "INDEL" else snps
+    keep = ~snps & ~(ref_len == alt_len) if filter_key == "INDEL" else snps
+    logger.info("Number of %ss: %i", filter_key, snps.sum())
+    if filter_key == "INDEL":
+        under_max = (ref_len <= max_length) & keep
+        logger.info(
+            "Number of INDELs less than %i bp: %i",
+            max_length,
+            under_max.sum(),
+        )
+        return under_max
+    return keep
 
 
-def add_length_and_filter(indel_len_col, start_col, end_col, filter_key, df):
+def add_length_and_filter(
+    indel_len_col,
+    start_col,
+    end_col,
+    filter_key,
+    max_length,
+    df,
+):
     # ASSUME there are no NaNs in alt at this point
     multi_alts = df[ALT].str.contains(",")
     alt_len = df[ALT].str.len()
     ref_len = df[REF].str.len()
     df[indel_len_col] = alt_len - ref_len
     df[end_col] = df[start_col] + ref_len
-    mask = filter_mask(ref_len, alt_len, filter_key) & ~multi_alts
+    mask = filter_mask(ref_len, alt_len, max_length, filter_key) & ~multi_alts
     return df[mask].copy()
 
 
 def select_nonlabel_columns(non_field_cols, fields, df):
-    return df[non_field_cols + [*fields]]
+    cols = non_field_cols + [*fields]
+    logger.info("Selecting columns for final TSV: %s", fmt_strs(cols))
+    return df[cols]
 
 
 def get_label(wildcards):
@@ -150,6 +190,7 @@ def get_label(wildcards):
 
 def add_label_maybe(label, label_col, df):
     if label is not None:
+        logger.info("Applying label %s to column %s", label, label_col)
         df[label_col] = label
     return df
 
@@ -198,6 +239,7 @@ def main():
             pos,
             end,
             wildcards.filter_key,
+            iconf["max_length"],
         ),
         remove_multialleles,
         fix_dot_alts,

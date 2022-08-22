@@ -20,9 +20,19 @@ inputs:
       Clinvar_Illumina:
         url: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/archive_2.0/2022/clinvar_20220812.vcf.gz
         ref: GRCh38
+        # isn't genomics wonderful?
         chr_prefix: ''
         format_fields: {}
         benchmark: null
+        # there are some super long variants in this VCF, for testing purposes
+        # just ignore them to avoid combinatorial blowout at the annotation
+        # step
+        max_length: 1000
+        format_fields:
+          vaf: null
+          dp: null
+          gt: null
+          gq: null
 
 ebm_runs:
   small_set_v3:
