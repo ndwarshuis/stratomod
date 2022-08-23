@@ -70,13 +70,18 @@ properties:
                     format: uri
                   - type: "null"
 
-              max_length: &input_max_length
+              max_ref: &input_max_ref
                 description: |
-                  The maximum absolute variant length (as defined by the REF
-                  column) that will be processed after parsing. This is mostly
-                  useful to prevent memory issues when testing in the case
-                  of some unusually long variants, which would intersect with
-                  enough annotations to cause combinatorial blowout.
+                  Only variants with a REF value less than or equal to this will
+                  be included. Useful for preventing gravity wells in RAM due to
+                  combinatorial blowout and for keeping 'long' variants out of
+                  testing datasets.
+                default: 1000000
+                type: number
+                minimum: 1
+
+              max_alt: &input_max_alt
+                description: Like 'max_ref' but for the ALT column
                 default: 1000000
                 type: number
                 minimum: 1
@@ -124,7 +129,8 @@ properties:
                   url: *input_url
                   format_fields: *input_parse
                   chr_prefix: *input_chr
-                  max_length: *input_max_length
+                  max_ref: *input_max_ref
+                  max_alt: *input_max_alt
                   benchmark:
                     description: the benchmark index to use for this input
                     anyOf:

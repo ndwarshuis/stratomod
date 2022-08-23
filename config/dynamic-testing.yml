@@ -24,10 +24,13 @@ inputs:
         chr_prefix: ''
         format_fields: {}
         benchmark: null
-        # there are some super long variants in this VCF, for testing purposes
-        # just ignore them to avoid combinatorial blowout at the annotation
-        # step
-        max_length: 1000
+        # There are some super long variants in clinvar. Filter these out
+        # because a) they would overlap with so many annotations that a new
+        # universe would spawn into existance and b) they are outside what a
+        # trained model would be good at testing anyways (until we incorporate
+        # structural variants)
+        max_ref: 50
+        max_alt: 50
         format_fields:
           vaf: null
           dp: null

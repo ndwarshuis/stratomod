@@ -49,16 +49,10 @@ def read_vcf(input_cols, path):
 
 
 def fix_dot_alts(df):
-    # TODO not sure if these should be filled or outright removed
+    # NOTE: This step really isn't that important, but this will remove NaNs
+    # from the ALT column which will make many downstream steps much easier
     df[ALT] = df[REF].where(df[ALT].isna(), df[ALT])
     return df
-
-
-def remove_multialleles(df):
-    # ASSUME there are no NaNs in alt at this point
-    multi = df[ALT].str.contains(",")
-    logger.info("Removing %i rows with multi-allelic ALT", multi.sum())
-    return df[~multi]
 
 
 def lookup_maybe(k, d):
@@ -138,56 +132,70 @@ def assign_format_sample_fields(chrom, start, fields, df):
     )
 
 
-def filter_mask(ref_len, alt_len, max_length, filter_key):
+def get_filter_mask(ref_len, alt_len, filter_key):
     assert filter_key in ["INDEL", "SNP"], f"Invalid filter key: {filter_key}"
     snps = (ref_len == 1) & (alt_len == 1)
     keep = ~snps & ~(ref_len == alt_len) if filter_key == "INDEL" else snps
-    logger.info("Number of %ss: %i", filter_key, snps.sum())
-    if filter_key == "INDEL":
-        under_max = (ref_len <= max_length) & keep
-        logger.info(
-            "Number of INDELs less than %i bp: %i",
-            max_length,
-            under_max.sum(),
-        )
-        return under_max
+    logger.info("Number of %ss: %i", filter_key, keep.sum())
     return keep
 
 
+# ASSUME there are no NaNs in alt at this point
 def add_length_and_filter(
     indel_len_col,
     start_col,
     end_col,
     filter_key,
-    max_length,
+    max_ref,
+    max_alt,
     df,
 ):
-    # ASSUME there are no NaNs in alt at this point
-    multi_alts = df[ALT].str.contains(",")
+    def log_removed(filter_mask, other_mask, msg):
+        logger.info(
+            "Removing %i %ss with %s",
+            (filter_mask & ~other_mask).sum(),
+            filter_key,
+            msg,
+        )
+
     alt_len = df[ALT].str.len()
     ref_len = df[REF].str.len()
+    filter_mask = get_filter_mask(ref_len, alt_len, filter_key)
+
+    # these should be variants where ALT is a "." (which means "ALT and REF are
+    # the same" and should only apply to ClinVar VCFs)
+    equality_mask = df[REF] != df[ALT]
+    log_removed(filter_mask, equality_mask, "same REF and ALT")
+
+    # Remove multi-allelic variants which we cannot process (yet)
+    multi_mask = ~df[ALT].str.contains(",")
+    log_removed(filter_mask, multi_mask, "multi-alleles")
+
+    # Remove any variant that doesn't pass our length filters
+    len_mask = (ref_len <= max_alt) & (alt_len <= max_alt)
+    log_removed(filter_mask, len_mask, f"REF > {max_ref} and LEN > {max_alt}")
+
     df[indel_len_col] = alt_len - ref_len
     df[end_col] = df[start_col] + ref_len
-    mask = filter_mask(ref_len, alt_len, max_length, filter_key) & ~multi_alts
-    return df[mask].copy()
+    # NOTE: the main reason why all these crazy filters are in one function
+    # because we get weird slice warnings unless I copy after the filter step
+    # ...and for obvious reasons I don't want to copy more than once
+    return df[filter_mask & len_mask & equality_mask & multi_mask].copy()
 
 
-def select_nonlabel_columns(non_field_cols, fields, df):
-    cols = non_field_cols + [*fields]
+def select_columns(non_field_cols, fields, label_col, label, df):
+    if label is not None:
+        logger.info("Applying label %s to column %s", label, label_col)
+        df[label_col] = label
+    cols = non_field_cols + [*fields] + ([] if label is None else [label_col])
     logger.info("Selecting columns for final TSV: %s", fmt_strs(cols))
+    print(df)
     return df[cols]
 
 
 def get_label(wildcards):
     if hasattr(wildcards, "label"):
         return wildcards.label
-
-
-def add_label_maybe(label, label_col, df):
-    if label is not None:
-        logger.info("Applying label %s to column %s", label, label_col)
-        df[label_col] = label
-    return df
 
 
 def main():
@@ -224,8 +232,7 @@ def main():
 
     return compose(
         partial(write_tsv, snakemake.output[0]),
-        partial(add_label_maybe, label, fconf["label"]),
-        partial(select_nonlabel_columns, non_field_cols, fields),
+        partial(select_columns, non_field_cols, fields, fconf["label"], label),
         partial(assign_format_sample_fields, chrom, pos, fields),
         partial(standardize_chr_column, chrom),
         partial(
@@ -234,9 +241,9 @@ def main():
             pos,
             end,
             wildcards.filter_key,
-            iconf["max_length"],
+            iconf["max_ref"],
+            iconf["max_alt"],
         ),
-        remove_multialleles,
         fix_dot_alts,
         partial(read_vcf, input_cols),
     )(snakemake.input[0])
