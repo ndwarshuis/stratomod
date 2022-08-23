@@ -100,7 +100,7 @@ snakemake_resources:
   stage: test
   <<: *activate_smk
   script:
-    - snakemake -p --use-conda -c 1 --configfile=$TESTCONF all_resources
+    - snakemake -p --use-conda -c 8 --configfile=$TESTCONF all_resources
   cache:
     - <<: *smk_global_cache
       policy: pull
