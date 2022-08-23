@@ -1,0 +1,90 @@
+---
+title: "Model Summary"
+output: "html_document"
+---
+
+```{r, include=FALSE, message=FALSE}
+library(tidyverse)
+library(ggpubr)
+
+source("workflow/scripts/rmarkdown/common/plots.r")
+
+read_df <- function(path) {
+    readr::read_csv(path, col_types = cols(.default = "d"))
+}
+
+has_label <- "truth_y" %in% names(snakemake@input)
+
+pred_y <- read_df(snakemake@input[["predictions"]])
+explain_x <- read_df(snakemake@input[["explanations"]])
+
+```
+
+
+```{r, include = FALSE, eval = has_label}
+truth_y <- read_df(snakemake@input[["truth_y"]])
+y <- tibble(label = truth_y$label, prob = pred_y$`1`)
+```
+
+
+# Model Statistics
+
+## Overview
+
+```{r, echo = FALSE, eval = has_label, results = "asis"}
+
+cat(sprintf("* N: %i\n", nrow(pred_y)))
+
+if (has_label) {
+    cat(sprintf("* Perc. Pos: %f\n\n", sum(y$label)/nrow(y)))
+}
+```
+
+## Prediction Distribution
+
+```{r, echo = FALSE, results = "asis", fig.width = 7, fig.height = 4}
+if (has_label) {
+    ggplot(y, aes(prob, color = factor(label))) +
+        geom_density() +
+        xlab("probability") +
+        scale_color_discrete(name = "label")
+} else {
+    ggplot(pred_y, aes(x = `1`)) +
+        geom_density() +
+        xlab("probability")
+}
+```
+
+```{r, include=FALSE, eval = has_label}
+
+AllP <- sum(y$label)
+AllN <- nrow(y) - AllP
+
+roc <- y %>%
+    arrange(prob) %>%
+    mutate(thresh_FN = cumsum(label),
+           thresh_TN = row_number() - thresh_FN,
+           thresh_TP = AllP - thresh_FN,
+           thresh_FP = AllN - thresh_TN,
+           TPR = thresh_TP / AllP,
+           TNR = thresh_TN / AllN,
+           FPR = 1 - TNR,
+           precision = thresh_TP / (thresh_TP + thresh_FP))
+
+```
+
+```{r, echo = FALSE, results = "asis", fig.width = 4, fig.height = 4, eval = has_label}
+
+cat("## ROC Curves\n\n")
+
+roc %>%
+    arrange(FPR, TPR) %>%
+    ggplot(aes(FPR, TPR)) +
+    geom_line()
+
+roc %>%
+    filter(!is.na(precision)) %>%
+    arrange(TPR, desc(precision)) %>%
+    ggplot(aes(TPR, precision)) +
+    geom_line()
+```

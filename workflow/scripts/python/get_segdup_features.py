@@ -7,10 +7,10 @@ from common.config import lookup_bed_cols, bed_cols_indexed
 # This database is documented here:
 # http://genome.ucsc.edu/cgi-bin/hgTables?hgta_doSchemaDb=hg38&hgta_doSchemaTable=genomicSuperDups
 
-# ASSUME segdups dataframe is fed into this script as-is. The column numbers
-# below are dictionary values, and the corresponding feature names are the
-# dictionary keys. Note that many feature names don't match the original column
-# names in the database.
+# ASSUME segdups dataframe is fed into this script with the chromosome column
+# standardized. The column numbers below are dictionary values, and the
+# corresponding feature names are the dictionary keys. Note that many feature
+# names don't match the original column names in the database.
 
 logger = setup_logging(snakemake.log[0])
 
