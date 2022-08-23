@@ -256,6 +256,9 @@ properties:
               qual: 
                 <<: *column
                 description: the QUAL column name
+              info:
+                <<: *column
+                description: the INFO column name
               filter:
                 <<: *column
                 description: the FILTER column name

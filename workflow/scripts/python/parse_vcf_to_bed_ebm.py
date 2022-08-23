@@ -21,7 +21,6 @@ input_col = namedtuple("InputCol", ["dtype", "na_value"])
 ID = "ID"
 REF = "REF"
 ALT = "ALT"
-INFO = "INFO"
 FORMAT = "FORMAT"
 SAMPLE = "SAMPLE"
 
@@ -189,7 +188,6 @@ def select_columns(non_field_cols, fields, label_col, label, df):
         df[label_col] = label
     cols = non_field_cols + [*fields] + ([] if label is None else [label_col])
     logger.info("Selecting columns for final TSV: %s", fmt_strs(cols))
-    print(df)
     return df[cols]
 
 
@@ -208,6 +206,7 @@ def main():
     chrom = idx["chr"]
     pos = idx["start"]
     qual = fmt_vcf_feature(sconf, "qual")
+    info = fmt_vcf_feature(sconf, "info")
     filt = fmt_vcf_feature(sconf, "filter")
     end = idx["end"]
     indel_length = fmt_vcf_feature(sconf, "len")
@@ -220,12 +219,12 @@ def main():
         ALT: input_col(str, "."),
         qual: input_col(float, "."),
         filt: input_col(str, "."),
-        INFO: input_col(str, "."),
+        info: input_col(str, "."),
         FORMAT: input_col(str, "."),
         SAMPLE: input_col(str, "."),
     }
 
-    non_field_cols = [chrom, pos, end, indel_length, qual, filt]
+    non_field_cols = [chrom, pos, end, indel_length, qual, filt, info]
 
     fields = {fmt_vcf_feature(sconf, k): v for k, v in iconf["format_fields"].items()}
     label = get_label(wildcards)

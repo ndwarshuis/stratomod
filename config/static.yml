@@ -45,6 +45,7 @@ features:
       input: input
       qual: QUAL
       filter: FILTER
+      info: INFO
       gt: GT
       gq: GQ
       dp: DP

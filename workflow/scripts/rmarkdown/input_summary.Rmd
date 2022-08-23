@@ -95,6 +95,7 @@ x_col_types <- if (has_label) {
                        !!idx[["start"]] := "-",
                        !!idx[["end"]] := "-",
                        !!fmt_vcf_col(fconf, "filter") := "-",
+                       !!fmt_vcf_col(fconf, "info") := "-",
                        !!fmt_vcf_col(fconf, "gt") := "-",
                        !!fmt_vcf_col(fconf, "gq") := "-",
                        .default = "d")
@@ -104,6 +105,7 @@ x_col_types <- if (has_label) {
                        !!idx[["start"]] := "-",
                        !!idx[["end"]] := "-",
                        !!fmt_vcf_col(fconf, "filter") := "-",
+                       !!fmt_vcf_col(fconf, "info") := "-",
                        !!fmt_vcf_col(fconf, "gt") := "-",
                        !!fmt_vcf_col(fconf, "gq") := "-",
                        .default = "d")
