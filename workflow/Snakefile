@@ -20,6 +20,28 @@ validate_inputs(config)
 validate_ebm_features(config)
 validate_ebm_inputs(config)
 
+################################################################################
+# Wildcards
+
+# wildcards shall not be used for multiple nodes in a filepath
+
+_constraints = {
+    "input_key": "[^/]+",
+    "input_keys": "[^/]+",
+    "bench_key": "[^/]+",
+    "filter_key": "[^/]+",
+    "run_key": "[^/]+",
+    "test_key": "[^/]+",
+    "label": "[^/]+",
+}
+
+
+wildcard_constraints:
+    **_constraints,
+
+
+all_wild = {k: f"{{{k}}}" for k in _constraints}
+
 
 ################################################################################
 # Paths

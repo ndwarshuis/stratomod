@@ -12,7 +12,7 @@ include: "reference.smk"
 
 inputs_dir = resources_dir / "inputs"
 
-input_results_dir = results_dir / "inputs" / "{input_key,[^/]+}"
+input_results_dir = results_dir / "inputs" / "{input_key}"
 
 prepare_dir = input_results_dir / "prepare"
 labeled_dir = input_results_dir / "labeled"

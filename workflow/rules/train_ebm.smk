@@ -14,7 +14,7 @@ def get_git_tag():
 git_tag = get_git_tag()
 
 train_dir = (
-    results_dir / "ebm" / ("%s-{input_keys}-{filter_key}-{run_key,[^/]+}" % git_tag)
+    results_dir / "ebm" / ("%s-{input_keys}-{filter_key}-{run_key}" % git_tag)
 )
 train_log_dir = train_dir / "log"
 
