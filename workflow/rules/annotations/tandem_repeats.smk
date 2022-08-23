@@ -4,14 +4,14 @@ from scripts.python.common.config import (
     attempt_mem_gb,
 )
 
-tandem_repeats_src_dir = annotations_src_dir / "tandem_repeats"
-tandem_repeats_results_dir = annotations_tsv_dir / "tandem_repeats"
+tandem_repeats_dir = "tandem_repeats"
+tandem_repeats_results_dir = annotations_tsv_dir / tandem_repeats_dir
 
 
 # download this entire table as-is, we will select the right columns in a script
 rule download_tandem_repeats:
     output:
-        tandem_repeats_src_dir / "simple_repeats.txt.gz",
+        annotations_src_dir / tandem_repeats_dir / "simple_repeats.txt.gz",
     params:
         url=lookup_annotations(config)["simreps"],
     conda:
@@ -32,7 +32,7 @@ rule get_tandem_repeats:
     params:
         filt=lookup_global_chr_filter(config),
     log:
-        tandem_repeats_results_dir / "tandem_repeats.log",
+        annotations_log_dir / tandem_repeats_dir / "tandem_repeats.log",
     benchmark:
         tandem_repeats_results_dir / "tandem_repeats.bench"
     resources:

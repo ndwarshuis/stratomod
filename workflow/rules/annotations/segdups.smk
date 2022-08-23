@@ -4,13 +4,13 @@ from scripts.python.common.config import (
     attempt_mem_gb,
 )
 
-segdups_src_dir = annotations_src_dir / "segdups"
-segdups_results_dir = annotations_tsv_dir / "segdups"
+segdups_dir = "segdups"
+segdups_results_dir = annotations_tsv_dir / segdups_dir
 
 
 rule download_superdups:
     output:
-        segdups_src_dir / "superdups.txt.gz",
+        annotations_src_dir / segdups_dir / "superdups.txt.gz",
     params:
         url=lookup_annotations(config)["superdups"],
     conda:
@@ -29,7 +29,7 @@ rule get_segdups:
     params:
         filt=lookup_global_chr_filter(config),
     log:
-        segdups_results_dir / "segdups.log",
+        annotations_log_dir / segdups_dir / "segdups.log",
     benchmark:
         segdups_results_dir / "segdups.bench"
     resources:

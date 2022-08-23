@@ -4,15 +4,17 @@ from scripts.python.common.config import (
     attempt_mem_gb,
 )
 
-rmsk_src_dir = annotations_src_dir / "repeat_masker"
-rmsk_results_dir = annotations_tsv_dir / "repeat_masker"
+rmsk_dir = "repeat_masker"
+rmsk_results_dir = annotations_tsv_dir / rmsk_dir
+
 rmsk_file_prefix = "repeat_masker"
+
 rmsk_classes = config["features"]["repeat_masker"]["classes"]
 
 
 rule download_repeat_masker:
     output:
-        rmsk_src_dir / "repeat_masker.txt.gz",
+        annotations_src_dir / rmsk_dir / "repeat_masker.txt.gz",
     params:
         url=lookup_annotations(config)["repeat_masker"],
     conda:
@@ -34,7 +36,7 @@ rule get_repeat_masker_classes:
     conda:
         envs_path("bedtools.yml")
     log:
-        rmsk_results_dir / "rmsk.log",
+        annotations_log_dir / rmsk_dir / "rmsk.log",
     params:
         file_prefix=rmsk_file_prefix,
         filt=lookup_global_chr_filter(config),

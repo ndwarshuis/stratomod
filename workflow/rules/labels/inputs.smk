@@ -10,18 +10,31 @@ from scripts.python.common.config import (
 include: "reference.smk"
 
 
+# resource dirs
+
 inputs_dir = resources_dir / "inputs"
-
-input_results_dir = results_dir / "inputs" / "{input_key}"
-
-prepare_dir = input_results_dir / "prepare"
-labeled_dir = input_results_dir / "labeled"
-unlabeled_dir = input_results_dir / "unlabeled"
-
 bench_dir = resources_dir / "bench"
-alt_bench_dir = input_results_dir / "bench"
 
-rtg_dir = labeled_dir / "rtg"
+# relative output dirs
+
+rel_input_results_dir = Path("inputs") / "{input_key}"
+rel_prepare_dir = rel_input_results_dir / "prepare"
+rel_labeled_dir = rel_input_results_dir / "label"
+rel_rtg_dir = rel_labeled_dir / "rtg"
+rel_unlabeled_dir = rel_input_results_dir / "unlabeled"
+rel_alt_bench_dir = rel_input_results_dir / "bench"
+
+# results dirs
+
+# input_results_dir = results_dir / rel_input_results_dir
+
+prepare_dir = results_dir / rel_prepare_dir 
+labeled_dir = results_dir / rel_labeled_dir
+unlabeled_dir = results_dir / rel_unlabeled_dir
+alt_bench_dir = results_dir / rel_alt_bench_dir
+rtg_dir = results_dir / rel_rtg_dir
+
+# log dirs
 
 LABELS = ["fp", "fn", "tp"]
 
@@ -257,6 +270,8 @@ rule filter_bench_bed:
 # TODO add option to switch of the "--ref-overlap --all-records" thingy
 # TODO --all-records = use all records including those that fail, make an option
 # for this
+# TODO rtg apparently outputs a log file on its own with everything else (which
+# has more in it than piping stdout/stderr as below)
 
 
 rule label_vcf:
@@ -279,7 +294,7 @@ rule label_vcf:
         tmp_dir=lambda wildcards: f"/tmp/vcfeval_{wildcards.input_key}",
         output_dir=lambda _, output: Path(output[0]).parent,
     log:
-        rtg_dir / "vcfeval.log",
+        log_dir / rel_rtg_dir / "vcfeval.log",
     benchmark:
         rtg_dir / "vcfeval.bench"
     resources:
@@ -311,7 +326,7 @@ rule parse_labeled_vcf:
     output:
         labeled_dir / "{filter_key}_{label}.tsv",
     log:
-        labeled_dir / "{filter_key}_{label}.log",
+        log_dir / rel_labeled_dir / "{filter_key}_{label}.log",
     benchmark:
         labeled_dir / "{filter_key}_{label}.bench"
     conda:
@@ -345,6 +360,6 @@ use rule parse_labeled_vcf as parse_unlabeled_vcf with:
     output:
         unlabeled_dir / "{input_key}%{filter_key}.tsv",
     log:
-        unlabeled_dir / "{input_key}%{filter_key}.log",
+        log_dir / rel_unlabeled_dir / "{input_key}%{filter_key}.log",
     benchmark:
         unlabeled_dir / "{input_key}%{filter_key}.bench"

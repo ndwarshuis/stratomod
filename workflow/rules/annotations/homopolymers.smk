@@ -1,7 +1,9 @@
 from scripts.python.common.config import lookup_annotations, attempt_mem_gb
 
-homopolymers_src_dir = annotations_src_dir / "homopolymers"
-homopolymers_results_dir = annotations_tsv_dir / "homopolymers"
+homopolymers_dir = "homopolymers"
+homopolymers_src_dir = annotations_src_dir / homopolymers_dir
+homopolymers_results_dir = annotations_tsv_dir / homopolymers_dir
+homopolymers_log_dir = annotations_log_dir / homopolymers_dir
 
 
 rule find_simple_repeats:
@@ -32,7 +34,7 @@ rule sort_and_filter_simple_repeats:
     output:
         homopolymers_results_dir / "simple_repeats_p3_sorted.bed",
     log:
-        homopolymers_results_dir / "sorted.log",
+        homopolymers_log_dir / "sorted.log",
     conda:
         envs_path("bedtools.yml")
     benchmark:
@@ -56,7 +58,7 @@ rule get_homopolymers:
     conda:
         envs_path("bedtools.yml")
     log:
-        homopolymers_results_dir / "homopolymers_{bases}.log",
+        homopolymers_log_dir / "homopolymers_{bases}.log",
     benchmark:
         homopolymers_results_dir / "homopolymers_{bases}.bench"
     resources:

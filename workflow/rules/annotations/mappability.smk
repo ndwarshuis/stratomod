@@ -1,7 +1,8 @@
 from scripts.python.common.config import lookup_annotations, attempt_mem_gb
 
-mappability_src_dir = annotations_src_dir / "mappability"
-mappability_results_dir = annotations_tsv_dir / "mappability"
+mappability_dir = "mappability"
+mappability_src_dir = annotations_src_dir / mappability_dir
+mappability_results_dir = annotations_tsv_dir / mappability_dir
 
 mappability_config = lookup_annotations(config)["mappability"]
 
@@ -32,7 +33,7 @@ rule get_mappability:
         high=mappability_results_dir / "mappability_high.tsv",
         low=mappability_results_dir / "mappability_low_no_high.tsv",
     log:
-        mappability_results_dir / "mappability.log",
+        annotations_log_dir / mappability_dir / "mappability.log",
     conda:
         envs_path("bedtools.yml")
     resources:

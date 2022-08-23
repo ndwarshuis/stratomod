@@ -5,28 +5,27 @@ from collections import namedtuple
 from more_itertools import flatten, partition, unzip
 from scripts.python.common.config import attempt_mem_gb
 
-
-def get_git_tag():
-    args = ["git", "describe", "--tags", "--abbrev=0", "--always"]
-    return sp.run(args, capture_output=True).stdout.strip().decode()
+labeled_dir = "labeled"
+unlabeled_dir = "unlabeled"
 
 
-git_tag = get_git_tag()
+INPUT_DELIM = "&"
 
-train_dir = (
-    results_dir / "ebm" / ("%s-{input_keys}-{filter_key}-{run_key}" % git_tag)
-)
-train_log_dir = train_dir / "log"
-
-input_delim = "&"
-
-test_dir = train_dir / "test"
-test_subdir = "{test_key}@{input_key}"
-labeled_test_dir = test_dir / "labeled" / test_subdir
-unlabeled_test_dir = test_dir / "unlabeled" / test_subdir
 
 ################################################################################
 # add annotations
+
+
+annotated_tsv = "{filter_key}.tsv"
+annotated_log = "{filter_key}.log"
+annotated_bench = "{filter_key}.bench"
+
+annotated_dir = Path("annotated_input")
+rel_annotated_labeled_dir = annotated_dir / labeled_dir / "{input_key}"
+rel_annotated_unlabeled_dir = annotated_dir / unlabeled_dir / "{input_key}"
+
+labeled_annotated_dir = results_dir / rel_annotated_labeled_dir
+unlabeled_annotated_dir = results_dir / rel_annotated_unlabeled_dir
 
 
 def annotation_input(tsv_path):
@@ -47,14 +46,6 @@ def annotation_input(tsv_path):
     }
 
 
-annotated_dir = results_dir / "annotated_input"
-labeled_annotated_dir = annotated_dir / "labeled" / "{input_key}"
-unlabeled_annotated_dir = annotated_dir / "unlabeled" / "{input_key}"
-annotated_tsv = "{filter_key}.tsv"
-annotated_log = "{filter_key}.log"
-annotated_bench = "{filter_key}.bench"
-
-
 rule annotate_labeled_tsv:
     input:
         **annotation_input(rules.concat_labeled_tsvs.output),
@@ -63,7 +54,7 @@ rule annotate_labeled_tsv:
     conda:
         envs_path("bedtools.yml")
     log:
-        labeled_annotated_dir / annotated_log,
+        log_dir / rel_annotated_labeled_dir / annotated_log,
     benchmark:
         labeled_annotated_dir / annotated_bench
     resources:
@@ -78,7 +69,7 @@ use rule annotate_labeled_tsv as annotate_unlabeled_tsv with:
     output:
         unlabeled_annotated_dir / annotated_tsv,
     log:
-        unlabeled_annotated_dir / annotated_log,
+        log_dir / rel_annotated_unlabeled_dir / annotated_log,
     benchmark:
         unlabeled_annotated_dir / annotated_bench
 
@@ -125,16 +116,29 @@ use rule summarize_labeled_input as summarize_unlabeled_input with:
 # pickling
 
 
+def get_git_tag():
+    args = ["git", "describe", "--tags", "--abbrev=0", "--always"]
+    return sp.run(args, capture_output=True).stdout.strip().decode()
+
+
+git_tag = get_git_tag()
+
+ebm_dir = Path("ebm") / f"{git_tag}-{{input_keys}}-{{filter_key}}-{{run_key}}"
+
+train_results_dir = results_dir / ebm_dir
+train_log_dir = log_dir / ebm_dir
+
+
 rule prepare_train_data:
     input:
         lambda wildcards: expand(
             rules.annotate_labeled_tsv.output,
             allow_missing=True,
-            input_key=wildcards.input_keys.split(input_delim),
+            input_key=wildcards.input_keys.split(INPUT_DELIM),
         ),
     output:
-        df=train_dir / "train.tsv",
-        paths=train_dir / "input_paths.json",
+        df=train_results_dir / "train.tsv",
+        paths=train_results_dir / "input_paths.json",
     log:
         train_log_dir / "prepare.log",
     benchmark:
@@ -150,7 +154,7 @@ rule train_model:
         rules.prepare_train_data.output,
     output:
         **{
-            n: str((train_dir / n).with_suffix(".csv"))
+            n: str((train_results_dir / n).with_suffix(".csv"))
             for n in [
                 "train_x",
                 "train_y",
@@ -158,8 +162,8 @@ rule train_model:
                 "test_y",
             ]
         },
-        model=train_dir / "model.pickle",
-        config=train_dir / "config.yml",
+        model=train_results_dir / "model.pickle",
+        config=train_results_dir / "config.yml",
     conda:
         envs_path("ebm.yml")
     log:
@@ -170,7 +174,7 @@ rule train_model:
     resources:
         mem_mb=lambda wildcards, threads, attempt: 16000 * threads * 2 ** (attempt - 1),
     benchmark:
-        train_log_dir / "model.bench"
+        train_results_dir / "model.bench"
     script:
         python_path("train_ebm.py")
 
@@ -179,8 +183,8 @@ rule decompose_model:
     input:
         **rules.train_model.output,
     output:
-        model=train_dir / "model.json",
-        predictions=train_dir / "predictions.csv",
+        model=train_results_dir / "model.json",
+        predictions=train_results_dir / "predictions.csv",
     conda:
         envs_path("ebm.yml")
     log:
@@ -196,11 +200,11 @@ rule summarize_model:
         **rules.decompose_model.output,
         paths=rules.prepare_train_data.output.paths,
     output:
-        train_dir / "summary.html",
+        train_results_dir / "summary.html",
     conda:
         envs_path("rmarkdown.yml")
     benchmark:
-        train_dir / "summary.bench"
+        train_results_dir / "summary.bench"
     resources:
         mem_mb=attempt_mem_gb(2),
     script:
@@ -209,6 +213,22 @@ rule summarize_model:
 
 ################################################################################
 # prepare test data
+
+prepare_x_file = "test_x.tsv"
+prepare_log_file = "prepare.log"
+prepare_bench_file = "prepare.bench"
+
+test_dir = "test"
+test_subdir = "{test_key}@{input_key}"
+
+test_results_dir = train_results_dir / test_dir
+test_log_dir = train_log_dir / test_dir
+
+labeled_test_results_dir = test_results_dir / labeled_dir / test_subdir
+unlabeled_test_results_dir = test_results_dir / unlabeled_dir / test_subdir
+
+labeled_test_log_dir = test_log_dir / labeled_dir / test_subdir
+unlabeled_test_log_dir = test_log_dir / unlabeled_dir / test_subdir
 
 
 def test_data_input(annotated_path, wildcards):
@@ -222,23 +242,18 @@ def test_data_input(annotated_path, wildcards):
     }
 
 
-prepare_x_file = "test_x.tsv"
-prepare_log_file = "prepare.log"
-prepare_bench_file = "prepare.bench"
-
-
 # NOTE: the script will treat the input differently depending on if we want
 # test_y (in this case it will perform all the label-related logic)
 rule prepare_labeled_test_data:
     input:
         unpack(partial(test_data_input, rules.annotate_labeled_tsv.output)),
     output:
-        test_x=labeled_test_dir / prepare_x_file,
-        test_y=labeled_test_dir / "test_y.tsv",
+        test_x=labeled_test_results_dir / prepare_x_file,
+        test_y=labeled_test_results_dir / "test_y.tsv",
     log:
-        labeled_test_dir / prepare_log_file,
+        labeled_test_log_dir / prepare_log_file,
     benchmark:
-        labeled_test_dir / prepare_bench_file
+        labeled_test_results_dir / prepare_bench_file
     resources:
         mem_mb=attempt_mem_gb(8),
     script:
@@ -249,15 +264,19 @@ use rule prepare_labeled_test_data as prepare_unlabeled_test_data with:
     input:
         unpack(partial(test_data_input, rules.annotate_unlabeled_tsv.output)),
     output:
-        test_x=unlabeled_test_dir / prepare_x_file,
+        test_x=unlabeled_test_results_dir / prepare_x_file,
     log:
-        unlabeled_test_dir / prepare_log_file,
+        unlabeled_test_log_dir / prepare_log_file,
     benchmark:
-        unlabeled_test_dir / prepare_bench_file
+        unlabeled_test_results_dir / prepare_bench_file
 
 
 ################################################################################
 # test model
+
+
+test_bench_file = "test.bench"
+test_log_file = "test.log"
 
 
 def test_ebm_input(x_path):
@@ -271,23 +290,19 @@ def test_ebm_output(test_path):
     }
 
 
-test_bench_file = "test.bench"
-test_log_file = "test.log"
-
-
 rule test_labeled_ebm:
     input:
         **test_ebm_input(rules.prepare_labeled_test_data.output.test_x),
     output:
-        **test_ebm_output(labeled_test_dir),
+        **test_ebm_output(labeled_test_results_dir),
     conda:
         envs_path("ebm.yml")
     log:
-        labeled_test_dir / test_log_file,
+        labeled_test_log_dir / test_log_file,
     resources:
         mem_mb=attempt_mem_gb(2),
     benchmark:
-        labeled_test_dir / test_bench_file
+        labeled_test_results_dir / test_bench_file
     script:
         python_path("test_ebm.py")
 
@@ -296,15 +311,15 @@ use rule test_labeled_ebm as test_unlabeled_ebm with:
     input:
         **test_ebm_input(rules.prepare_unlabeled_test_data.output.test_x),
     output:
-        **test_ebm_output(unlabeled_test_dir),
+        **test_ebm_output(unlabeled_test_results_dir),
     log:
-        unlabeled_test_dir / test_log_file,
+        unlabeled_test_log_dir / test_log_file,
     benchmark:
-        unlabeled_test_dir / test_bench_file
+        unlabeled_test_results_dir / test_bench_file
 
 
 ################################################################################
-# test model
+# summarize test
 
 test_summary_file = "summary.html"
 test_summary_bench = "summary.bench"
@@ -315,11 +330,11 @@ rule summarize_labeled_test:
         **rules.test_labeled_ebm.output,
         truth_y=rules.prepare_labeled_test_data.output.test_y,
     output:
-        labeled_test_dir / test_summary_file,
+        labeled_test_results_dir / test_summary_file,
     conda:
         envs_path("rmarkdown.yml")
     benchmark:
-        labeled_test_dir / test_summary_bench
+        labeled_test_results_dir / test_summary_bench
     resources:
         mem_mb=attempt_mem_gb(2),
     script:
@@ -330,9 +345,9 @@ use rule summarize_labeled_test as summarize_unlabeled_test with:
     input:
         **rules.test_unlabeled_ebm.output,
     output:
-        unlabeled_test_dir / test_summary_file,
+        unlabeled_test_results_dir / test_summary_file,
     benchmark:
-        unlabeled_test_dir / test_summary_bench
+        unlabeled_test_results_dir / test_summary_bench
 
 
 ################################################################################
@@ -386,7 +401,7 @@ RunKeysTest = namedtuple(
 
 
 run_set = [
-    RunKeys(k, f, input_delim.join([*ns]), ns)
+    RunKeys(k, f, INPUT_DELIM.join([*ns]), ns)
     for k, rs in config["ebm_runs"].items()
     for f in rs["filter"]
     for ns in rs["inputs"]

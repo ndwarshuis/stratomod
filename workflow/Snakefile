@@ -49,6 +49,7 @@ all_wild = {k: f"{{{k}}}" for k in _constraints}
 conf_paths = config["paths"]
 resources_dir = Path(conf_paths["resources"])
 results_dir = Path(conf_paths["results"])
+log_dir = results_dir / "log"
 scripts_root = Path("workflow/scripts")
 
 # this is necessary as envs/scripts are apparently resolved locally in each rule
