@@ -2,7 +2,7 @@ import re
 import json
 import subprocess as sp
 from collections import namedtuple
-from more_itertools import flatten, partition
+from more_itertools import flatten, partition, unzip
 from scripts.python.common.config import attempt_mem_gb
 
 
