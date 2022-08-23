@@ -1,3 +1,17 @@
+# 5.0.0
+
+features added
+- add options to parse/not parse DP/VAF/GT/GQ fields in the FORMAT column
+- add logic to 'train' a model and 'test' it on other VCFs (including those
+  without benchmarks/labels)
+- ensure all chromosomes are standardized to 1-24 (with X/Y being 23/24)
+
+bugfixes
+- use REF instead of ALT for region length
+- fix missed HG002 vcf parse fix
+- restrict all wildcards to exclude slashes (eg they can only match a single
+  dir/filename)
+
 # 4.6.2
 
 - use log10 for transforms instead of natural log
