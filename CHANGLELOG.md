@@ -1,3 +1,7 @@
+# 5.1.0
+
+- store logs in dvc repo
+
 # 5.0.0
 
 features added
