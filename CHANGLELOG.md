@@ -1,3 +1,7 @@
+# 5.1.1
+
+- rename nisaba resource rule (and actually allocate truckload of memory)
+
 # 5.1.0
 
 - store logs in dvc repo
