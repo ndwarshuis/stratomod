@@ -1,11 +1,6 @@
 $schema: "http://json-schema.org/draft-07/schema#"
 description: explainable boosted machines pipeline
-required:
-  - paths
-  - inputs
-  - resources
-  - features
-  - ebm_runs
+required: [paths, inputs, resources, features, ebm_runs]
 additionalProperties: false
 properties:
 
@@ -14,9 +9,7 @@ properties:
 
   paths:
     additionalProperties: false
-    required:
-      - resources
-      - results
+    required: [resources, results]
     properties:
       resources:
         description: the path in which snakemake will put resource files
@@ -32,45 +25,125 @@ properties:
     additionalProperties: false
     patternProperties:
       ^[\w\.\_]+$:
-        required:
-          - url
-          - ref
-          - benchmark
+        required: [train, test, chr_filter]
         additionalProperties: false
         properties:
-          benchmark:
-            description: the benchmark index to use for this input
-            type: string
-
-          ref:
-            description: the reference index to use for this input
-            type: string
-
-          url:
-            description: the url to use in obtaining this input vcf
-            anyOf:
-              - type: string
-                format: uri
-              - type: "null"
-
           chr_filter:
             description: |
-              A list of chromosomes filter when running all analyses. Empty
-              list means include all chromosomes.
+              A list of chromosomes filter when running all analyses. Empty list
+              means include all chromosomes. Each chromosome is representated as
+              an integer, where 23 = X and 24 = Y.
             type: array
             uniqueItems: true
             items:
-              type: string
+              type: number
+              minimum: 1
+              maximum: 24
             default: []
+
+          train:
+            required: [benchmark, ref, url]
+            additionalProperties: false
+            properties:
+              benchmark:
+                description: the benchmark index to use for this input
+                type: string
+
+              ref: &input_ref
+                description: the reference index to use for this input
+                type: string
+
+              chr_prefix: &input_chr
+                description: |
+                  The prefix at the front of each chromosome. 'None' implies
+                  whatever is the default for the indicated reference ('chr' for
+                  hg38 and '' for hg37). Isn't genomics wonderful?
+                default: null
+                oneOf:
+                  - type: string
+                  - type: "null"
+
+              url: &input_url
+                description: the url to use in obtaining this input vcf
+                anyOf:
+                  - type: string
+                    format: uri
+                  - type: "null"
+
+              max_ref: &input_max_ref
+                description: |
+                  Only variants with a REF value less than or equal to this will
+                  be included. Useful for preventing gravity wells in RAM due to
+                  combinatorial blowout and for keeping 'long' variants out of
+                  testing datasets.
+                default: 1000000
+                type: number
+                minimum: 1
+
+              max_alt: &input_max_alt
+                description: Like 'max_ref' but for the ALT column
+                default: 1000000
+                type: number
+                minimum: 1
+
+              format_fields: &input_parse
+                additionalProperties: false
+                default: {}
+                properties:
+                  vaf: &field
+                    description: |
+                      The name of the VAF field in FORMAT to parse (or none if
+                      not required)
+                    default: VAF
+                    anyOf:
+                      - type: "null"
+                      - type: string
+                        pattern: ^\w+$
+                  dp:
+                    description: |
+                      The name of the DP field in FORMAT to parse (or none if
+                      not required)
+                    default: DP
+                    <<: *field
+                  gt:
+                    description: |
+                      The name of the GT field in FORMAT to parse (or none if
+                      not required)
+                    default: GT
+                    <<: *field
+                  gq:
+                    description: |
+                      The name of the GQ field in FORMAT to parse (or none if
+                      not required)
+                    default: GQ
+                    <<: *field
+
+          test:
+            description: the vcf(s) to use for prediction testing
+            additionalProperties: false
+            patternProperties:
+              ^[\w\.\_]+$:
+                required: [ref, url, benchmark]
+                properties:
+                  ref: *input_ref
+                  url: *input_url
+                  format_fields: *input_parse
+                  chr_prefix: *input_chr
+                  max_ref: *input_max_ref
+                  max_alt: *input_max_alt
+                  benchmark:
+                    description: the benchmark index to use for this input
+                    anyOf:
+                      - type: string
+                      - type: "null"
+  
 
 ################################################################################
 # resources
 
   resources:
     additionalProperties: false
-    required:
-      - benchmarks
-      - references
+    required: [benchmarks, references]
     properties:
 
       benchmarks:
@@ -94,10 +167,7 @@ properties:
         additionalProperties: false
         patternProperties:
           ^[\w\.\-]+$:
-            required:
-              - sdf
-              - genome
-              - annotations
+            required: [sdf, genome, annotations]
             additionalProperties: false
             properties:
               sdf:
@@ -112,17 +182,11 @@ properties:
 
               annotations:
                 additionalProperties: false
-                required:
-                  - mappability
-                  - superdups
-                  - simreps
-                  - repeat_masker
+                required: [mappability, superdups, simreps, repeat_masker]
                 properties:
                   mappability:
                     additionalProperties: false
-                    required:
-                    - low
-                    - high
+                    required: [low, high]
                     properties:
                       low:
                         description: the url for low stringency mappability bed file
@@ -153,15 +217,7 @@ properties:
 
   features:
     additionalProperties: false
-    required:
-      - label
-      - index
-      - vcf
-      - mappability
-      - homopolymers
-      - repeat_masker
-      - segdups
-      - tandem_repeats
+    required: [label, index, vcf, mappability, homopolymers, repeat_masker, segdups, tandem_repeats]
     properties:
       label: &column
         description: the label column for all dataframes
@@ -200,6 +256,9 @@ properties:
               qual: 
                 <<: *column
                 description: the QUAL column name
+              info:
+                <<: *column
+                description: the INFO column name
               filter:
                 <<: *column
                 description: the FILTER column name
@@ -351,11 +410,7 @@ properties:
     patternProperties:
       ^[\w_]+_v[0-9]+$:
         additionalProperties: false
-        required:
-          - inputs
-          - filter
-          - features
-          - ebm_settings
+        required: [inputs, filter, features, ebm_settings]
         properties:
           inputs:
             description: |
@@ -370,16 +425,21 @@ properties:
             minItems: 1
             uniqueItems: true
             items:
-              type: array
-              minItems: 1
-              uniqueItems: true
-              items:
-                type: string
+              additionalProperties: false
+              patternProperties:
+                ^[\w\.\_]+$:
+                  description: the vcf file(s) to test within this run
+                  type: array
+                  minItems: 1
+                  uniqueItems: true
+                  items:
+                    type: string
+                    pattern: ^[\w\.\_]+$
 
           filter:
             description: |
-              the filter(s) to use for this run as a list; either INDEL, SNP,
-              or both
+              the filter(s) to use for this run as a list; either
+              INDEL, SNP, or both
             type: array
             minItems: 1
             uniqueItems: true
@@ -431,7 +491,7 @@ properties:
                   transform:
                     description: |
                       Apply transformation to the feature. Must be one of 'log'
-                      (log transform) or 'binary' (present values become 1,
+                      (log10 transform) or 'binary' (present values become 1,
                       absent values become 0; note that this ignores 'fill_na'
                       and is best used with 'feature_type' set to 'categorical')
                     default: null

@@ -1,31 +1,31 @@
-from scripts.common.config import (
+from scripts.python.common.config import (
     lookup_global_chr_filter,
     lookup_annotations,
     attempt_mem_gb,
 )
 
-rmsk_src_dir = annotations_src_dir / "repeat_masker"
-rmsk_results_dir = annotations_tsv_dir / "repeat_masker"
+rmsk_dir = "repeat_masker"
+rmsk_results_dir = annotations_tsv_dir / rmsk_dir
+
 rmsk_file_prefix = "repeat_masker"
+
 rmsk_classes = config["features"]["repeat_masker"]["classes"]
 
 
-# download the genoName, genoStart, genoEnd, repClass columns for this table
-rule get_repeat_masker_src:
+rule download_repeat_masker:
     output:
-        rmsk_src_dir / "repeat_masker.tsv",
+        annotations_src_dir / rmsk_dir / "repeat_masker.txt.gz",
     params:
         url=lookup_annotations(config)["repeat_masker"],
     conda:
-        str(envs_dir / "utils.yml")
+        envs_path("utils.yml")
     shell:
-        "curl -Ss {params.url} | gunzip -c > {output}"
+        "curl -sS -L -o {output} {params.url}"
 
 
-# NOTE sorting/filtering chromosomes is done internally by this script
 rule get_repeat_masker_classes:
     input:
-        rules.get_repeat_masker_src.output,
+        rules.download_repeat_masker.output,
     output:
         [rmsk_results_dir / (f"{rmsk_file_prefix}_{cls}.tsv") for cls in rmsk_classes],
         [
@@ -34,9 +34,9 @@ rule get_repeat_masker_classes:
             for fam in fams
         ],
     conda:
-        str(envs_dir / "bedtools.yml")
+        envs_path("bedtools.yml")
     log:
-        rmsk_results_dir / "rmsk.log",
+        annotations_log_dir / rmsk_dir / "rmsk.log",
     params:
         file_prefix=rmsk_file_prefix,
         filt=lookup_global_chr_filter(config),
@@ -45,4 +45,4 @@ rule get_repeat_masker_classes:
     resources:
         mem_mb=attempt_mem_gb(2),
     script:
-        str(scripts_dir / "get_repeat_masker_features.py")
+        python_path("get_repeat_masker_features.py")
