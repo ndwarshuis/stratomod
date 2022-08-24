@@ -1,3 +1,7 @@
+# 5.1.2
+
+- raise memory requirements for vcf parsing
+
 # 5.1.1
 
 - rename nisaba resource rule (and actually allocate truckload of memory)

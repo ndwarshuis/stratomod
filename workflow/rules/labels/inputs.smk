@@ -331,6 +331,8 @@ rule parse_labeled_vcf:
         labeled_dir / "{filter_key}_{label}.bench"
     conda:
         envs_path("bedtools.yml")
+    resources:
+        mem_mb=attempt_mem_gb(2),
     script:
         python_path("parse_vcf_to_bed_ebm.py")
 
@@ -361,5 +363,7 @@ use rule parse_labeled_vcf as parse_unlabeled_vcf with:
         unlabeled_dir / "{input_key}%{filter_key}.tsv",
     log:
         log_dir / rel_unlabeled_dir / "{input_key}%{filter_key}.log",
+    resources:
+        mem_mb=attempt_mem_gb(2),
     benchmark:
         unlabeled_dir / "{input_key}%{filter_key}.bench"
