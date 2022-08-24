@@ -88,11 +88,7 @@ ebm_runs:
         visualization:
           plot_type: bar
           truncate: {lower: 0, upper: 50}
-      TR_unit_copies_max:
-        visualization:
-          truncate: {lower: 0, upper: 50}
       TR_identity_min: {}
-      TR_score_max: {}
       TR_percent_AT_median:
         fill_na: -1
         visualization:
