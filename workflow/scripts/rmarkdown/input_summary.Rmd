@@ -43,12 +43,24 @@ make_stats_table <- function(df) {
         knitr::kable(align = "r")
 }
 
+## TODO wet.....
 make_feature_distribution <- function(x, labels) {
     infer_transform(x) %>%
         mutate(label = labels) %>%
         gather(-label, key = key, value = value) %>%
         ggplot() +
         aes(value, color = label) +
+        geom_density() +
+        xlab(NULL) +
+        ylab(NULL) +
+        facet_wrap(~key, scales = "free")
+}
+
+make_unlabeled_feature_distribution <- function(x) {
+    infer_transform(x) %>%
+        gather(key = key, value = value) %>%
+        ggplot() +
+        aes(value) +
         geom_density() +
         xlab(NULL) +
         ylab(NULL) +
@@ -68,38 +80,56 @@ fmt_vcf_col <- function(fconf, which) {
     sprintf("%s_%s", .v[["prefix"]], .v[["columns"]][[which]])
 }
 
+has_label <- snakemake@params[["has_label"]]
 path <- snakemake@input[[1]]
 
 fconf <- snakemake@config[["features"]]
 label_col <- fconf[["label"]]
 idx <- fconf[["index"]]
 
-df_x <- readr::read_tsv(path,
-                        col_types = cols(
-                            !!label_col := "-",
-                            !!idx[["chr"]] := "-",
-                            !!idx[["start"]] := "-",
-                            !!idx[["end"]] := "-",
-                            !!fmt_vcf_col(fconf, "filter") := "-",
-                            !!fmt_vcf_col(fconf, "gt") := "-",
-                            !!fmt_vcf_col(fconf, "gq") := "-",
-                            .default = "d"))
+## TODO super wet...
+x_col_types <- if (has_label) {
+                   cols(
+                       !!label_col := "-",
+                       !!idx[["chr"]] := "-",
+                       !!idx[["start"]] := "-",
+                       !!idx[["end"]] := "-",
+                       !!fmt_vcf_col(fconf, "filter") := "-",
+                       !!fmt_vcf_col(fconf, "info") := "-",
+                       !!fmt_vcf_col(fconf, "gt") := "-",
+                       !!fmt_vcf_col(fconf, "gq") := "-",
+                       .default = "d")
+               } else {
+                   cols(
+                       !!idx[["chr"]] := "-",
+                       !!idx[["start"]] := "-",
+                       !!idx[["end"]] := "-",
+                       !!fmt_vcf_col(fconf, "filter") := "-",
+                       !!fmt_vcf_col(fconf, "info") := "-",
+                       !!fmt_vcf_col(fconf, "gt") := "-",
+                       !!fmt_vcf_col(fconf, "gq") := "-",
+                       .default = "d")
+               }
+                      
 
+df_x <- readr::read_tsv(path, col_types = x_col_types)
+features <- names(df_x)
+
+```
+
+```{r, include = FALSE, eval = has_label }
 df_y <- readr::read_tsv(path, col_types = cols(
                                   !!label_col := "c",
                                   .default = "-")) %>%
     pull(!!label_col)
 
 y_labels <- unique(df_y)
-
-features <- names(df_x)
-
 ```
 
 # Dataframe Overview
 
 ```{r, echo=FALSE}
-N <- length(df_y)
+N <- length(df_x)
 P <- length(names(df_x))
 ```
 
@@ -108,7 +138,7 @@ P <- length(names(df_x))
 
 ## Label fractions
 
-```{r, echo=FALSE, results = "asis"}
+```{r, echo=FALSE, results = "asis", eval = has_label}
 label_summary_table(df_y)
 ```
 
@@ -125,7 +155,7 @@ df_x %>%
 
 ```
 
-```{r, results = "asis", echo = FALSE}
+```{r, results = "asis", echo = FALSE, eval = has_label}
 
 print_label_tbl <- function(label) {
     cat(sprintf("## %s Label\n\n", label))
@@ -153,7 +183,7 @@ since many features are not binary).
 Do this for all features when either filtering out missing values or replacing
 missing values with 0.
 
-```{r include = FALSE, message = FALSE }
+```{r include = FALSE, message = FALSE, eval = has_label }
 
 information <- function(df, var1, var2) {
     .df <- df %>%
@@ -223,7 +253,7 @@ df_info_filled <- df_info_na %>%
 
 ## Replace missing with 0
 
-```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 5}
+```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 5, eval = has_label}
 
 print_info_plot(df_info_filled, features)
 
@@ -231,7 +261,7 @@ print_info_plot(df_info_filled, features)
 
 ## Filter missing
 
-```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 5}
+```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 5, eval = has_label}
 
 print_info_plot(df_info_na, features)
 
@@ -277,6 +307,14 @@ df_x_bool <- to_binary(df_x)
 
 ```{r, echo=F, results = "asis", fig.width = 10, fig.height = 10}
 
+cat("## All labels\n\n")
+
+print_coloc(df_x_bool, combinations)
+
+```
+
+```{r, echo=F, results = "asis", fig.width = 10, fig.height = 10, eval = has_label}
+
 print_label_coloc <- function(label) {
     cat(sprintf("## %s only\n\n", label))
 
@@ -286,10 +324,6 @@ print_label_coloc <- function(label) {
 
     cat("\n\n")
 }
-
-cat("## All labels\n\n")
-
-print_coloc(df_x_bool, combinations)
 
 walk(as.list(y_labels), print_label_coloc)
 
@@ -328,15 +362,19 @@ print_cor_plots <- function(df, subsets) {
 
 ```{r, echo=FALSE, results = "asis", fig.width = 7, fig.height = 7}
 
+cat("## All labels\n\n")
+
+print_cor_plots(df_x, perfect_overlaps)
+
+```
+
+```{r, echo=FALSE, results = "asis", fig.width = 7, fig.height = 7, eval = has_label}
+
 print_label_cor <- function(label) {
     cat(sprintf("## %s only\n\n", label))
     filter(df_x, df_y == label) %>% print_cor_plots(perfect_overlaps)
     cat("\n\n")
 }
-
-cat("## All labels\n\n")
-
-print_cor_plots(df_x, perfect_overlaps)
 
 walk(as.list(y_labels), print_label_cor)
 
@@ -359,9 +397,8 @@ Transforms were used depending on the domain of the input vector:
 
 ```{r, echo=FALSE, results="asis", fig.width=8, fig.height=4}
 
-print_plot <- function(x, name) {
+print_labeled_plot <- function(x, name) {
     cat(sprintf("## %s\n\n", name))
-
 
     .df <- tibble(x = x, y = df_y) %>%
         filter(!is.na(x))
@@ -384,6 +421,29 @@ print_plot <- function(x, name) {
     cat("\n\n")
 }
 
-iwalk(df_x, ~ print_plot(.x, .y))
+print_unlabeled_plot <- function(x, name) {
+    cat(sprintf("## %s\n\n", name))
+
+    .df <- tibble(x = x) %>%
+        filter(!is.na(x))
+
+    .x <- .df$x
+
+    if (length(.x) == 0) {
+        cat("Feature has no values")
+    } else if (max(.x) - min(.x) == 0) {
+        cat(sprintf("Feature has one value: %.1f", max(.x)))
+    } else {
+        print(make_unlabeled_feature_distribution(.x))
+    }
+
+    cat("\n\n")
+}
+
+if (has_label) {
+    iwalk(df_x, ~ print_labeled_plot(.x, .y))
+} else {
+    iwalk(df_x, ~ print_unlabeled_plot(.x, .y))
+}
 
 ```

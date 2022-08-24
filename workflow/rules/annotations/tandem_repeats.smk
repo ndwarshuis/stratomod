@@ -1,41 +1,41 @@
-from scripts.common.config import (
+from scripts.python.common.config import (
     lookup_global_chr_filter,
     lookup_annotations,
     attempt_mem_gb,
 )
 
-tandem_repeats_src_dir = annotations_src_dir / "tandem_repeats"
-tandem_repeats_results_dir = annotations_tsv_dir / "tandem_repeats"
+tandem_repeats_dir = "tandem_repeats"
+tandem_repeats_results_dir = annotations_tsv_dir / tandem_repeats_dir
 
 
 # download this entire table as-is, we will select the right columns in a script
-rule get_simreps_src:
+rule download_tandem_repeats:
     output:
-        tandem_repeats_src_dir / "simple_repeats.tsv",
+        annotations_src_dir / tandem_repeats_dir / "simple_repeats.txt.gz",
     params:
         url=lookup_annotations(config)["simreps"],
     conda:
-        str(envs_dir / "utils.yml")
+        envs_path("utils.yml")
     shell:
-        "curl -Ss {params.url} | gunzip -c > {output}"
+        "curl -sS -L -o {output} {params.url}"
 
 
 # NOTE sorting is done internally by the script
 rule get_tandem_repeats:
     input:
-        src=rules.get_simreps_src.output,
+        src=rules.download_tandem_repeats.output,
         genome=rules.get_genome.output,
     output:
         tandem_repeats_results_dir / "tandem_repeats.tsv",
     conda:
-        str(envs_dir / "bedtools.yml")
+        envs_path("bedtools.yml")
     params:
         filt=lookup_global_chr_filter(config),
     log:
-        tandem_repeats_results_dir / "tandem_repeats.log",
+        annotations_log_dir / tandem_repeats_dir / "tandem_repeats.log",
     benchmark:
         tandem_repeats_results_dir / "tandem_repeats.bench"
     resources:
         mem_mb=attempt_mem_gb(1),
     script:
-        str(scripts_dir / "get_tandem_repeat_features.py")
+        python_path("get_tandem_repeat_features.py")

@@ -10,5 +10,7 @@ stages:
     outs:
     - results/annotated_input:
         persist: true
+    - results/log:
+        persist: true
     - results/ebm:
         persist: true

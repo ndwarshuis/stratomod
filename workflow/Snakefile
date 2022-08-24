@@ -1,7 +1,13 @@
-from more_itertools import unzip, duplicates_everseen
+from functools import partial
 from pathlib import Path
 from snakemake.utils import min_version, validate
-from scripts.common.config import all_feature_names
+from scripts.python.common.config import (
+    input_set,
+    expand_rules,
+    validate_inputs,
+    validate_ebm_inputs,
+    validate_ebm_features,
+)
 
 min_version("6.12")
 
@@ -9,107 +15,61 @@ min_version("6.12")
 configfile: "config/static.yml"
 
 
-################################################################################
-# Validation
-#
-# These functions are necessary to validate properties of the config file(s)
-# that are not possible using JSON schema validation.
-#
-# In particular:
-# - For each in 'ebm_runs', make sure there are no duplicated feature names
-#   (especially considering that features can be renamed on-the-fly with
-#   'alt_name' and make sure 'alt_name' features have the same prefix as
-#   their parent feature name if they exist
-# - For each in 'ebm_runs', make sure explicitly named interaction terms are
-#   also in the feature set
-# - Make sure input files in for each in 'ebm_runs' are in the 'inputs' section
-
-
-# TODO make unittests for these
-def validate_features(config):
-    def assert_1(run_name, feature_list, feature):
-        assert (
-            feature in feature_list
-        ), f"Interaction {feature} not found in feature set for run {run_name}"
-
-    def assert_N(run_name, feature_list, ints):
-        for i in ints:
-            assert_1(run_name, feature_list, i)
-
-    def flatten_features(fs):
-        return [k if v["alt_name"] is None else v["alt_name"] for k, v in fs.items()]
-
-    flat = [
-        (k, ints, v["features"])
-        for k, v in config["ebm_runs"].items()
-        if "interactions" in v and isinstance(ints := v["interactions"], list)
-    ]
-
-    for run_name, ints, features in flat:
-        # test that all feature names are valid
-        valid_features = set(all_feature_names(config))
-        fs = set(list(features))
-        assert fs <= valid_features, "Invalid features: {}".format(
-            ", ".join(fs - valid_features)
-        )
-
-        for k, v in features.items():
-            # test feature alt names
-            alt = v["alt_name"]
-            if alt is not None:
-                prefix = re.match("^[^_]+", k)[0]
-                alt_prefix = re.match("^[^_]+", alt)[0]
-                assert alt_prefix == prefix, f"Alt prefix must match for {k}"
-
-            # test truncation values
-            truncate = v["visualization"]["truncate"]
-            tlower = truncate["lower"]
-            tupper = truncate["upper"]
-            if tlower is not None and tupper is not None:
-                assert tlower < tupper, f"Non-positive truncation for {k}"
-
-        # test duplicate alt names
-        flat_feature_names = flatten_features(features)
-        dups = [*duplicates_everseen(flat_feature_names)]
-        assert len(dups) == 0, f"Duplicated features: {', '.join(dups)}"
-
-        # test for matching interaction terms
-        for i in ints:
-            check = assert_N if isinstance(i, list) else assert_1
-            check(run_name, flat_feature_names, i)
-
-
-def validate_inputs(config):
-    inputs = set(config["inputs"])
-    for k, v in config["ebm_runs"].items():
-        assert (
-            set(j for i in v["inputs"] for j in i) <= inputs
-        ), f"Run config {k} contains invalid input keys"
-
-
 validate(config, "schemas/config-schema.yml")
 validate_inputs(config)
-validate_features(config)
+validate_ebm_features(config)
+validate_ebm_inputs(config)
+
+################################################################################
+# Wildcards
+
+# wildcards shall not be used for multiple nodes in a filepath
+
+_constraints = {
+    "input_key": "[^/]+",
+    "input_keys": "[^/]+",
+    "bench_key": "[^/]+",
+    "filter_key": "[^/]+",
+    "run_key": "[^/]+",
+    "test_key": "[^/]+",
+    "label": "[^/]+",
+}
+
+
+wildcard_constraints:
+    **_constraints,
+
+
+all_wild = {k: f"{{{k}}}" for k in _constraints}
 
 
 ################################################################################
 # Paths
 
-# this is necessary as envs are apparently resolved locally in each rule file
-envs_dir = Path("workflow/envs").resolve()
-scripts_dir = Path("workflow/scripts").resolve()
-
 conf_paths = config["paths"]
 resources_dir = Path(conf_paths["resources"])
 results_dir = Path(conf_paths["results"])
+log_dir = results_dir / "log"
+scripts_root = Path("workflow/scripts")
+
+# this is necessary as envs/scripts are apparently resolved locally in each rule
+# file
+def build_abs_path(relpath, basename):
+    return str(relpath.resolve() / basename)
+
+
+envs_path = partial(build_abs_path, Path("workflow/envs"))
+python_path = partial(build_abs_path, scripts_root / "python")
+rmd_path = partial(build_abs_path, scripts_root / "rmarkdown")
+
 
 ################################################################################
 # Import Subworkflows
 
 
-include: "rules/labels/get_labels.smk"
-include: "rules/annotations/get_annotations.smk"
-include: "rules/run_ebm.smk"
+include: "rules/labels/inputs.smk"
+include: "rules/annotations/main.smk"
+include: "rules/train_ebm.smk"
 
 
 ################################################################################
@@ -128,23 +88,20 @@ rule all:
 
 rule all_resources:
     input:
-        expand(rules.get_input_vcf.output, input_key=[*config["inputs"]]),
+        expand(rules.download_query_vcf.output, input_key=[*config["inputs"]]),
+        expand(rules.download_ref_sdf.output, ref_key=input_set(config, "ref")),
         expand(
-            rules.get_ref_sdf.output,
-            ref_key=set(i["ref"] for i in config["inputs"].values()),
-        ),
-        expand(
-            [
-                *rules.get_bench_vcf.output,
-                *rules.get_bench_bed.output,
-                *rules.get_bench_tbi.output,
-            ],
-            bench_key=set(i["benchmark"] for i in config["inputs"].values()),
+            expand_rules(
+                rules,
+                ["download_bench_vcf", "download_bench_bed"],
+                "output",
+            ),
+            bench_key=input_set(config, "benchmark"),
         ),
         # TODO all these implicitly depend on the reference
-        rules.get_genome.output,
-        rules.get_mappability_high_src.output,
-        rules.get_mappability_low_src.output,
-        rules.get_repeat_masker_src.output,
-        rules.get_superdups_src.output,
-        rules.get_simreps_src.output,
+        rules.download_genome.output,
+        rules.download_mappability_high.output,
+        rules.download_mappability_low.output,
+        rules.download_repeat_masker.output,
+        rules.download_superdups.output,
+        rules.download_tandem_repeats.output,
