@@ -1,27 +1,14 @@
-import pickle
 import json
 import pandas as pd
 import numpy as np
-from dash import html
-from sklearn import metrics
-from sklearn.model_selection import train_test_split
-from interpret import set_visualize_provider
-from interpret.provider import InlineProvider
-from interpret.glassbox import ExplainableBoostingClassifier
-from interpret import show
 from common.cli import setup_logging
+from common.ebm import read_model
 
 setup_logging(snakemake.log[0])
 
 
-# TODO some of these imports probably aren't actually needed
-# TODO also, there is no reason this can't be done immediately after training
+# TODO there is no reason this can't be done immediately after training
 # just to avoid the pickle thing
-
-
-def read_pickle(path):
-    with open(path, "rb") as f:
-        return pickle.load(f)
 
 
 def array_to_list(arr, repeat_last):
@@ -158,7 +145,7 @@ def write_model_json(ebm):
 
 
 def main():
-    ebm = read_pickle(snakemake.input["model"])
+    ebm = read_model(snakemake.input["model"])
     label = snakemake.config["features"]["label"]
     X_test = pd.read_csv(snakemake.input["test_x"])
     y_test = pd.read_csv(snakemake.input["test_y"])

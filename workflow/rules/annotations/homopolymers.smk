@@ -1,7 +1,9 @@
-from scripts.common.config import lookup_annotations, attempt_mem_gb
+from scripts.python.common.config import lookup_annotations, attempt_mem_gb
 
-homopolymers_src_dir = annotations_src_dir / "homopolymers"
-homopolymers_results_dir = annotations_tsv_dir / "homopolymers"
+homopolymers_dir = "homopolymers"
+homopolymers_src_dir = annotations_src_dir / homopolymers_dir
+homopolymers_results_dir = annotations_tsv_dir / homopolymers_dir
+homopolymers_log_dir = annotations_log_dir / homopolymers_dir
 
 
 rule find_simple_repeats:
@@ -11,18 +13,16 @@ rule find_simple_repeats:
     output:
         homopolymers_results_dir / "simple_repeats_p3.bed",
     conda:
-        str(envs_dir / "find_simple_repeats.yml")
-    params:
-        script=str(scripts_dir / "find_regions.py"),
+        envs_path("find_simple_repeats.yml")
     benchmark:
         homopolymers_results_dir / "find_regions.bench"
     resources:
         mem_mb=attempt_mem_gb(4),
     shell:
-        """
-        python {params.script} \
+        f"""
+        python {python_path("find_regions.py")} \
         -p 3 -d 100000 -t 100000 -q 100000 \
-        {input} {output}
+        {{input}} {{output}}
         """
 
 
@@ -34,18 +34,18 @@ rule sort_and_filter_simple_repeats:
     output:
         homopolymers_results_dir / "simple_repeats_p3_sorted.bed",
     log:
-        homopolymers_results_dir / "sorted.log",
+        homopolymers_log_dir / "sorted.log",
     conda:
-        str(envs_dir / "bedtools.yml")
+        envs_path("bedtools.yml")
     benchmark:
         homopolymers_results_dir / "sorted.bench"
     resources:
         mem_mb=attempt_mem_gb(16),
     shell:
-        """
-        cat {input} | \
-        python workflow/scripts/sort_and_filter_bed.py -c "#" \
-        2> {log} > {output}
+        f"""
+        cat {{input}} | \
+        python {python_path('sort_and_filter_bed.py')} -c "#" -s 0 \
+        2> {{log}} > {{output}}
         """
 
 
@@ -56,12 +56,12 @@ rule get_homopolymers:
     output:
         homopolymers_results_dir / "homopolymers_{bases}.tsv",
     conda:
-        str(envs_dir / "bedtools.yml")
+        envs_path("bedtools.yml")
     log:
-        homopolymers_results_dir / "homopolymers_{bases}.log",
+        homopolymers_log_dir / "homopolymers_{bases}.log",
     benchmark:
         homopolymers_results_dir / "homopolymers_{bases}.bench"
     resources:
         mem_mb=attempt_mem_gb(16),
     script:
-        str(scripts_dir / "get_homopoly_features.py")
+        python_path("get_homopoly_features.py")

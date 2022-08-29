@@ -55,7 +55,7 @@ def intersect_tsvs(ifile, ofile, tsv_paths):
 
 
 def main():
-    tsvs = snakemake.input.tsvs
+    tsvs = snakemake.input.annotations
     vcf = snakemake.input.variants[0]
     logger.info("Adding annotations to %s\n", vcf)
     intersect_tsvs(vcf, snakemake.output[0], tsvs)
