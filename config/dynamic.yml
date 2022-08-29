@@ -1,19 +1,32 @@
-# the VCF file to annotate and analyze via EBMs and associated metadata
 inputs:
   HG002_Illumina_PCR_free_DV:
-    url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG002.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
-    ref: GRCh38
-    benchmark: v4.2.1
+    chr_filter: &filter [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22]
+    train:
+      url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG002.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
+      ref: GRCh38
+      benchmark: HG002_v4.2.1
+    test:
+      HG005_Illumina_PCR_free_DV:
+        url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG005.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
+        ref: GRCh38
+        benchmark: HG005_v4.2.1
   HG002_Illumina_PCR_plus_DV:
-    url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_plus/40x/HG002.hiseqx.pcr-plus.40x.deepvariant-v1.0.grch38.vcf.gz
-    ref: GRCh38
-    benchmark: v4.2.1
+    chr_filter: *filter
+    train:
+      url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_plus/40x/HG002.hiseqx.pcr-plus.40x.deepvariant-v1.0.grch38.vcf.gz
+      ref: GRCh38
+      benchmark: HG002_v4.2.1
+    test:
+      HG005_Illumina_PCR_plus_DV:
+        url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_plus/40x/HG005.hiseqx.pcr-plus.40x.deepvariant-v1.0.grch38.vcf.gz
+        ref: GRCh38
+        benchmark: HG005_v4.2.1
 
-# settings for each ebm run
 ebm_runs:
   vcf_interaction_fp_v1:
     inputs:
-      - [HG002_Illumina_PCR_free_DV, HG002_Illumina_PCR_plus_DV]
+      - HG002_Illumina_PCR_free_DV: [HG005_Illumina_PCR_free_DV]
+        HG002_Illumina_PCR_plus_DV: [HG005_Illumina_PCR_plus_DV]
     filter: [SNP, INDEL]
     ebm_settings: &ebm_settings
       split_parameters:
@@ -59,11 +72,7 @@ ebm_runs:
         visualization:
           plot_type: bar
           truncate: {lower: 0, upper: 50}
-      TR_unit_copies_max:
-        visualization:
-          truncate: {lower: 0, upper: 50}
       TR_identity_min: {}
-      TR_score_max: {}
       TR_percent_AT_median:
         fill_na: -1
         visualization:
@@ -96,29 +105,3 @@ ebm_runs:
         visualization:
           plot_type: bar
           truncate: {upper: 50}
-
-  vcf_interaction_fn_v1:
-    inputs:
-      - [HG002_Illumina_PCR_free_DV, HG002_Illumina_PCR_plus_DV]
-    filter: [SNP, INDEL]
-    ebm_settings:
-      <<: *ebm_settings
-    error_labels: [fn]
-    interactions:
-      - VCF_input
-    filtered_are_candidates: false
-    features:
-      <<: *base_features
-
-  vcf_interaction_combined_v1:
-    inputs:
-      - [HG002_Illumina_PCR_free_DV, HG002_Illumina_PCR_plus_DV]
-    filter: [SNP, INDEL]
-    ebm_settings:
-      <<: *ebm_settings
-    error_labels: [fn, fp]
-    interactions:
-      - VCF_input
-    filtered_are_candidates: false
-    features:
-      <<: *base_features
