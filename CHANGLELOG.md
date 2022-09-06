@@ -1,3 +1,8 @@
+# 5.3.0
+
+- add intercept to model output/report
+- add interpretations for intercept and global scores
+
 # 5.2.0
 
 - use gzip compression (almost) everywhere (according to the testing pipeline
