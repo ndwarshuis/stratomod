@@ -23,7 +23,7 @@ rule get_segdups:
     input:
         rules.download_superdups.output,
     output:
-        segdups_results_dir / "segdups.tsv",
+        segdups_results_dir / "segdups.tsv.gz",
     conda:
         envs_path("bedtools.yml")
     params:

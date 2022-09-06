@@ -27,9 +27,9 @@ rule get_repeat_masker_classes:
     input:
         rules.download_repeat_masker.output,
     output:
-        [rmsk_results_dir / (f"{rmsk_file_prefix}_{cls}.tsv") for cls in rmsk_classes],
+        [rmsk_results_dir / (f"{rmsk_file_prefix}_{cls}.tsv.gz") for cls in rmsk_classes],
         [
-            rmsk_results_dir / (f"{rmsk_file_prefix}_{cls}_{fam}.tsv")
+            rmsk_results_dir / (f"{rmsk_file_prefix}_{cls}_{fam}.tsv.gz")
             for cls, fams in rmsk_classes.items()
             for fam in fams
         ],
