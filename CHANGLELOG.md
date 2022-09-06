@@ -1,3 +1,8 @@
+# 5.2.0
+
+- use gzip compression (almost) everywhere (according to the testing pipeline
+  times it only slows down the pipeline by 4-5%)
+
 # 5.1.2
 
 - raise memory requirements for vcf parsing
