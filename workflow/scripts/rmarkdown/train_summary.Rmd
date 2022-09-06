@@ -120,13 +120,31 @@ roc %>%
 
 # Global Score Plot
 
+Each bar is the mean of the absolute values of all scores for a given feature.
+
+Since the mean for the scores within a given features is set to 0 during model
+fitting, this is equivalent to average absolute deviation (AAD).
 
 ```{r, echo = FALSE}
 ggplot(global_df, aes(score, reorder(variable, score))) +
     geom_col() +
     xlab("Score") +
     ylab(NULL)
+```
 
+# Intercept
+
+Each feature in the EBM model is "centered" at 0 (meaning the mean prediction
+for each feature is 0). This means that the intercept is interpreted as the
+value the model will take if all features are "average" (which is in general not
+0 as it is with other linear models).
+
+```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 4}
+tibble(x = "intercept", y = mod$intercept) %>%
+    ggplot(aes(x, y)) +
+    geom_col() +
+    xlab(NULL) +
+    ylab("score")
 ```
 
 # Univariate plots
