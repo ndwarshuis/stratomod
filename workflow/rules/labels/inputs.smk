@@ -286,7 +286,7 @@ rule label_vcf:
             ref_key=lookup_train(wildcards, "ref"),
         ),
     output:
-        [rtg_dir / f"{lbl}.vcf" for lbl in LABELS],
+        [rtg_dir / f"{lbl}.vcf.gz" for lbl in LABELS],
     conda:
         envs_path("rtg.yml")
     params:
@@ -307,7 +307,6 @@ rule label_vcf:
         rtg RTG_MEM=$(({resources.mem_mb}*80/100))M \
         vcfeval {params.extra} \
         --threads={threads} \
-        --no-gzip \
         -b {input.bench_vcf} \
         -e {input.bench_bed} \
         -c {input.query_vcf} \
@@ -322,9 +321,9 @@ rule label_vcf:
 
 rule parse_labeled_vcf:
     input:
-        rtg_dir / "{label}.vcf",
+        rtg_dir / "{label}.vcf.gz",
     output:
-        labeled_dir / "{filter_key}_{label}.tsv",
+        labeled_dir / "{filter_key}_{label}.tsv.gz",
     log:
         log_dir / rel_labeled_dir / "{filter_key}_{label}.log",
     benchmark:
@@ -341,7 +340,7 @@ rule concat_labeled_tsvs:
     input:
         expand(rules.parse_labeled_vcf.output, label=LABELS, allow_missing=True),
     output:
-        labeled_dir / "{filter_key}_labeled.tsv",
+        labeled_dir / "{filter_key}_labeled.tsv.gz",
     conda:
         envs_path("bedtools.yml")
     benchmark:
@@ -360,7 +359,7 @@ use rule parse_labeled_vcf as parse_unlabeled_vcf with:
     input:
         rules.filter_query_vcf.output,
     output:
-        unlabeled_dir / "{input_key}%{filter_key}.tsv",
+        unlabeled_dir / "{input_key}%{filter_key}.tsv.gz",
     log:
         log_dir / rel_unlabeled_dir / "{input_key}%{filter_key}.log",
     resources:
