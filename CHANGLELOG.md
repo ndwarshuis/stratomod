@@ -1,3 +1,7 @@
+# 5.4.1
+
+- fix typo
+
 # 5.4.0
 
 - add all v4.2.1 giab benchmarks to static config

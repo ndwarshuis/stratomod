@@ -84,6 +84,8 @@ def lookup_benchmark_vcf(wildcards):
         return rules.fix_HG002_bench_vcf.output
     elif bk == "HG005_v4.2.1":
         return rules.fix_HG005_bench_vcf.output
+    elif bk in ["HG003_v4.2.1", "HG004_v4.2.1", "HG006_v4.2.1", "HG007_v4.2.1"]:
+        pass
     # TODO this isn't very scalable but at least it will fail if I change the
     # static config rather than silently permit us to publish 'good' results
     elif bk in ["draft_v0.005", "draft_v2.7_xy"]:
