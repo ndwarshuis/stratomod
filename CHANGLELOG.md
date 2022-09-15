@@ -1,3 +1,7 @@
+# 5.4.0
+
+- add all v4.2.1 giab benchmarks to static config
+
 # 5.3.0
 
 - add intercept to model output/report
