@@ -28,7 +28,7 @@ rel_alt_bench_dir = rel_input_results_dir / "bench"
 
 # input_results_dir = results_dir / rel_input_results_dir
 
-prepare_dir = results_dir / rel_prepare_dir 
+prepare_dir = results_dir / rel_prepare_dir
 labeled_dir = results_dir / rel_labeled_dir
 unlabeled_dir = results_dir / rel_unlabeled_dir
 alt_bench_dir = results_dir / rel_alt_bench_dir
@@ -79,16 +79,21 @@ def rule_output_suffix(rule, suffix):
 
 
 def lookup_benchmark_vcf(wildcards):
+    # TODO this isn't very scalable but at least it will fail if I change the
+    # static config rather than silently permit us to publish 'good' results
     bk = lookup_train(wildcards, "benchmark")
     if bk == "HG002_v4.2.1":
         return rules.fix_HG002_bench_vcf.output
     elif bk == "HG005_v4.2.1":
         return rules.fix_HG005_bench_vcf.output
-    elif bk in ["HG003_v4.2.1", "HG004_v4.2.1", "HG006_v4.2.1", "HG007_v4.2.1"]:
-        pass
-    # TODO this isn't very scalable but at least it will fail if I change the
-    # static config rather than silently permit us to publish 'good' results
-    elif bk in ["draft_v0.005", "draft_v2.7_xy"]:
+    elif bk in [
+        "draft_v0.005",
+        "draft_v2.7_xy",
+        "HG003_v4.2.1",
+        "HG004_v4.2.1",
+        "HG006_v4.2.1",
+        "HG007_v4.2.1",
+    ]:
         return rules.filter_bench_vcf.output
     else:
         assert False, f"{bk} not legal benchmark key"

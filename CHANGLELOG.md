@@ -1,6 +1,7 @@
 # 5.4.1
 
 - fix typo
+- fix benchmark assert rule
 
 # 5.4.0
 
