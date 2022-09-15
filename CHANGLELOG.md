@@ -1,3 +1,7 @@
+# 5.4.2
+
+- fix flipped bed and vcf files
+
 # 5.4.1
 
 - fix typo
