@@ -1,5 +1,6 @@
 vars:
-  - config/dvc-params.yml
+  - config: dynamic.yml
+  - profile: nisaba
 
 stages:
   snakemake:
