@@ -82,17 +82,19 @@ def lookup_benchmark_vcf(wildcards):
     # TODO this isn't very scalable but at least it will fail if I change the
     # static config rather than silently permit us to publish 'good' results
     bk = lookup_train(wildcards, "benchmark")
-    if bk == "HG002_v4.2.1":
-        return rules.fix_HG002_bench_vcf.output
+    if bk in [
+        "HG002_v4.2.1",
+        "HG003_v4.2.1",
+        "HG004_v4.2.1",
+        "HG006_v4.2.1",
+        "HG007_v4.2.1",
+    ]:
+        return rules.fix_MHC_bench_vcf.output
     elif bk == "HG005_v4.2.1":
         return rules.fix_HG005_bench_vcf.output
     elif bk in [
         "draft_v0.005",
         "draft_v2.7_xy",
-        "HG003_v4.2.1",
-        "HG004_v4.2.1",
-        "HG006_v4.2.1",
-        "HG007_v4.2.1",
     ]:
         return rules.filter_bench_vcf.output
     else:
@@ -199,7 +201,13 @@ use rule filter_query_vcf as filter_bench_vcf with:
         alt_bench_dir / "filtered.vcf",
 
 
-rule fix_HG002_bench_vcf:
+# TODO this error is caused by the FORMAT and SAMPLE columns having different
+# numbers of fields for some rows. In that case of all HG002-7 (except 5 for
+# some reason) these all occur on chr6 near the MHC region. Since we aren't
+# concerned with the MHC we can safely drop this. However, this filter is
+# totally agnostic to the MHC, so it might filter out important regions on other
+# vcf's
+rule fix_MHC_bench_vcf:
     input:
         rules.filter_bench_vcf.output,
     output:
@@ -210,6 +218,9 @@ rule fix_HG002_bench_vcf:
         "grep -v 'GT:AD:PS' {input} > {output}"
 
 
+# NOTE: this avoids an error caused by vcfeval where it will strip out any
+# fields in the SAMPLE column that end in a dot, which in turn will result in a
+# FORMAT/SAMPLE cardinality mismatch.
 rule fix_HG005_bench_vcf:
     input:
         rules.filter_bench_vcf.output,
