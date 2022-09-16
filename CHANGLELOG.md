@@ -1,3 +1,7 @@
+# 5.4.3
+
+- fix parse errors in MHC region for HG003/4/6/7
+
 # 5.4.2
 
 - fix flipped bed and vcf files
