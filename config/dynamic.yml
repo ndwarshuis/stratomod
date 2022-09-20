@@ -1,12 +1,12 @@
 inputs:
-  HG004_Illumina_PCR_free_DV:
+  HG004_Illumina_DV:
     chr_filter: &filter [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22]
     train:
       url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG004.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
       ref: GRCh38
       benchmark: HG004_v4.2.1
     test:
-      HG007_Illumina_PCR_free_DV:
+      HG007_Illumina_DV:
         url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG007.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
         ref: GRCh38
         benchmark: HG007_v4.2.1
