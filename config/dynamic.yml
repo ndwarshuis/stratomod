@@ -56,8 +56,8 @@ inputs:
 ebm_runs:
   vcf_interaction_fn_v1:
     inputs: &ebm_inputs
-      - HG002_Hifi_DV: [HG005_Hifi_DV, Clinvar_Hifi]
-        HG002_Illumina_DV: [HG005_Illumina_DV, Clinvar_Illumina]
+      - HG002_Hifi_DV: [HG005_Hifi_DV, HG007_Hifi_DV, Clinvar_Hifi]
+        HG002_Illumina_DV: [HG005_Illumina_DV, HG007_Illumina_DV, Clinvar_Illumina]
     filter: [SNP, INDEL]
     ebm_settings: &ebm_settings
       split_parameters:
