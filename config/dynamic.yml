@@ -1,32 +1,32 @@
 inputs:
-  HG002_Illumina_DV:
+  HG004_Illumina_PCR_free_DV:
     chr_filter: &filter [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22]
     train:
-      url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG002.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
+      url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG004.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
       ref: GRCh38
-      benchmark: HG002_v4.2.1
+      benchmark: HG004_v4.2.1
     test:
-      HG005_Illumina_DV:
-        url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG005.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
+      HG007_Illumina_PCR_free_DV:
+        url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG007.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
         ref: GRCh38
-        benchmark: HG005_v4.2.1
-  HG002_Ultima_DV:
+        benchmark: HG007_v4.2.1
+  HG004_Ultima_DV:
     chr_filter: *filter
     train:
-      url: https://s3.amazonaws.com/ultima-selected-1k-genomes-vcf-only/DeepVariant_vcfs/HG002_005401-UGAv3-1-CACATCCTGCATGTGAT.vcf.gz
+      url: https://s3.amazonaws.com/ultima-selected-1k-genomes-vcf-only/DeepVariant_vcfs/HG004_004731-UGAv3-30-CTGCCAGACTGTGAT.vcf.gz
       ref: GRCh38
-      benchmark: HG002_v4.2.1
+      benchmark: HG004_v4.2.1
     test:
-      HG005_Ultima_DV:
-        url: https://s3.amazonaws.com/ultima-selected-1k-genomes-vcf-only/DeepVariant_vcfs/HG005_004731-UGAv3-32-CATCTGGTGCATGTGAT.vcf.gz
+      HG007_Ultima_DV:
+        url: https://s3.amazonaws.com/ultima-selected-1k-genomes-vcf-only/DeepVariant_vcfs/HG007_004731-UGAv3-33-CATGCAGCGCTAATGA.vcf.gz
         ref: GRCh38
-        benchmark: HG005_v4.2.1
+        benchmark: HG007_v4.2.1
 
 ebm_runs:
   vcf_interaction_fn_v1:
     inputs: &ebm_inputs
-      - HG002_Ultima_DV: [HG005_Ultima_DV]
-        HG002_Illumina_DV: [HG005_Illumina_DV]
+      - HG004_Ultima_DV: [HG007_Ultima_DV]
+        HG004_Illumina_DV: [HG007_Illumina_DV]
     filter: [SNP, INDEL]
     ebm_settings: &ebm_settings
       split_parameters:
@@ -98,15 +98,3 @@ ebm_runs:
         visualization:
           plot_type: bar
           truncate: {upper: 50}
-
-  vcf_interaction_combined_v1:
-    inputs: *ebm_inputs
-    filter: [SNP, INDEL]
-    ebm_settings:
-      <<: *ebm_settings
-    error_labels: [fn, fp]
-    interactions:
-      - VCF_input
-    filtered_are_candidates: false
-    features:
-      <<: *base_features
