@@ -51,7 +51,7 @@ def merge_and_write_group(df, path, bed_cols, groupcol, clsname, famname=None):
 
 
 def parse_output(path, df, file_prefix, bed_cols):
-    res = re.match(f"{file_prefix}_(.*)", splitext(basename(path))[0])
+    res = re.match(f"{file_prefix}_(.*).tsv.gz", basename(path))
     if res is None:
         logger.error("Unable to determine class/family from path: %s", path)
     else:

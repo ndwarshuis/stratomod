@@ -26,7 +26,7 @@ rule get_tandem_repeats:
         src=rules.download_tandem_repeats.output,
         genome=rules.get_genome.output,
     output:
-        tandem_repeats_results_dir / "tandem_repeats.tsv",
+        tandem_repeats_results_dir / "tandem_repeats.tsv.gz",
     conda:
         envs_path("bedtools.yml")
     params:
