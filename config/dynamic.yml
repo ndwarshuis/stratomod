@@ -13,6 +13,10 @@ inputs:
         url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG005.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
         ref: GRCh38
         benchmark: HG005_v4.2.1
+      HG007_Illumina_DV:
+        url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG007.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
+        ref: GRCh38
+        benchmark: HG007_v4.2.1
       Clinvar_Illumina: &clinvar
         url: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/archive_2.0/2022/clinvar_20220812.vcf.gz
         ref: GRCh38
@@ -43,6 +47,10 @@ inputs:
         url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh38/SupplementaryFiles/inputvcfsandbeds/HG005_GRCh38_1_22_PacBio_HiFi_DeepVariant.vcf.gz
         ref: GRCh38
         benchmark: HG005_v4.2.1
+      HG007_Hifi_DV:
+        url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/pacbio_hifi/HG007.pacbio-hifi.21x.deepvariant-v1.0.grch38.vcf.gz
+        ref: GRCh38
+        benchmark: HG007_v4.2.1
       Clinvar_Hifi: *clinvar
 
 ebm_runs:
