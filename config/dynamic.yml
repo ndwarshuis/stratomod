@@ -1,8 +1,5 @@
 inputs:
   HG002_Illumina_DV:
-    # manually restrict to not X/Y because clinvar has X/Y and the benchmarks
-    # don't, and currently the model will try to run any chromosomes it can find
-    # if I don't use a filter
     chr_filter: &filter [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22]
     train:
       url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG002.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
@@ -13,25 +10,6 @@ inputs:
         url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG005.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
         ref: GRCh38
         benchmark: HG005_v4.2.1
-      # Clinvar_Illumina: &clinvar
-      #   url: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/archive_2.0/2022/clinvar_20220812.vcf.gz
-      #   ref: GRCh38
-      #   # isn't genomics wonderful?
-      #   chr_prefix: ''
-      #   format_fields: {}
-      #   benchmark: null
-      #   # There are some super long variants in clinvar. Filter these out
-      #   # because a) they would overlap with so many annotations that a new
-      #   # universe would spawn into existance and b) they are outside what a
-      #   # trained model would be good at testing anyways (until we incorporate
-      #   # structural variants)
-      #   max_ref: 50
-      #   max_alt: 50
-      #   format_fields:
-      #     vaf: null
-      #     dp: null
-      #     gt: null
-      #     gq: null
   HG002_Ultima_DV:
     chr_filter: *filter
     train:
@@ -43,7 +21,6 @@ inputs:
         url: https://s3.amazonaws.com/ultima-selected-1k-genomes-vcf-only/DeepVariant_vcfs/HG005_004731-UGAv3-32-CATCTGGTGCATGTGAT.vcf.gz
         ref: GRCh38
         benchmark: HG005_v4.2.1
-      # Clinvar_Hifi: *clinvar
 
 ebm_runs:
   vcf_interaction_fn_v1:
