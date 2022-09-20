@@ -28,7 +28,7 @@ rel_alt_bench_dir = rel_input_results_dir / "bench"
 
 # input_results_dir = results_dir / rel_input_results_dir
 
-prepare_dir = results_dir / rel_prepare_dir 
+prepare_dir = results_dir / rel_prepare_dir
 labeled_dir = results_dir / rel_labeled_dir
 unlabeled_dir = results_dir / rel_unlabeled_dir
 alt_bench_dir = results_dir / rel_alt_bench_dir
@@ -79,14 +79,23 @@ def rule_output_suffix(rule, suffix):
 
 
 def lookup_benchmark_vcf(wildcards):
-    bk = lookup_train(wildcards, "benchmark")
-    if bk == "HG002_v4.2.1":
-        return rules.fix_HG002_bench_vcf.output
-    elif bk == "HG005_v4.2.1":
-        return rules.fix_HG005_bench_vcf.output
     # TODO this isn't very scalable but at least it will fail if I change the
     # static config rather than silently permit us to publish 'good' results
-    elif bk in ["draft_v0.005", "draft_v2.7_xy"]:
+    bk = lookup_train(wildcards, "benchmark")
+    if bk in [
+        "HG002_v4.2.1",
+        "HG003_v4.2.1",
+        "HG004_v4.2.1",
+        "HG006_v4.2.1",
+        "HG007_v4.2.1",
+    ]:
+        return rules.fix_MHC_bench_vcf.output
+    elif bk == "HG005_v4.2.1":
+        return rules.fix_HG005_bench_vcf.output
+    elif bk in [
+        "draft_v0.005",
+        "draft_v2.7_xy",
+    ]:
         return rules.filter_bench_vcf.output
     else:
         assert False, f"{bk} not legal benchmark key"
@@ -192,7 +201,13 @@ use rule filter_query_vcf as filter_bench_vcf with:
         alt_bench_dir / "filtered.vcf",
 
 
-rule fix_HG002_bench_vcf:
+# TODO this error is caused by the FORMAT and SAMPLE columns having different
+# numbers of fields for some rows. In that case of all HG002-7 (except 5 for
+# some reason) these all occur on chr6 near the MHC region. Since we aren't
+# concerned with the MHC we can safely drop this. However, this filter is
+# totally agnostic to the MHC, so it might filter out important regions on other
+# vcf's
+rule fix_MHC_bench_vcf:
     input:
         rules.filter_bench_vcf.output,
     output:
@@ -203,6 +218,9 @@ rule fix_HG002_bench_vcf:
         "grep -v 'GT:AD:PS' {input} > {output}"
 
 
+# NOTE: this avoids an error caused by vcfeval where it will strip out any
+# fields in the SAMPLE column that end in a dot, which in turn will result in a
+# FORMAT/SAMPLE cardinality mismatch.
 rule fix_HG005_bench_vcf:
     input:
         rules.filter_bench_vcf.output,
@@ -286,7 +304,7 @@ rule label_vcf:
             ref_key=lookup_train(wildcards, "ref"),
         ),
     output:
-        [rtg_dir / f"{lbl}.vcf" for lbl in LABELS],
+        [rtg_dir / f"{lbl}.vcf.gz" for lbl in LABELS],
     conda:
         envs_path("rtg.yml")
     params:
@@ -307,7 +325,6 @@ rule label_vcf:
         rtg RTG_MEM=$(({resources.mem_mb}*80/100))M \
         vcfeval {params.extra} \
         --threads={threads} \
-        --no-gzip \
         -b {input.bench_vcf} \
         -e {input.bench_bed} \
         -c {input.query_vcf} \
@@ -322,9 +339,9 @@ rule label_vcf:
 
 rule parse_labeled_vcf:
     input:
-        rtg_dir / "{label}.vcf",
+        rtg_dir / "{label}.vcf.gz",
     output:
-        labeled_dir / "{filter_key}_{label}.tsv",
+        labeled_dir / "{filter_key}_{label}.tsv.gz",
     log:
         log_dir / rel_labeled_dir / "{filter_key}_{label}.log",
     benchmark:
@@ -341,7 +358,7 @@ rule concat_labeled_tsvs:
     input:
         expand(rules.parse_labeled_vcf.output, label=LABELS, allow_missing=True),
     output:
-        labeled_dir / "{filter_key}_labeled.tsv",
+        labeled_dir / "{filter_key}_labeled.tsv.gz",
     conda:
         envs_path("bedtools.yml")
     benchmark:
@@ -360,7 +377,7 @@ use rule parse_labeled_vcf as parse_unlabeled_vcf with:
     input:
         rules.filter_query_vcf.output,
     output:
-        unlabeled_dir / "{input_key}%{filter_key}.tsv",
+        unlabeled_dir / "{input_key}%{filter_key}.tsv.gz",
     log:
         log_dir / rel_unlabeled_dir / "{input_key}%{filter_key}.log",
     resources:

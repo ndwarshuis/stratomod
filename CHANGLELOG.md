@@ -1,3 +1,30 @@
+# 5.4.3
+
+- fix parse errors in MHC region for HG003/4/6/7
+
+# 5.4.2
+
+- fix flipped bed and vcf files
+
+# 5.4.1
+
+- fix typo
+- fix benchmark assert rule
+
+# 5.4.0
+
+- add all v4.2.1 giab benchmarks to static config
+
+# 5.3.0
+
+- add intercept to model output/report
+- add interpretations for intercept and global scores
+
+# 5.2.0
+
+- use gzip compression (almost) everywhere (according to the testing pipeline
+  times it only slows down the pipeline by 4-5%)
+
 # 5.1.2
 
 - raise memory requirements for vcf parsing

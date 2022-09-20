@@ -16,7 +16,7 @@ INPUT_DELIM = "&"
 # add annotations
 
 
-annotated_tsv = "{filter_key}.tsv"
+annotated_tsv = "{filter_key}.tsv.gz"
 annotated_log = "{filter_key}.log"
 annotated_bench = "{filter_key}.bench"
 
@@ -137,7 +137,7 @@ rule prepare_train_data:
             input_key=wildcards.input_keys.split(INPUT_DELIM),
         ),
     output:
-        df=train_results_dir / "train.tsv",
+        df=train_results_dir / "train.tsv.gz",
         paths=train_results_dir / "input_paths.json",
     log:
         train_log_dir / "prepare.log",
@@ -154,7 +154,7 @@ rule train_model:
         rules.prepare_train_data.output,
     output:
         **{
-            n: str((train_results_dir / n).with_suffix(".csv"))
+            n: str((train_results_dir / n).with_suffix(".csv.gz"))
             for n in [
                 "train_x",
                 "train_y",
@@ -184,7 +184,7 @@ rule decompose_model:
         **rules.train_model.output,
     output:
         model=train_results_dir / "model.json",
-        predictions=train_results_dir / "predictions.csv",
+        predictions=train_results_dir / "predictions.csv.gz",
     conda:
         envs_path("ebm.yml")
     log:
@@ -214,7 +214,7 @@ rule summarize_model:
 ################################################################################
 # prepare test data
 
-prepare_x_file = "test_x.tsv"
+prepare_x_file = "test_x.tsv.gz"
 prepare_log_file = "prepare.log"
 prepare_bench_file = "prepare.bench"
 
@@ -249,7 +249,7 @@ rule prepare_labeled_test_data:
         unpack(partial(test_data_input, rules.annotate_labeled_tsv.output)),
     output:
         test_x=labeled_test_results_dir / prepare_x_file,
-        test_y=labeled_test_results_dir / "test_y.tsv",
+        test_y=labeled_test_results_dir / "test_y.tsv.gz",
     log:
         labeled_test_log_dir / prepare_log_file,
     benchmark:
@@ -285,8 +285,8 @@ def test_ebm_input(x_path):
 
 def test_ebm_output(test_path):
     return {
-        "predictions": test_path / "predictions.csv",
-        "explanations": test_path / "explanations.csv",
+        "predictions": test_path / "predictions.csv.gz",
+        "explanations": test_path / "explanations.csv.gz",
     }
 
 

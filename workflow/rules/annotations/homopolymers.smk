@@ -32,7 +32,7 @@ rule sort_and_filter_simple_repeats:
     input:
         rules.find_simple_repeats.output,
     output:
-        homopolymers_results_dir / "simple_repeats_p3_sorted.bed",
+        homopolymers_results_dir / "simple_repeats_p3_sorted.bed.gz",
     log:
         homopolymers_log_dir / "sorted.log",
     conda:
@@ -44,8 +44,9 @@ rule sort_and_filter_simple_repeats:
     shell:
         f"""
         cat {{input}} | \
-        python {python_path('sort_and_filter_bed.py')} -c "#" -s 0 \
-        2> {{log}} > {{output}}
+        python {python_path('sort_and_filter_bed.py')} -c "#" -s 0 2> {{log}} | \
+        gzip -c \
+        > {{output}}
         """
 
 
@@ -54,7 +55,7 @@ rule get_homopolymers:
         bed=rules.sort_and_filter_simple_repeats.output,
         genome=rules.get_genome.output,
     output:
-        homopolymers_results_dir / "homopolymers_{bases}.tsv",
+        homopolymers_results_dir / "homopolymers_{bases}.tsv.gz",
     conda:
         envs_path("bedtools.yml")
     log:

@@ -124,6 +124,7 @@ def get_model_dict(ebm):
     }
     return {
         "global": get_global_scores(ebm_global),
+        "intercept": ebm.intercept_[0],
         "univariate": get_univariate_list(ebm_global, all_features, stdevs),
         "bivariate": get_bivariate_list(ebm_global, all_features, stdevs),
     }
