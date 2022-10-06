@@ -1,0 +1,105 @@
+inputs:
+  HG004_Illumina_PCR_free_DV:
+    chr_filter: &filter [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22]
+    train:
+      url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG004.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
+      ref: GRCh38
+      benchmark: HG004_v4.2.1
+    test:
+      HG007_Illumina_PCR_free_DV:
+        url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG007.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
+        ref: GRCh38
+        benchmark: HG007_v4.2.1
+  HG004_Illumina_PCR_plus_DV:
+    chr_filter: *filter
+    train:
+      url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_plus/40x/HG004.hiseqx.pcr-plus.40x.deepvariant-v1.0.grch38.vcf.gz
+      ref: GRCh38
+      benchmark: HG004_v4.2.1
+    test:
+      HG007_Illumina_PCR_plus_DV:
+        url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_plus/40x/HG007.hiseqx.pcr-plus.40x.deepvariant-v1.0.grch38.vcf.gz
+        ref: GRCh38
+        benchmark: HG007_v4.2.1
+
+ebm_runs:
+  vcf_interaction_fp_v1:
+    inputs:
+      - HG004_Illumina_PCR_free_DV: [HG007_Illumina_PCR_free_DV]
+        HG004_Illumina_PCR_plus_DV: [HG007_Illumina_PCR_plus_DV]
+    filter: [SNP, INDEL]
+    ebm_settings: &ebm_settings
+      split_parameters:
+        test_size: 0.2
+    error_labels: [fp]
+    # NOTE this is true here because we want to include all refcalls in the FP
+    # analysis comparison
+    filtered_are_candidates: true
+    interactions:
+      - VCF_input
+
+    features: &base_features
+      VCF_input:
+        feature_type: categorical
+      VCF_VAF: {}
+      VCF_DP:
+        visualization:
+          plot_type: bar
+          truncate: {lower: 0, upper: 100}
+      VCF_indel_length:
+        visualization:
+          plot_type: bar
+          truncate: {lower: -50, upper: 50}
+
+      HOMOPOL_A_length: &homopol_length
+        visualization:
+          plot_type: bar
+          truncate: {lower: 0, upper: 50}
+      HOMOPOL_T_length: *homopol_length
+      HOMOPOL_G_length: *homopol_length
+      HOMOPOL_C_length: *homopol_length
+      HOMOPOL_A_imperfect_frac: &homopol_frac
+        fill_na: -1
+        visualization:
+          split_missing: 0
+      HOMOPOL_T_imperfect_frac: *homopol_frac
+      HOMOPOL_G_imperfect_frac: *homopol_frac
+      HOMOPOL_C_imperfect_frac: *homopol_frac
+
+      TR_unit_size_max:
+        visualization:
+          plot_type: bar
+          truncate: {lower: 0, upper: 50}
+      TR_identity_min: {}
+      TR_percent_AT_median:
+        fill_na: -1
+        visualization:
+          split_missing: 0
+      TR_length:
+        transform: log
+        visualization:
+          split_missing: 0
+
+      REPMASK_SINE_length:
+        transform: binary
+        alt_name: REPMASK_SINE
+        feature_type: categorical
+      REPMASK_LTR_length:
+        transform: binary
+        alt_name: REPMASK_LTR
+        feature_type: categorical
+      REPMASK_LINE_length: {}
+
+      MAP_difficult_250bp:
+        feature_type: categorical
+      MAP_difficult_100bp:
+        feature_type: categorical
+
+      SEGDUP_size_max: {}
+      SEGDUP_identity_mean:
+        visualization:
+          split_missing: 0.85
+      SEGDUP_count:
+        visualization:
+          plot_type: bar
+          truncate: {upper: 50}
