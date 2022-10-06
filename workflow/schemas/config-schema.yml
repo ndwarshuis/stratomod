@@ -306,20 +306,14 @@ properties:
              type: string
          suffixes:
            additionalProperties: false
-           required: [len, tot_imp_frac, imp_frac, imp_cnt]
+           required: [len, imp_frac]
            properties:
              len:
                <<: *column
                description: the length of the homopolymer
-             tot_imp_frac:
-               <<: *column
-               description: the percent of imperfect homopolymers (with slop)
              imp_frac:
                <<: *column
                description: the percent of imperfect homopolymers
-             imp_cnt:
-               <<: *column
-               description: the number of imperfect homopolymers
 
       repeat_masker: 
        additionalProperties: false

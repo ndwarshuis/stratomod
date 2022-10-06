@@ -39,7 +39,7 @@ def annotation_input(tsv_path):
             rules.get_segdups.output,
             expand(
                 rules.get_homopolymers.output,
-                bases=config["features"]["homopolymers"]["bases"],
+                base=config["features"]["homopolymers"]["bases"],
                 allow_missing=True,
             ),
         ],

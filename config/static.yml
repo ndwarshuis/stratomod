@@ -72,12 +72,10 @@ features:
 
   homopolymers:
     prefix: HOMOPOL
-    bases: [AT, GC]
+    bases: [A, T, G, C]
     suffixes:
       len: length
-      tot_imp_frac: total_imperfect_frac
       imp_frac: imperfect_frac
-      imp_cnt: imperfect_count
 
   repeat_masker:
     prefix: REPMASK
