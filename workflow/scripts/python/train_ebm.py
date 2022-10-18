@@ -6,7 +6,7 @@ from interpret.glassbox import ExplainableBoostingClassifier
 from common.tsv import read_tsv, write_tsv
 from common.cli import setup_logging
 from common.ebm import write_model
-from common.config import lookup_ebm_run
+from common.config import lookup_ebm_run, lookup_bed_cols_ordered
 
 logger = setup_logging(snakemake.log[0])
 
@@ -37,6 +37,9 @@ def get_interactions(df_columns, iconfig):
 
 
 def train_ebm(config, label, df):
+    def strip_coords(df):
+        return df.drop(columns=lookup_bed_cols_ordered(config))
+
     features = config["features"]
     feature_names = [
         k if v["alt_name"] is None else v["alt_name"] for k, v in features.items()
@@ -79,7 +82,7 @@ def train_ebm(config, label, df):
         n_jobs=cores,
         **ebm_config,
     )
-    ebm.fit(X_train, y_train)
+    ebm.fit(strip_coords(X_train), y_train)
 
     write_model(snakemake.output["model"], ebm)
     _write_tsv("train_x", X_train)

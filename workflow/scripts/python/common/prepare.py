@@ -23,20 +23,17 @@ def process_series(opts, ser):
         return (np.log10(_ser) if trans == "log" else _ser).fillna(fillval)
 
 
-def process_chr(ser):
-    return (
-        ser.replace({"chrX": "chr23", "chrY": "chr24"})
-        .str.extract(r"^chr(\d|1\d|2[0-4])$", expand=False)
-        .astype(int)
-    )
+# def process_chr(ser):
+#     return (
+#         ser.replace({"chrX": "chr23", "chrY": "chr24"})
+#         .str.extract(r"^chr(\d|1\d|2[0-4])$", expand=False)
+#         .astype(int)
+#     )
 
 
-def process_columns(features, chrom_col, df):
+def process_columns(features, df):
     for col, opts in features.items():
-        if col == chrom_col:
-            df[col] = process_chr(df[col])
-        else:
-            df[col] = process_series(opts, df[col])
+        df[col] = process_series(opts, df[col])
     return df
 
 
@@ -56,11 +53,12 @@ def check_columns(wanted_cols, df_cols):
     ), "configuration features must be a subset of columns in input dataframe"
 
 
-def select_columns(features, label_col, df):
+def select_columns(features, coord_cols, label_col, df):
     wanted_cols = [*features] if label_col is None else [*features, label_col]
     check_columns(wanted_cols, df.columns.tolist())
+    all_cols = coord_cols + wanted_cols
     to_rename = {k: n for k, v in features.items() if (n := v["alt_name"]) is not None}
-    return df[wanted_cols].rename(columns=to_rename)
+    return df[all_cols].rename(columns=to_rename)
 
 
 def mask_labels(filtered_are_candidates, label_col, filter_col, df):
@@ -123,8 +121,8 @@ def process_labeled_data(
     # )
 
 
-def process_unlabeled_data(features, chrom_col, df):
+def process_unlabeled_data(features, coord_cols, df):
     return compose(
-        partial(select_columns, features, None),
-        partial(process_columns, features, chrom_col),
+        partial(select_columns, features, coord_cols, None),
+        partial(process_columns, features),
     )(df)
