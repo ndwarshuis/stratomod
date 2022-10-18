@@ -34,17 +34,17 @@ def read_tandem_repeats(path, fconf, bed_cols, sconf):
     perc_c_col = fmt_base("C")
     perc_g_col = fmt_base("G")
     feature_cols = {
-        5: cols["period"],
-        6: cols["copyNum"],
-        8: cols["perMatch"],
-        9: cols["perIndel"],
-        10: cols["score"],
-        11: perc_a_col,
-        12: perc_c_col,
-        13: perc_g_col,
-        14: perc_t_col,
+        3: cols["period"],
+        4: cols["copyNum"],
+        12: cols["perMatch"],
+        13: cols["perIndel"],
+        5: cols["score"],
+        8: perc_a_col,
+        9: perc_c_col,
+        10: perc_g_col,
+        11: perc_t_col,
     }
-    bed_mapping = bed_cols_indexed([1, 2, 3], bed_cols)
+    bed_mapping = bed_cols_indexed([0, 1, 2], bed_cols)
     df = read_bed_df(path, bed_mapping, feature_cols, snakemake.params["filt"])
     df[fmt_base("AT")] = df[perc_a_col] + df[perc_t_col]
     df[fmt_base("GC")] = df[perc_g_col] + df[perc_c_col]
