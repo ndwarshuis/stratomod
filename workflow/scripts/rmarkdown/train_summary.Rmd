@@ -23,7 +23,7 @@ read_model <- function(path) {
 }
 
 read_predictions <- function(path) {
-    readr::read_csv(path, col_types = cols(.default = "d"))
+    readr::read_tsv(path, col_types = cols(.default = "d"))
 }
 
 read_input_paths <- function(path) {

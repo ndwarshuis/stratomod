@@ -10,7 +10,7 @@ library(ggpubr)
 source("workflow/scripts/rmarkdown/common/plots.r")
 
 read_df <- function(path) {
-    readr::read_csv(path, col_types = cols(.default = "d"))
+    readr::read_tsv(path, col_types = cols(.default = "d"))
 }
 
 has_label <- "truth_y" %in% names(snakemake@input)

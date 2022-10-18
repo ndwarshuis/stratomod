@@ -3,7 +3,7 @@ import yaml
 from more_itertools import flatten
 from sklearn.model_selection import train_test_split
 from interpret.glassbox import ExplainableBoostingClassifier
-from common.tsv import read_tsv
+from common.tsv import read_tsv, write_tsv
 from common.cli import setup_logging
 from common.ebm import write_model
 from common.config import lookup_ebm_run
@@ -11,8 +11,8 @@ from common.config import lookup_ebm_run
 logger = setup_logging(snakemake.log[0])
 
 
-def write_csv(key, df):
-    df.to_csv(snakemake.output[key], header=True, index=False)
+def _write_tsv(key, df):
+    write_tsv(snakemake.output[key], df, header=True)
 
 
 def dump_config(config):
@@ -82,10 +82,10 @@ def train_ebm(config, label, df):
     ebm.fit(X_train, y_train)
 
     write_model(snakemake.output["model"], ebm)
-    write_csv("train_x", X_train)
-    write_csv("train_y", y_train)
-    write_csv("test_x", X_test)
-    write_csv("test_y", y_test)
+    _write_tsv("train_x", X_train)
+    _write_tsv("train_y", y_train)
+    _write_tsv("test_x", X_test)
+    _write_tsv("test_y", y_test)
 
 
 def main():

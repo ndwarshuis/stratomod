@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from common.cli import setup_logging
 from common.ebm import read_model
+from common.tsv import read_tsv, write_tsv
 
 setup_logging(snakemake.log[0])
 
@@ -137,7 +138,7 @@ def write_predictions(ebm, X_test, y_test, label):
             "label": y_test[label],
         }
     )
-    y_pred.to_csv(snakemake.output["predictions"], index=False)
+    write_tsv(snakemake.output["predictions"], y_pred)
 
 
 def write_model_json(ebm):
@@ -148,8 +149,8 @@ def write_model_json(ebm):
 def main():
     ebm = read_model(snakemake.input["model"])
     label = snakemake.config["features"]["label"]
-    X_test = pd.read_csv(snakemake.input["test_x"])
-    y_test = pd.read_csv(snakemake.input["test_y"])
+    X_test = read_tsv(snakemake.input["test_x"])
+    y_test = read_tsv(snakemake.input["test_y"])
     write_predictions(ebm, X_test, y_test, label)
     write_model_json(ebm)
 
