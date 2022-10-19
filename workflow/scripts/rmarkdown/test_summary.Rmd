@@ -22,7 +22,11 @@ explain_x <- read_df(snakemake@input[["explanations"]])
 
 
 ```{r, include = FALSE, eval = has_label}
-truth_y <- read_df(snakemake@input[["truth_y"]])
+truth_y <- readr::read_tsv(snakemake@input[["truth_y"]],
+                           col_types = cols(chrom = "-",
+                                            chromStart = "-",
+                                            chromEnd = "-",
+                                            .default = "d"))
 y <- tibble(label = truth_y$label, prob = pred_y$`1`)
 ```
 

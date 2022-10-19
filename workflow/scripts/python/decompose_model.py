@@ -4,6 +4,7 @@ import numpy as np
 from common.cli import setup_logging
 from common.ebm import read_model
 from common.tsv import read_tsv, write_tsv
+from common.config import lookup_bed_cols_ordered
 
 setup_logging(snakemake.log[0])
 
@@ -149,7 +150,8 @@ def write_model_json(ebm):
 def main():
     ebm = read_model(snakemake.input["model"])
     label = snakemake.config["features"]["label"]
-    X_test = read_tsv(snakemake.input["test_x"])
+    bed_cols = lookup_bed_cols_ordered(snakemake.config)
+    X_test = read_tsv(snakemake.input["test_x"]).drop(columns=bed_cols)
     y_test = read_tsv(snakemake.input["test_y"])
     write_predictions(ebm, X_test, y_test, label)
     write_model_json(ebm)

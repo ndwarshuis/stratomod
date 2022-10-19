@@ -2,6 +2,7 @@ import json
 from os.path import dirname, basename
 from functools import partial
 from common.tsv import read_tsv, write_tsv
+from common.config import lookup_bed_cols_ordered
 from common.cli import setup_logging
 from common.config import fmt_vcf_feature, lookup_ebm_run
 from common.prepare import process_labeled_data, process_unlabeled_data
@@ -20,13 +21,14 @@ def read_input(df_path, mapping_path, input_key, input_col):
     return read_tsv(df_path).assign(**{input_col: vcf_input})
 
 
-def write_labeled(xpath, ypath, fconf, rconf, filter_col, df):
-    label_col = fconf["label"]
+def write_labeled(xpath, ypath, sconf, rconf, filter_col, df):
+    label_col = sconf["features"]["label"]
     processed = process_labeled_data(
         rconf["features"],
         rconf["error_labels"],
         rconf["filtered_are_candidates"],
-        fconf["index"]["chr"],
+        lookup_bed_cols_ordered(sconf),
+        # fconf["index"]["chr"],
         filter_col,
         label_col,
         df,
@@ -35,10 +37,11 @@ def write_labeled(xpath, ypath, fconf, rconf, filter_col, df):
     write_tsv(ypath, processed[label_col])
 
 
-def write_unlabeled(xpath, fconf, rconf, df):
+def write_unlabeled(xpath, sconf, rconf, df):
     processed = process_unlabeled_data(
         rconf["features"],
-        fconf["index"]["chr"],
+        lookup_bed_cols_ordered(sconf),
+        # fconf["index"]["chr"],
         df,
     )
     write_tsv(xpath, processed)
@@ -57,18 +60,18 @@ def main():
         _fmt_vcf_feature("input"),
     )
     rconf = lookup_ebm_run(sconf, wcs.run_key)
-    fconf = sconf["features"]
+    # fconf = sconf["features"]
     if "test_y" in dict(sout):
         write_labeled(
             sout["test_x"],
             sout["test_y"],
-            fconf,
+            sconf,
             rconf,
             _fmt_vcf_feature("filter"),
             raw_df,
         )
     else:
-        write_unlabeled(sout["test_x"], fconf, rconf, raw_df)
+        write_unlabeled(sout["test_x"], sconf, rconf, raw_df)
 
 
 main()
