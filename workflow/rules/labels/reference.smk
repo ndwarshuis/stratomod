@@ -16,7 +16,7 @@ def lookup_reference_key(which, wildcards):
     )
 
 def lookup_reference(wildcards):
-    return lookup_reference_key("sdf", wildcards.ref_key)
+    return lookup_reference_key("sdf", wildcards)
 
 
 ################################################################################
