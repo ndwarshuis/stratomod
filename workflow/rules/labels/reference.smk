@@ -1,19 +1,26 @@
 from os.path import dirname
+from functools import partial
 from scripts.python.common.config import lookup_global_chr_filter
 
-ref_resources_dir = resources_dir / "reference"
-ref_results_dir = results_dir / "reference"
+ref_resources_dir = resources_dir / "reference" / "{ref_key}"
+ref_results_dir = results_dir / "reference" / "{ref_key}"
 
 
-def lookup_reference(wildcards):
+def lookup_reference_key(which, wildcards):
     return lookup_config(
         config,
         "resources",
         "references",
         wildcards.ref_key,
-        "sdf",
+        which,
     )
 
+def lookup_reference(wildcards):
+    return lookup_reference_key("sdf", wildcards.ref_key)
+
+
+################################################################################
+# download reference
 
 rule download_ref_sdf:
     output:
@@ -48,3 +55,22 @@ rule sdf_to_fasta:
         -i {input} \
         -o {output} {params.filt}
         """
+
+################################################################################
+# download stratifications
+
+# so far the only use for the stratifications here is to remove MHC since some
+# benchmarks don't have VAF/DP here and removing only from the benchmark would
+# produce automatic FPs
+
+
+rule download_mhc_strat:
+    output:
+        ref_resources_dir / "strats" / "mhc.bed.gz"
+    params:
+        url=lambda wildcards: lookup_reference_key("strats", wildcards)["mhc"],
+    conda:
+        envs_path("utils.yml")
+    shell:
+        "curl -sS -L -o {output} {params.url}"
+

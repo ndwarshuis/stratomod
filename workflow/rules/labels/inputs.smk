@@ -89,7 +89,7 @@ def lookup_benchmark_vcf(wildcards):
         "HG006_v4.2.1",
         "HG007_v4.2.1",
     ]:
-        return rules.fix_MHC_bench_vcf.output
+        return rules.filter_bench_vcf.output
     elif bk == "HG005_v4.2.1":
         return rules.fix_HG005_bench_vcf.output
     elif bk in [
@@ -201,23 +201,6 @@ use rule filter_query_vcf as filter_bench_vcf with:
         alt_bench_dir / "filtered.vcf",
 
 
-# TODO this error is caused by the FORMAT and SAMPLE columns having different
-# numbers of fields for some rows. In that case of all HG002-7 (except 5 for
-# some reason) these all occur on chr6 near the MHC region. Since we aren't
-# concerned with the MHC we can safely drop this. However, this filter is
-# totally agnostic to the MHC, so it might filter out important regions on other
-# vcf's
-rule fix_MHC_bench_vcf:
-    input:
-        rules.filter_bench_vcf.output,
-    output:
-        alt_bench_dir / "HG002_fixed.vcf",
-    conda:
-        envs_path("utils.yml")
-    shell:
-        "grep -v 'GT:AD:PS' {input} > {output}"
-
-
 # NOTE: this avoids an error caused by vcfeval where it will strip out any
 # fields in the SAMPLE column that end in a dot, which in turn will result in a
 # FORMAT/SAMPLE cardinality mismatch.
@@ -280,6 +263,25 @@ rule filter_bench_bed:
         "sed -n '/^\(#\|{params.filt}\)/p' {input} > {output}"
 
 
+rule subtract_mhc_bench_bed:
+    input:
+        bed=rules.filter_bench_bed.output,
+        # TODO change this when expanding to new references
+        mhc=expand(rules.download_mhc_strat.output, ref_key="GRCh38"),
+    output:
+        alt_bench_dir / "noMHC.bed",
+    output:
+        prepare_dir / "no_mhc.vcf",
+    conda:
+        envs_path("bedtools.yml")
+    shell:
+        f"""
+        gunzip {{input.mhc}} -c | \
+        bedtools subtract -a {{input.bed}} -b - \
+        > {{output}}
+        """
+
+
 ################################################################################
 # vcf -> tsv (labeled)
 
@@ -297,7 +299,7 @@ rule label_vcf:
         query_vcf=rules.zip_query_vcf.output,
         query_tbi=rules.generate_query_tbi.output,
         bench_vcf=rules.zip_bench_vcf.output,
-        bench_bed=rules.filter_bench_bed.output,
+        bench_bed=rules.subtract_mhc_bench_bed.output,
         bench_tbi=rules.generate_bench_tbi.output,
         sdf=lambda wildcards: expand(
             rules.download_ref_sdf.output,

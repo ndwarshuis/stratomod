@@ -167,7 +167,7 @@ properties:
         additionalProperties: false
         patternProperties:
           ^[\w\.\-]+$:
-            required: [sdf, genome, annotations]
+            required: [sdf, genome, strats, annotations]
             additionalProperties: false
             properties:
               sdf:
@@ -179,6 +179,15 @@ properties:
                   description: the url to the genome database file
                   type: string
                   format: uri
+
+              strats:
+                additionalProperties: false
+                required: [mhc]
+                properties:
+                  mhc:
+                    description: url to the MHC stratification bed file
+                    type: string
+                    format: uri
 
               annotations:
                 additionalProperties: false
