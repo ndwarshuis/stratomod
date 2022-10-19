@@ -10,8 +10,8 @@ def read_tsv(path, *args, **kwargs):
     return read_tsv_from(sys.stdin if path is None else path, *args, **kwargs)
 
 
-def write_tsv_to(f, df, *args, **kwargs):
-    df.to_csv(f, sep="\t", index=False, *args, **kwargs)
+def write_tsv_to(f, df, *args, index=False, **kwargs):
+    df.to_csv(f, sep="\t", index=index, *args, **kwargs)
 
 
 def write_tsv(path, df, *args, **kwargs):
