@@ -92,7 +92,7 @@ def process_labeled_data(
     features,
     error_labels,
     filtered_are_candidates,
-    chrom_col,
+    coord_cols,
     filter_col,
     label_col,
     df,
@@ -101,9 +101,9 @@ def process_labeled_data(
     # deep copy (which will happen on a slice of a slice)
     return compose(
         partial(collapse_labels, error_labels, label_col),
-        partial(select_columns, features, label_col),
+        partial(select_columns, features, coord_cols, label_col),
         partial(mask_labels, filtered_are_candidates, label_col, filter_col),
-        partial(process_columns, features, chrom_col),
+        partial(process_columns, features),
     )(df)
     # for col, opts in features.items():
     #     if col == chrom_col:

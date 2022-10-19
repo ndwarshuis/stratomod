@@ -26,7 +26,7 @@ truth_y <- readr::read_tsv(snakemake@input[["truth_y"]],
                            col_types = cols(chrom = "-",
                                             chromStart = "-",
                                             chromEnd = "-",
-                                            .default = "d")
+                                            .default = "d"))
 y <- tibble(label = truth_y$label, prob = pred_y$`1`)
 ```
 
