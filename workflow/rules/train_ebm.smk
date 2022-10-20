@@ -154,7 +154,7 @@ rule train_model:
         rules.prepare_train_data.output,
     output:
         **{
-            n: str((train_results_dir / n).with_suffix(".csv.gz"))
+            n: str((train_results_dir / n).with_suffix(".tsv.gz"))
             for n in [
                 "train_x",
                 "train_y",
@@ -184,7 +184,7 @@ rule decompose_model:
         **rules.train_model.output,
     output:
         model=train_results_dir / "model.json",
-        predictions=train_results_dir / "predictions.csv.gz",
+        predictions=train_results_dir / "predictions.tsv.gz",
     conda:
         envs_path("ebm.yml")
     log:
@@ -285,8 +285,8 @@ def test_ebm_input(x_path):
 
 def test_ebm_output(test_path):
     return {
-        "predictions": test_path / "predictions.csv.gz",
-        "explanations": test_path / "explanations.csv.gz",
+        "predictions": test_path / "predictions.tsv.gz",
+        "explanations": test_path / "explanations.tsv.gz",
     }
 
 
