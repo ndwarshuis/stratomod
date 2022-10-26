@@ -1,3 +1,7 @@
+# 5.5.1
+
+- remove all structural variants by default
+
 # 5.5.0
 
 - save coordinates in ebm input dataframes to facilitate genome browser
