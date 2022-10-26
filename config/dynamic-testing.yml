@@ -29,8 +29,6 @@ inputs:
         # universe would spawn into existance and b) they are outside what a
         # trained model would be good at testing anyways (until we incorporate
         # structural variants)
-        max_ref: 50
-        max_alt: 50
         format_fields:
           vaf: null
           dp: null
