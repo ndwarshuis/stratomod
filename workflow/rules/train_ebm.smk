@@ -199,6 +199,8 @@ rule summarize_model:
     input:
         **rules.decompose_model.output,
         paths=rules.prepare_train_data.output.paths,
+        train_x=rules.train_model.output.train_x,
+        train_y=rules.train_model.output.train_y,
     output:
         train_results_dir / "summary.html",
     conda:
