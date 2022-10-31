@@ -85,6 +85,25 @@ ggplot(ypred, aes(prob, color = factor(label))) +
     scale_color_discrete(name = "label")
 ```
 
+## Calibration
+
+```{r, echo = FALSE, results = "asis", fig.width = 4, fig.height = 4}
+
+nbins <- 10
+
+ypred %>%
+    mutate(bin = cut(prob, nbins, labels = FALSE) / nbins) %>%
+    group_by(bin) %>%
+    summarize(mean_pred = mean(prob), frac_pos = mean(label)) %>%
+    ggplot(aes(mean_pred, frac_pos)) +
+    geom_point() +
+    geom_line() +
+    geom_abline(linetype = "dotted", color = "red") +
+    xlim(0, 1) +
+    ylim(0, 1)
+
+```
+
 ## ROC Curve
 
 ```{r, include=FALSE}
