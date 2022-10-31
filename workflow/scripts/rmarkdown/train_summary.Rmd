@@ -217,64 +217,70 @@ truncate_maybe <- function(df, name) {
     list(df = .df, lower = lower, upper = upper, caption = caption)
 }
 
+null2alt <- function(default, x) {
+    if (is.null(x)) default else x
+}
+
+null2na <- function(x) {
+    null2alt(NA, x)
+}
+
 make_integer_plot <- function(df, name, lower = NULL, upper = NULL,
-                              caption = NULL, ylab = "Score") {
+                              ylab = "Score") {
     fill_cols <- c("score", "stdev")
-    .lower <- if (is.null(lower)) min(df$value) else lower
-    .upper <- if (is.null(upper)) max(df$value) else upper
+    .lower <- null2alt(min(df$value), lower)
+    .upper <- null2alt(max(df$value), upper)
     .join <- tibble(value = .lower:.upper)
-    .df <- mutate(df, value = ceiling(value)) %>%
+    mutate(df, value = ceiling(value)) %>%
         right_join(.join, by = "value") %>%
         arrange(value) %>%
-        fill(all_of(fill_cols), .direction = "downup")
-    p <- ggplot(.df, aes(value, score)) +
+        fill(all_of(fill_cols), .direction = "downup") %>%
+        ggplot(aes(value, score)) +
         geom_col() +
         xlab(name) +
         ylab(ylab) +
         geom_errorbar(aes(ymin = score - stdev, ymax = score + stdev))
-    if (is.null(caption)) p else p + labs(caption = caption)
 }
 
-make_integer_fraction_plot <- function(df, name, caption = NULL) {
-    .name <- sym(name)
-    p <- df %>%
-        rename(value = {{ .name }}) %>%
-        mutate(value = ceiling(value)) %>%
+## TODO use inverse logit here?
+make_fraction_plot <- function(df) {
+    df %>%
         group_by(value) %>%
         summarize(frac = mean(label),
                   stderr = sqrt(frac * (1 - frac) / n())) %>%
         ggplot(aes(value, frac)) +
         geom_point() +
-        xlab(name) +
-        ylab("Frac(TP)") +
         geom_errorbar(aes(ymin = frac - stderr, ymax = frac + stderr))
-    if (is.null(caption)) p else p + labs(caption = caption)
 }
 
-make_continuous_plot <- function(df, name, caption = NULL, ylab = "Score") {
-    p <- ggplot(df, aes(value, score)) +
+make_integer_fraction_plot <- function(df, name, lower = NULL, upper = NULL) {
+    .name <- sym(name)
+    df %>%
+        mutate(value = ceiling({{ .name }})) %>%
+        make_fraction_plot() +
+        xlab(name) +
+        ylab("Frac(TP)") +
+        coord_trans(xlim = c(null2na(lower), null2na(upper)))
+}
+
+make_continuous_plot <- function(df, name, ylab = "Score") {
+    ggplot(df, aes(value, score)) +
         geom_step(aes(y = score + stdev), color = "red") +
         geom_step(aes(y = score - stdev), color = "red") +
         geom_step() +
         xlab(name) +
         ylab(ylab)
-    if (is.null(caption)) p else p + labs(caption = caption)
 }
 
-make_continuous_fraction_plot <- function(df, name, caption = NULL) {
+make_continuous_fraction_plot <- function(df, name) {
     .name <- sym(name)
-    p <- df %>%
-        rename(value = {{ .name }}) %>%
-        mutate(value = cut(value, 20, labels = F)) %>%
-        group_by(value) %>%
-        summarize(frac = mean(label),
-                  stderr = sqrt(frac * (1 - frac) / n())) %>%
-        ggplot(aes(value, frac)) +
-        geom_point() +
-        geom_errorbar(aes(ymin = frac - stderr, ymax = frac + stderr)) +
+    df %>%
+        ## TODO average the bin ends to make the axis cleaner
+        mutate(value = cut({{ .name }}, 20)) %>%
+        make_fraction_plot() +
         xlab(name) +
-        ylab("Frac(TP)")
-    if (is.null(caption)) p else p + labs(caption = caption)
+        ylab("Frac(TP)") +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
 }
 
 make_categorical_plot <- function(df, name, ylab = "Score") {
@@ -290,12 +296,7 @@ make_categorical_fraction_plot <- function(df, name) {
     .name <- sym(name)
     df %>%
         rename(value = {{ .name }}) %>%
-        group_by(value) %>%
-        summarize(frac = mean(label),
-                  stderr = sqrt(frac * (1 - frac) / n())) %>%
-        ggplot(aes(factor(value), frac)) +
-        geom_col() +
-        geom_errorbar(aes(ymin = frac - stderr, ymax = frac + stderr), width = 0.1) +
+        make_fraction_plot() +
         xlab(name) +
         ylab("Frac(TP)")
 }
@@ -327,6 +328,7 @@ make_split_plot <- function(df, name, bound, fun) {
         annotate_figure(bottom = text_grob(name))
 }
 
+## TODO extend this for TP fraction (or just don't use it)
 wrap_split_maybe <- function(name, f) {
     s <- get_split_missing(name)
     f
@@ -339,18 +341,21 @@ print_uv_plot <- function(vartype, df, name) {
              t <- get_plot_type(name)
              fs <- if (t == "step") {
                        list(
-                           partial(make_continuous_plot, caption = tr[["caption"]]),
-                           partial(make_continuous_fraction_plot, caption = tr[["caption"]]))
+                           make_continuous_plot,
+                           make_continuous_fraction_plot
+                       )
                    } else if (t == "bar") {
                        list(
-                           partial(make_integer_plot,
-                                   lower = tr[["lower"]],
-                                   upper = tr[["upper"]],
-                                   caption = tr[["caption"]]),
-                           partial(make_integer_fraction_plot,
-                                   lower = tr[["lower"]],
-                                   upper = tr[["upper"]],
-                                   caption = tr[["caption"]])
+                           partial(
+                               make_integer_plot,
+                               lower = tr[["lower"]],
+                               upper = tr[["upper"]]
+                           ),
+                           partial(
+                               make_integer_fraction_plot,
+                               lower = tr[["lower"]],
+                               upper = tr[["upper"]]
+                           )
                        )
                    } else {
                        stop(sprintf("wrong type, dummy; got %s", t))
@@ -359,13 +364,15 @@ print_uv_plot <- function(vartype, df, name) {
              list(
                  feat_f = wrap_split_maybe(name, fs[[1]]),
                  frac_f = fs[[2]],
-                 df = tr[["df"]]
+                 df = tr[["df"]],
+                 caption = tr[["caption"]]
              )
          } else if (vartype == "categorical") {
              list(
                  feat_f = make_categorical_plot,
                  frac_f = make_categorical_fraction_plot,
-                 df = df
+                 df = df,
+                 caption = NULL
              )
          } else {
              stop(sprintf("wrong plot type, dummy; got %s", vartype))
@@ -377,6 +384,9 @@ print_uv_plot <- function(vartype, df, name) {
     cat("\n\n")
     print(p1)
     cat("\n\n")
+    if (!is.null(r$caption)) {
+        cat(sprintf("%s\n\n", r$caption))
+    }
     message(name)
 }
 
@@ -489,10 +499,10 @@ print_bv_plot <- function(L, R, df) {
     cat("\n\n")
 }
 
-if (length(bivariate) == 0) {
-    cat("None\n\n")
-} else {
-    walk(bivariate, ~ print_bv_plot(.x$left, .x$right, .x$df))
-}
+## if (length(bivariate) == 0) {
+##     cat("None\n\n")
+## } else {
+##     walk(bivariate, ~ print_bv_plot(.x$left, .x$right, .x$df))
+## }
 
 ```
