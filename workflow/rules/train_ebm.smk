@@ -185,6 +185,7 @@ rule decompose_model:
     output:
         model=train_results_dir / "model.json",
         predictions=train_results_dir / "predictions.tsv.gz",
+        train_predictions=train_results_dir / "train_predictions.tsv.gz",
     conda:
         envs_path("ebm.yml")
     log:

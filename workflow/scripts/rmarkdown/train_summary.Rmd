@@ -48,7 +48,8 @@ to_bivariate <- function(model) {
 run_features <- get_run_features(snakemake@wildcards, snakemake@config)
 
 mod <- read_model(snakemake@input[["model"]])
-ypred <- read_predictions(snakemake@input[["predictions"]])
+test_pred <- read_predictions(snakemake@input[["predictions"]])
+train_pred <- read_predictions(snakemake@input[["train_predictions"]])
 input_keys <- read_input_paths(snakemake@input[["paths"]])
 
 train_x <- readr::read_tsv(snakemake@input[["train_x"]],
@@ -59,7 +60,10 @@ train_x <- readr::read_tsv(snakemake@input[["train_x"]],
 train_y <- readr::read_tsv(snakemake@input[["train_y"]],
                            col_types = cols(.default = "d"))
 
-alltrain <- bind_cols(train_x, train_y)
+threshold <- train_pred %>% pull(label) %>% mean()
+
+alltrain <- bind_cols(train_x, train_pred) %>%
+    mutate(pred = prob > threshold)
 
 VCF_input_name <- "VCF_input"
 
@@ -83,13 +87,13 @@ cat("\n")
 
 ## Overview
 
-* N: `r nrow(ypred)`
-* Perc. Pos: `r sum(ypred$label)/nrow(ypred)`
+* N: `r nrow(test_pred)`
+* Perc. Pos: `r sum(test_pred$label)/nrow(test_pred)`
 
 ## Prediction Distribution
 
 ```{r, echo = FALSE, results = "asis", fig.width = 7, fig.height = 4}
-ggplot(ypred, aes(prob, color = factor(label))) +
+ggplot(test_pred, aes(prob, color = factor(label))) +
     geom_density() +
     xlab("probability") +
     scale_color_discrete(name = "label")
@@ -101,7 +105,7 @@ ggplot(ypred, aes(prob, color = factor(label))) +
 
 nbins <- 10
 
-ypred %>%
+test_pred %>%
     mutate(bin = cut(prob, nbins, labels = FALSE) / nbins) %>%
     group_by(bin) %>%
     summarize(mean_pred = mean(prob), frac_pos = mean(label)) %>%
@@ -118,10 +122,10 @@ ypred %>%
 
 ```{r, include=FALSE}
 
-AllP <- sum(ypred$label)
-AllN <- nrow(ypred) - AllP
+AllP <- sum(test_pred$label)
+AllN <- nrow(test_pred) - AllP
 
-roc <- ypred %>%
+roc <- test_pred %>%
     arrange(prob) %>%
     mutate(thresh_FN = cumsum(label),
            thresh_TN = row_number() - thresh_FN,
@@ -523,5 +527,130 @@ if (length(bivariate) == 0) {
 } else {
     walk(bivariate, ~ print_bv_plot(.x$left, .x$right, .x$df))
 }
+
+```
+
+# Univariate Error profiles
+
+```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 4}
+
+logErr <- function(p) {
+    -log10(1 - p)
+}
+
+make_perf_df <- function(df) {
+    df %>%
+        group_by(value) %>%
+        summarize(precision = sum(label & pred) / sum(pred),
+                  recall = sum(label & pred) / sum(label),
+                  f1 = 2 * (precision * recall) / (precision + recall)) %>%
+        pivot_longer(cols = c(precision, recall, f1),
+                     names_to = "metric",
+                     values_to = "mvalue") %>%
+        mutate(mvalue = logErr(mvalue))
+        ## ggplot(aes(value, mvalue, color = metric)) +
+        ## labs(x = "Feature Value",
+        ##      y = "-log10(metric)")
+}
+
+make_perf_plot <- function(df) {
+    df %>%
+        group_by(value) %>%
+        summarize(precision = sum(label & pred) / sum(pred),
+                  recall = sum(label & pred) / sum(label),
+                  f1 = 2 * (precision * recall) / (precision + recall)) %>%
+        pivot_longer(cols = c(precision, recall, f1),
+                     names_to = "metric",
+                     values_to = "mvalue") %>%
+        mutate(mvalue = logErr(mvalue)) %>%
+        ggplot(aes(value, mvalue, color = metric)) +
+        xlab(NULL) +
+        ylab("-log10(metric)")
+}
+
+make_integer_perf_plot <- function(df, name, lower = NULL, upper = NULL) {
+    .n <- sym(name)
+    df %>%
+        mutate(value = ceiling({{ .n }})) %>%
+        make_perf_plot() +
+        geom_point() +
+        geom_line() +
+        coord_trans(xlim = c(null2na(lower), null2na(upper)))
+}
+
+make_continuous_perf_plot <- function(df, name) {
+    .n <- sym(name)
+    df %>%
+        mutate(value = cut({{ .n }}, 20)) %>%
+        make_perf_plot() +
+        geom_point() +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+}
+
+make_categorical_perf_plot <- function(df, name) {
+    .n <- sym(name)
+    df %>%
+        mutate(value = factor({{ .n }})) %>%
+        make_perf_plot() +
+        geom_col(position = "dodge", aes(fill = metric))
+}
+
+make_perf_split_plot <- function(df, name, bound, fun) {
+    .n <- sym(name)
+    missing_val <- get_fill_na(name)
+    missing <- filter(df, {{ .n }} == missing_val) %>%
+        mutate({{ .n }} := "Missing")
+    nonmissing <- filter(df, {{ .n }} != missing_val) %>%
+        mutate({{ .n }} := if_else({{ .n }} < bound, bound, {{ .n }}))
+    bar <- make_categorical_perf_plot(missing, name) +
+        xlab(NULL)
+    step <- fun(nonmissing, name) +
+        ylab(NULL) +
+        xlab(NULL) +
+        theme(axis.text.y = element_blank(),
+              axis.ticks.y = element_blank())
+    list(bar, step) %>%
+        standardize_y_axes() %>%
+        ggarrange(plotlist = ., ncol = 2, widths = c(1, 5),
+                  common.legend = TRUE, legend = "right", align = "h") %>%
+        annotate_figure(bottom = text_grob(name))
+}
+
+print_perf_profile_plot <- function(vartype, name) {
+    r <- if (vartype == "continuous") {
+             tr <- get_truncation(name)
+             t <- get_plot_type(name)
+             f <- if (t == "step") {
+                      make_continuous_perf_plot
+                  } else if (t == "bar") {
+                      partial(
+                          make_integer_perf_plot,
+                          lower = tr[["lower"]],
+                          upper = tr[["upper"]]
+                      )
+                  } else {
+                      stop(sprintf("wrong type, dummy; got %s", t))
+                  }
+             list(
+                 feat_f = wrap_split_maybe(name, make_perf_split_plot, f),
+                 caption = tr[["caption"]]
+             )
+         } else if (vartype == "categorical") {
+             list(
+                 feat_f = make_categorical_perf_plot,
+                 caption = NULL
+             )
+         } else {
+             stop(sprintf("wrong plot type, dummy; got %s", vartype))
+         }
+    cat(sprintf("## %s\n", name))
+    print(r$feat_f(alltrain, name))
+    cat("\n\n")
+    if (!is.null(r$caption)) {
+        cat(sprintf("%s\n\n", r$caption))
+    }
+}
+
+walk(univariate, ~ print_perf_profile_plot(.x$meta$vartype, .x$meta$name))
 
 ```
