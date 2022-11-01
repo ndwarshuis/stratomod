@@ -178,7 +178,7 @@ tibble(x = "intercept", y = mod$intercept) %>%
 
 # Univariate plots
 
-```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 4, message = F}
+```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 4}
 
 get_truncation <- function(s) {
     run_features[[s]][["visualization"]][["truncate"]]
@@ -250,7 +250,8 @@ make_fraction_plot <- function(df) {
                   stderr = sqrt(frac * (1 - frac) / n())) %>%
         ggplot(aes(value, frac)) +
         geom_point() +
-        geom_errorbar(aes(ymin = frac - stderr, ymax = frac + stderr))
+        geom_errorbar(aes(ymin = frac - stderr, ymax = frac + stderr),
+                      width = 0.1)
 }
 
 make_integer_fraction_plot <- function(df, name, lower = NULL, upper = NULL) {
@@ -295,44 +296,63 @@ make_categorical_plot <- function(df, name, ylab = "Score") {
 make_categorical_fraction_plot <- function(df, name) {
     .name <- sym(name)
     df %>%
-        rename(value = {{ .name }}) %>%
+        mutate(value = factor({{ .name }})) %>%
         make_fraction_plot() +
         xlab(name) +
         ylab("Frac(TP)")
 }
 
+standardize_y_axes <- function(ps) {
+    lims <- map(ps, ~ layer_scales(.x)[["y"]]$get_limits()) %>%
+        do.call(cbind, .)
+    new <- c(min(lims[1, ]), max(lims[2, ]))
+    map(ps, ~ .x + ylim(new))
+}
+
 make_split_plot <- function(df, name, bound, fun) {
     missing_val <- get_fill_na(name)
-    bounds <- df %>%
-        mutate(lower = score - stdev,
-               upper = score + stdev) %>%
-        summarize(maxvalue = max(upper),
-                  minvalue = min(lower))
     missing <- filter(df, value == missing_val) %>%
         mutate(value = "Missing")
     nonmissing <- filter(df, value != missing_val) %>%
         mutate(value = if_else(value < bound, bound, value))
-    yaxis <- scale_y_continuous(limits = c(bounds$minvalue, bounds$maxvalue))
     bar <- ggplot(missing, aes(factor(value), score)) +
         geom_col() +
         geom_errorbar(aes(ymax = score + stdev,
                           ymin = score - stdev),
                       width = 0.2) +
-        xlab(NULL) +
-        yaxis
+        xlab(NULL)
     step <- fun(nonmissing, NULL) +
-        yaxis +
+        ylab(NULL) +
         theme(axis.text.y = element_blank(),
               axis.ticks.y = element_blank())
-    ggarrange(bar, step, ncol = 2, widths = c(1, 5)) %>%
+    list(bar, step) %>%
+        standardize_y_axes() %>%
+        ggarrange(plotlist = ., ncol = 2, widths = c(1, 5)) %>%
         annotate_figure(bottom = text_grob(name))
 }
 
-## TODO extend this for TP fraction (or just don't use it)
-wrap_split_maybe <- function(name, f) {
+make_split_fraction_plot <- function(df, name, bound, fun) {
+    .name <- sym(name)
+    missing_val <- get_fill_na(name)
+    missing <- filter(df, {{ .name }} == missing_val) %>%
+        mutate({{ .name }} := "Missing")
+    nonmissing <- filter(df, {{ .name }} != missing_val)
+    bar <- make_categorical_fraction_plot(missing, name) +
+        xlab(NULL)
+    step <- fun(nonmissing, name) +
+        xlab(NULL) +
+        ylab(NULL) +
+        theme(axis.text.y = element_blank(),
+              axis.ticks.y = element_blank())
+    list(bar, step) %>%
+        standardize_y_axes() %>%
+        ggarrange(plotlist = ., ncol = 2, widths = c(1, 5), align = "h") %>%
+        annotate_figure(bottom = text_grob(name))
+}
+
+wrap_split_maybe <- function(name, split_f, f) {
     s <- get_split_missing(name)
-    f
-    if (is.null(s)) f else partial(make_split_plot, fun = f, bound = s)
+    if (is.null(s)) f else partial(split_f, fun = f, bound = s)
 }
 
 print_uv_plot <- function(vartype, df, name) {
@@ -362,8 +382,8 @@ print_uv_plot <- function(vartype, df, name) {
                    }
              ## TODO only continuous plots can be split (for now)
              list(
-                 feat_f = wrap_split_maybe(name, fs[[1]]),
-                 frac_f = fs[[2]],
+                 feat_f = wrap_split_maybe(name, make_split_plot, fs[[1]]),
+                 frac_f = wrap_split_maybe(name, make_split_fraction_plot, fs[[2]]),
                  df = tr[["df"]],
                  caption = tr[["caption"]]
              )
@@ -387,11 +407,9 @@ print_uv_plot <- function(vartype, df, name) {
     if (!is.null(r$caption)) {
         cat(sprintf("%s\n\n", r$caption))
     }
-    message(name)
 }
 
 walk(univariate, ~ print_uv_plot(.x$meta$vartype, .x$df, .x$meta$name))
-
 
 ```
 
@@ -437,17 +455,18 @@ print_cont_cat_plot_inner <- function(df, cat_name, cont_name) {
     tr <- truncate_maybe(df, cont_name)
     t <- get_plot_type(cont_name)
     f <- if (t == "step") {
-             partial(make_continuous_plot, caption = tr[["caption"]])
+             partial(make_continuous_plot)
          } else if (t == "bar") {
              partial(make_integer_plot,
                      lower = tr[["lower"]],
-                     upper = tr[["upper"]],
-                     caption = tr[["caption"]])
+                     upper = tr[["upper"]]
+                     )
          } else {
              stop(sprintf("wrong plot type: got %s", t))
          }
-    p <- wrap_split_maybe(cont_name, f)(tr[["df"]], cont_name)
+    p <- wrap_split_maybe(cont_name, make_split_plot, f)(tr[["df"]], cont_name)
     cat(sprintf("### %s = %s\n\n", cat_name, cat_val))
+    cat(sprintf("%s\n\n", tr[["caption"]]))
     print(p)
     cat("\n\n")
 }
@@ -499,10 +518,10 @@ print_bv_plot <- function(L, R, df) {
     cat("\n\n")
 }
 
-## if (length(bivariate) == 0) {
-##     cat("None\n\n")
-## } else {
-##     walk(bivariate, ~ print_bv_plot(.x$left, .x$right, .x$df))
-## }
+if (length(bivariate) == 0) {
+    cat("None\n\n")
+} else {
+    walk(bivariate, ~ print_bv_plot(.x$left, .x$right, .x$df))
+}
 
 ```
