@@ -439,19 +439,35 @@ cont_cont_plot <- function(df, yvar, left_name, right_name) {
                              ymax = "right_upper",
                              fill = yvar)) +
         xlab(left_name) +
-        ylab(right_name) +
-        scale_fill_gradient2(low = "red",
-                             mid = "black",
-                             high = "green",
-                             midpoint = 0)
+        ylab(right_name)
 }
 
 print_cont_cont_plot <- function(df, left_name, right_name) {
+    x_tr <- df %>%
+        rename(value = left_value) %>%
+        truncate_maybe(left_name)
+    y_tr <- df %>%
+        rename(value = right_value) %>%
+        truncate_maybe(right_name)
+    lims <- coord_trans(xlim = c(x_tr$lower, x_tr$upper),
+                        ylim = c(y_tr$lower, y_tr$upper))
+    if (!is.null(x_tr$caption)) {
+        cat(sprintf("%s: %s\n\n", left_name, x_tr$caption))
+    }
+    if (!is.null(y_tr$caption)) {
+        cat(sprintf("%s: %s\n\n", right_name, y_tr$caption))
+    }
     cat("### Scores\n\n")
-    print(cont_cont_plot(df, "score", left_name, right_name))
+    p0 <- cont_cont_plot(df, "score", left_name, right_name) +
+        scale_fill_gradient2(midpoint = 0) +
+        lims
+    print(p0)
     cat("\n\n")
     cat("### Stdevs\n\n")
-    print(cont_cont_plot(df, "stdev", left_name, right_name))
+    p1 <- cont_cont_plot(df, "stdev", left_name, right_name) +
+        scale_fill_gradient() +
+        lims
+    print(p1)
 }
 
 print_cont_cat_plot_inner <- function(df, cat_name, cont_name) {

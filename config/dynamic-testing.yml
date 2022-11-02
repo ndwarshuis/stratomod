@@ -48,6 +48,8 @@ ebm_runs:
     filtered_are_candidates: false
     interactions:
       - VCF_input
+      - [VCF_indel_length, HOMOPOL_AT_length]
+      - [VCF_indel_length, HOMOPOL_GC_length]
     features: &base_features
       VCF_input:
         feature_type: categorical
