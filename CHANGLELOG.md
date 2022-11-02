@@ -1,3 +1,13 @@
+# 5.6.0
+
+- fix max ref/alt filter (before it didn't listen to max ref)
+- fix continuous vs continuous interaction plots
+- add lots of diagnostic outputs to train report
+  - global calibration plot
+  - fraction of true positive plots
+  - error profiles for each feature
+- test indel length vs homopol length as an interaction
+
 # 5.5.1
 
 - remove all structural variants by default
