@@ -170,17 +170,12 @@ def add_length_and_filter(
     multi_mask = ~df[ALT].str.contains(",")
     log_removed(filter_mask, multi_mask, "multi-alleles")
 
-    # TODO why is this "and" and not "or"?
     # Remove any variant that doesn't pass our length filters
-    len_mask = (ref_len <= max_alt) & (alt_len <= max_alt)
-    log_removed(filter_mask, len_mask, f"REF > {max_ref} and ALT > {max_alt}")
+    len_mask = (ref_len <= max_ref) & (alt_len <= max_alt)
+    log_removed(filter_mask, len_mask, f"REF > {max_ref} or ALT > {max_alt}")
 
     df[indel_len_col] = alt_len - ref_len
     df[end_col] = df[start_col] + ref_len
-
-    # Remove any INDEL that is longer than we would like
-    indel_mask = df[indel_len_col] > max_indel
-    log_removed(filter_mask, indel_mask, f"length(INDEL) > {max_indel}")
 
     # NOTE: the main reason why all these crazy filters are in one function
     # because we get weird slice warnings unless I copy after the filter step
