@@ -1,3 +1,10 @@
+# 6.0.0
+
+- simplify homopolymers
+  - use individual instead of combined bases
+  - only add 1bp slop
+- increase memory for summarization steps
+
 # 5.6.0
 
 - fix max ref/alt filter (before it didn't listen to max ref)
