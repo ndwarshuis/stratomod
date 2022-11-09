@@ -209,7 +209,7 @@ rule summarize_model:
     benchmark:
         train_results_dir / "summary.bench"
     resources:
-        mem_mb=attempt_mem_gb(2),
+        mem_mb=attempt_mem_gb(8),
     script:
         rmd_path("train_summary.Rmd")
 
@@ -339,7 +339,7 @@ rule summarize_labeled_test:
     benchmark:
         labeled_test_results_dir / test_summary_bench
     resources:
-        mem_mb=attempt_mem_gb(2),
+        mem_mb=attempt_mem_gb(8),
     script:
         rmd_path("test_summary.Rmd")
 
