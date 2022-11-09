@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 from common.cli import setup_logging
 from common.ebm import read_model
+from common.tsv import read_tsv, write_tsv
+from common.config import lookup_bed_cols_ordered
 
 setup_logging(snakemake.log[0])
 
@@ -130,28 +132,35 @@ def get_model_dict(ebm):
     }
 
 
-def write_predictions(ebm, X_test, y_test, label):
-    y_pred = pd.DataFrame(
-        {
-            "prob": ebm.predict_proba(X_test)[::, 1],
-            "label": y_test[label],
-        }
-    )
-    y_pred.to_csv(snakemake.output["predictions"], index=False)
-
-
 def write_model_json(ebm):
     with open(snakemake.output["model"], "w") as f:
         json.dump(get_model_dict(ebm), f)
 
 
 def main():
-    ebm = read_model(snakemake.input["model"])
-    label = snakemake.config["features"]["label"]
-    X_test = pd.read_csv(snakemake.input["test_x"])
-    y_test = pd.read_csv(snakemake.input["test_y"])
-    write_predictions(ebm, X_test, y_test, label)
+    sin = snakemake.input
+    sout = snakemake.output
+    sconf = snakemake.config
+
+    ebm = read_model(sin["model"])
     write_model_json(ebm)
+
+    label = sconf["features"]["label"]
+    bed_cols = lookup_bed_cols_ordered(sconf)
+
+    def write_predictions(xpath, ypath, out_path):
+        X = read_tsv(xpath).drop(columns=bed_cols)
+        y = read_tsv(ypath)
+        y_pred = pd.DataFrame(
+            {
+                "prob": ebm.predict_proba(X)[::, 1],
+                "label": y[label],
+            }
+        )
+        write_tsv(out_path, y_pred)
+
+    write_predictions(sin["train_x"], sin["train_y"], sout["train_predictions"])
+    write_predictions(sin["test_x"], sin["test_y"], sout["predictions"])
 
 
 main()

@@ -4,6 +4,11 @@ from functools import partial
 from common.tsv import read_tsv, write_tsv
 from common.cli import setup_logging
 from common.config import fmt_vcf_feature, lookup_ebm_run
+from common.config import (
+    fmt_vcf_feature,
+    lookup_ebm_run,
+    lookup_bed_cols_ordered,
+)
 from common.prepare import process_labeled_data
 
 logger = setup_logging(snakemake.log[0])
@@ -26,7 +31,6 @@ def main():
     rconf = lookup_ebm_run(sconf, snakemake.wildcards.run_key)
     fconf = sconf["features"]
     label_col = fconf["label"]
-    chrom_col = fconf["index"]["chr"]
     _fmt_vcf_feature = partial(fmt_vcf_feature, sconf)
     filter_col = _fmt_vcf_feature("filter")
     input_col = _fmt_vcf_feature("input")
@@ -35,7 +39,7 @@ def main():
         rconf["features"],
         rconf["error_labels"],
         rconf["filtered_are_candidates"],
-        chrom_col,
+        lookup_bed_cols_ordered(sconf),
         filter_col,
         label_col,
         raw_df,

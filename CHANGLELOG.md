@@ -1,3 +1,26 @@
+# 5.6.0
+
+- fix max ref/alt filter (before it didn't listen to max ref)
+- fix continuous vs continuous interaction plots
+- add lots of diagnostic outputs to train report
+  - global calibration plot
+  - fraction of true positive plots
+  - error profiles for each feature
+- test indel length vs homopol length as an interaction
+
+# 5.5.1
+
+- remove all structural variants by default
+
+# 5.5.0
+
+- save coordinates in ebm input dataframes to facilitate genome browser
+  extravaganzas
+- banish csv files from this project (and only permit tsv files, the obviously
+  superior alternative)
+  remove MHC region entirely from analysis (before, anything in the MHC region
+  would have been flagged a false positive with most benchmarks)
+
 # 5.4.3
 
 - fix parse errors in MHC region for HG003/4/6/7
