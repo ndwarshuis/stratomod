@@ -79,6 +79,21 @@ roc <- y %>%
 
 ```{r, echo = FALSE, results = "asis", fig.width = 4, fig.height = 4, eval = has_label}
 
+cat("## Calibration\n\n")
+
+nbins <- 10
+
+y %>%
+    mutate(bin = cut(prob, nbins, labels = FALSE) / nbins) %>%
+    group_by(bin) %>%
+    summarize(mean_pred = mean(prob), frac_pos = mean(label)) %>%
+    ggplot(aes(mean_pred, frac_pos)) +
+    geom_point() +
+    geom_line() +
+    geom_abline(linetype = "dotted", color = "red") +
+    xlim(0, 1) +
+    ylim(0, 1)
+
 cat("## ROC Curves\n\n")
 
 roc %>%
