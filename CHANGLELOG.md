@@ -1,3 +1,7 @@
+# 6.0.1
+
+- fix off-by-one error in vcf -> bed parser
+
 # 6.0.0
 
 - simplify homopolymers
