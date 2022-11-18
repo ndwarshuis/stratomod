@@ -83,18 +83,18 @@ database located
 
 We only use a few fields from this database. If multiple regions overlap with
 each other, they will be merged into one superregion and the value of the
-resulting feature will be calculated using <agg> (an aggregation function
-applied to the list of subfeatures being merged). <agg> is one of `min`, `max`,
+resulting feature will be calculated using {agg} (an aggregation function
+applied to the list of subfeatures being merged). {agg} is one of `min`, `max`,
 `count`, or `mean`.
 
 Each of these features is prefixed with `SEGDUP`.
 
-### SEGDUP_fracMatchIndel_<agg>
+### SEGDUP_fracMatchIndel_{agg}
 
 The fraction (a float between 0 and 1) between this segmental duplication and
 another in a different part of the genome.
 
-### SEGDUP_alignL_<agg>
+### SEGDUP_alignL_{agg}
 
 Spaces/positions in the alignment (positive integer).
 
@@ -106,12 +106,12 @@ to count long stretches of the same base.
 
 A homopolymer is defined as any sequence of one base repeated at least 4 times.
 
-The placeholder <bases> below is either `AT` or `GC` (meaning that the feature
+The placeholder {bases} below is either `AT` or `GC` (meaning that the feature
 pertains to homopolymers of As and Ts or Gs and Cs)
 
 EACh of these features is prefixed with `HOMOPOL`
 
-### HOMOPOL_<bases>_length
+### HOMOPOL_{bases}_length
 
 The length of the homopolymer. This includes all homopolymers of the same base
 with at most 1 non-homopolymer base in between (so called "imperfect
@@ -120,19 +120,19 @@ pairs.
 
 The individual features are described below:
 
-### HOMOPOL_<bases>_imperfect_count
+### HOMOPOL_{bases}_imperfect_count
 
 The number of non-homopolymer bases within one imperfect homopolymer for one
 base. Note this does not include the 10bp gap between homopolymers of different
 bases. In the case of multiple homopolymers separated by up to 10bp, the max
 each each individual imperfect homopolymer is used as this feature.
 
-### HOMOPOL_<bases>_imperfect_frac
+### HOMOPOL_{bases}_imperfect_frac
 
-The quotient of <bases>_homopolymer_gap_count and <bases>_homopolymer_length;
+The quotient of {bases}_homopolymer_gap_count and {bases}_homopolymer_length;
 used where correlation between these might be a problem.
 
-### HOMOPOL_<bases>_total_imperfect_frac
+### HOMOPOL_{bases}_total_imperfect_frac
 
 The fraction of bases in this entire feature length that do not belong to a
 perfect homopolymer. In other words, this is the number of bases in the 1bp gaps
@@ -186,8 +186,8 @@ database.
 
 If multiple regions overlap with each other, they will be merged into one
 superregion and (where noted) the value of the resulting feature will be
-calculated using <agg> (an aggregation function applied to the list of
-subfeatures being merged). <agg> is one of `min`, `max`, or `median`.
+calculated using {agg} (an aggregation function applied to the list of
+subfeatures being merged). {agg} is one of `min`, `max`, or `median`.
 
 Each of these features is prefixed with `TR`.
 
@@ -199,30 +199,30 @@ The number of tandem repeats merged to make this feature.
 
 The length of the this merged region of tandem repeats
 
-### TR_unit_size_<agg>
+### TR_unit_size_{agg}
 
 Length of the repeat unit
 
-### TR_unit_copies_<agg>
+### TR_unit_copies_{agg}
 
 Mean number of copies of the repeated unit
 
-### TR_identity_<agg>
+### TR_identity_{agg}
 
 Percentage match (integer between 0 and 100)
 
-### TR_per_indel_mismatch_<agg>
+### TR_per_indel_mismatch_{agg}
 
 Percentage INDEL (integer between 0 and 100)
 
-### TR_score_<agg>
+### TR_score_{agg}
 
 Alignment score (integer with minimum of 50)
 
-### TR_percent_<base>_<agg>
+### TR_percent_{base}_{agg}
 
-The percentage of <base> in the repeat. <base> can be one of `A`, `T`, `G`, `G`
-(for single bases), `AT`, or `GC` (for complimentary bases, which are the sum of
-the individual percentages).
+The percentage of `{base}` in the repeat. `{base}` can be one of `A`, `T`, `G`,
+`G` (for single bases), `AT`, or `GC` (for complimentary bases, which are the
+sum of the individual percentages).
 
 This is an integer from 0 to 100.
