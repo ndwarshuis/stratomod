@@ -35,6 +35,10 @@ ebm_runs:
     filtered_are_candidates: false
     interactions:
       - VCF_input
+      - [VCF_indel_length, HOMOPOL_A_length]
+      - [VCF_indel_length, HOMOPOL_T_length]
+      - [VCF_indel_length, HOMOPOL_G_length]
+      - [VCF_indel_length, HOMOPOL_C_length]
 
     features: &base_features
       VCF_input:
@@ -44,22 +48,20 @@ ebm_runs:
           plot_type: bar
           truncate: {lower: -50, upper: 50}
 
-      HOMOPOL_AT_length:
+      HOMOPOL_A_length: &homopol_length
         visualization:
           plot_type: bar
           truncate: {lower: 0, upper: 50}
-      HOMOPOL_GC_length:
-        visualization:
-          plot_type: bar
-          truncate: {lower: 0, upper: 50}
-      HOMOPOL_AT_total_imperfect_frac:
+      HOMOPOL_T_length: *homopol_length
+      HOMOPOL_G_length: *homopol_length
+      HOMOPOL_C_length: *homopol_length
+      HOMOPOL_A_imperfect_frac: &homopol_frac
         fill_na: -1
         visualization:
           split_missing: 0
-      HOMOPOL_GC_total_imperfect_frac:
-        fill_na: -1
-        visualization:
-          split_missing: 0
+      HOMOPOL_T_imperfect_frac: *homopol_frac
+      HOMOPOL_G_imperfect_frac: *homopol_frac
+      HOMOPOL_C_imperfect_frac: *homopol_frac
 
       TR_unit_size_max:
         visualization:
