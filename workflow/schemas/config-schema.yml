@@ -75,14 +75,15 @@ properties:
                   Only variants with a REF value less than or equal to this will
                   be included. Useful for preventing gravity wells in RAM due to
                   combinatorial blowout and for keeping 'long' variants out of
-                  testing datasets.
-                default: 1000000
+                  testing datasets. Defaults to 50 (eg, remove all structural
+                  variants).
+                default: 50
                 type: number
                 minimum: 1
 
               max_alt: &input_max_alt
-                description: Like 'max_ref' but for the ALT column
-                default: 1000000
+                description: Like 'max_ref' but for the ALT column.
+                default: 50
                 type: number
                 minimum: 1
 
@@ -167,7 +168,7 @@ properties:
         additionalProperties: false
         patternProperties:
           ^[\w\.\-]+$:
-            required: [sdf, genome, annotations]
+            required: [sdf, genome, strats, annotations]
             additionalProperties: false
             properties:
               sdf:
@@ -179,6 +180,15 @@ properties:
                   description: the url to the genome database file
                   type: string
                   format: uri
+
+              strats:
+                additionalProperties: false
+                required: [mhc]
+                properties:
+                  mhc:
+                    description: url to the MHC stratification bed file
+                    type: string
+                    format: uri
 
               annotations:
                 additionalProperties: false
@@ -306,20 +316,14 @@ properties:
              type: string
          suffixes:
            additionalProperties: false
-           required: [len, tot_imp_frac, imp_frac, imp_cnt]
+           required: [len, imp_frac]
            properties:
              len:
                <<: *column
                description: the length of the homopolymer
-             tot_imp_frac:
-               <<: *column
-               description: the percent of imperfect homopolymers (with slop)
              imp_frac:
                <<: *column
                description: the percent of imperfect homopolymers
-             imp_cnt:
-               <<: *column
-               description: the number of imperfect homopolymers
 
       repeat_masker: 
        additionalProperties: false

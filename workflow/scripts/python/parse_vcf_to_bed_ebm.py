@@ -171,11 +171,15 @@ def add_length_and_filter(
     log_removed(filter_mask, multi_mask, "multi-alleles")
 
     # Remove any variant that doesn't pass our length filters
-    len_mask = (ref_len <= max_alt) & (alt_len <= max_alt)
-    log_removed(filter_mask, len_mask, f"REF > {max_ref} and LEN > {max_alt}")
+    len_mask = (ref_len <= max_ref) & (alt_len <= max_alt)
+    log_removed(filter_mask, len_mask, f"REF > {max_ref} or ALT > {max_alt}")
+
+    # make the output 0-based instead of 1-based (like a real bed file)
+    df[start_col] = df[start_col] - 1
 
     df[indel_len_col] = alt_len - ref_len
     df[end_col] = df[start_col] + ref_len
+
     # NOTE: the main reason why all these crazy filters are in one function
     # because we get weird slice warnings unless I copy after the filter step
     # ...and for obvious reasons I don't want to copy more than once

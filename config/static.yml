@@ -34,6 +34,8 @@ resources:
     GRCh38:
       sdf: https://s3.amazonaws.com/rtg-datasets/references/GRCh38.sdf.zip
       genome: https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/chromInfo.txt.gz
+      strats:
+        mhc: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.1/GRCh38/OtherDifficult/GRCh38_MHC.bed.gz
       annotations:
         mappability:
           low: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.0/GRCh38/mappability/GRCh38_lowmappabilityall.bed.gz
@@ -72,12 +74,10 @@ features:
 
   homopolymers:
     prefix: HOMOPOL
-    bases: [AT, GC]
+    bases: [A, T, G, C]
     suffixes:
       len: length
-      tot_imp_frac: total_imperfect_frac
       imp_frac: imperfect_frac
-      imp_cnt: imperfect_count
 
   repeat_masker:
     prefix: REPMASK

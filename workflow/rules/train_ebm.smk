@@ -39,7 +39,7 @@ def annotation_input(tsv_path):
             rules.get_segdups.output,
             expand(
                 rules.get_homopolymers.output,
-                bases=config["features"]["homopolymers"]["bases"],
+                base=config["features"]["homopolymers"]["bases"],
                 allow_missing=True,
             ),
         ],
@@ -154,7 +154,7 @@ rule train_model:
         rules.prepare_train_data.output,
     output:
         **{
-            n: str((train_results_dir / n).with_suffix(".csv.gz"))
+            n: str((train_results_dir / n).with_suffix(".tsv.gz"))
             for n in [
                 "train_x",
                 "train_y",
@@ -184,7 +184,8 @@ rule decompose_model:
         **rules.train_model.output,
     output:
         model=train_results_dir / "model.json",
-        predictions=train_results_dir / "predictions.csv.gz",
+        predictions=train_results_dir / "predictions.tsv.gz",
+        train_predictions=train_results_dir / "train_predictions.tsv.gz",
     conda:
         envs_path("ebm.yml")
     log:
@@ -199,6 +200,8 @@ rule summarize_model:
     input:
         **rules.decompose_model.output,
         paths=rules.prepare_train_data.output.paths,
+        train_x=rules.train_model.output.train_x,
+        train_y=rules.train_model.output.train_y,
     output:
         train_results_dir / "summary.html",
     conda:
@@ -206,7 +209,7 @@ rule summarize_model:
     benchmark:
         train_results_dir / "summary.bench"
     resources:
-        mem_mb=attempt_mem_gb(2),
+        mem_mb=attempt_mem_gb(8),
     script:
         rmd_path("train_summary.Rmd")
 
@@ -285,8 +288,8 @@ def test_ebm_input(x_path):
 
 def test_ebm_output(test_path):
     return {
-        "predictions": test_path / "predictions.csv.gz",
-        "explanations": test_path / "explanations.csv.gz",
+        "predictions": test_path / "predictions.tsv.gz",
+        "explanations": test_path / "explanations.tsv.gz",
     }
 
 
@@ -336,7 +339,7 @@ rule summarize_labeled_test:
     benchmark:
         labeled_test_results_dir / test_summary_bench
     resources:
-        mem_mb=attempt_mem_gb(2),
+        mem_mb=attempt_mem_gb(8),
     script:
         rmd_path("test_summary.Rmd")
 

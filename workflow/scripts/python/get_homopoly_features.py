@@ -15,10 +15,9 @@ logger = setup_logging(snakemake.log[0])
 
 # temporary columns used for dataframe processing
 BASE_COL = "_base"
-GAP_COL = "_gap_count"
 PFCT_LEN_COL = "_perfect_length"
 
-SLOP = 5
+SLOP = 1
 
 fmt_feature = partial(fmt_homopolymer_feature, snakemake.config)
 
@@ -29,7 +28,7 @@ def read_input(path, bed_cols):
     return read_tsv(path, header=None, comment="#", names=names)
 
 
-def filter_base(df, base, bed_cols):
+def merge_base(df, base, genome, bed_cols):
     logger.info("Filtering bed file for %ss", base)
     _df = df[df[BASE_COL] == f"unit={base}"].drop(columns=[BASE_COL])
     ldf = len(_df)
@@ -44,85 +43,35 @@ def filter_base(df, base, bed_cols):
     merged = (
         bt.from_dataframe(_df)
         .merge(d=1, c=[4], o=["sum"])
+        .slop(b=SLOP, g=genome)
         .to_dataframe(names=[*bed_cols_ordered(bed_cols), PFCT_LEN_COL])
     )
-    # calculate the number of "gaps" (eg imperfect homopolymer bases like the
-    # "G" in "AAAAGAAAA")
-    merged[GAP_COL] = merged[bed_end] - merged[bed_start] - merged[PFCT_LEN_COL]
     # these files are huge; now that we have a dataframe, remove all the bed
     # files from tmpfs to prevent a run on downloadmoreram.com
     cleanup()
-    return merged
-
-
-def filter_bases(df, bases, bed_cols):
-    return [filter_base(df, b, bed_cols) for b in bases]
-
-
-def intersect_bases(dfs, bases, genome, bed_cols):
-    logger.info("Concatenating and sorting merged beds for %s", bases)
-    # Assume this df is already filtered for chr1-21XY and thus we don't need
-    # to do it again (save a few cpu cycles and print output)
-    sdf = sort_bed_numerically(pd.concat(dfs), drop_chr=False)
-
-    logger.info("Merging %s homopolymers and adding %sbp slop", bases, SLOP)
-    # The perfect homopolymer length is column 4, and the gap length is column
-    # 5; after this merge we want the sum of the perfect lengths and the max of
-    # the gap lengths.
-    #
-    # If this is confusing, its because at some point JZ and ND had different
-    # ideas of how to do this. JZ wanted the "max gap count per merged imperfect
-    # homopolymer" approach and ND thought it made more sense to calculate "the
-    # percentage of the final length that isn't part of a pure homopolymer."
-    # (note that the latter approach considers slop and the former doesn't)
-    # Regardless of which is right, they are both here ;)
-    merged = (
-        bt.from_dataframe(sdf)
-        .slop(b=SLOP, g=genome)
-        .merge(
-            c=[4, 5],
-            o=["sum", "max"],
-        )
-        .to_dataframe(
-            names=[
-                *bed_cols_ordered(bed_cols),
-                PFCT_LEN_COL,
-                GAP_COL,
-            ]
-        )
-    )
-    # put downloadmoreram.com out of business
-    cleanup()
-
-    logger.info("Adding homopolymer length/fraction features")
-
-    length_col = fmt_feature(bases, "len")
-    tot_frac_col = fmt_feature(bases, "tot_imp_frac")
-    frac_col = fmt_feature(bases, "imp_frac")
-    cnt_col = fmt_feature(bases, "imp_cnt")
 
     end = bed_cols["end"]
     start = bed_cols["start"]
 
+    length_col = fmt_feature(base, "len")
+    frac_col = fmt_feature(base, "imp_frac")
+
     merged[length_col] = merged[end] - merged[start] - SLOP * 2
-    merged[tot_frac_col] = 1 - (merged[PFCT_LEN_COL] / merged[length_col])
-    merged[frac_col] = merged[GAP_COL] / merged[length_col]
-    return merged.drop(columns=[PFCT_LEN_COL]).rename(columns={GAP_COL: cnt_col})
+    merged[frac_col] = 1 - (merged[PFCT_LEN_COL] / merged[length_col])
+    return merged.drop(columns=[PFCT_LEN_COL])
 
 
 def main():
     bed_cols = lookup_bed_cols(snakemake.config)
     # ASSUME this file is already sorted
     simreps = read_input(snakemake.input["bed"][0], bed_cols)
-    bases = snakemake.wildcards["bases"]
-    base_dfs = filter_bases(simreps, bases, bed_cols)
-    merged_bases = intersect_bases(
-        base_dfs,
-        bases,
+    merged = merge_base(
+        simreps,
+        snakemake.wildcards["base"],
         snakemake.input["genome"][0],
         bed_cols,
     )
-    write_tsv(snakemake.output[0], merged_bases, header=True)
+    write_tsv(snakemake.output[0], merged, header=True)
 
 
 main()
