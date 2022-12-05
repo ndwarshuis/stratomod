@@ -205,7 +205,7 @@ def main():
     sconf = snakemake.config
     fconf = sconf["features"]
     iconf = lookup_train_test_input(sconf, wildcards.input_key)
-    idx = fconf["index"]
+    idx = fconf["bed_index"]
 
     chrom = idx["chr"]
     pos = idx["start"]

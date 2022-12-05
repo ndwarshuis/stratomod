@@ -2,9 +2,12 @@ import json
 from os.path import dirname, basename
 from functools import partial
 from common.tsv import read_tsv, write_tsv
-from common.config import lookup_bed_cols_ordered
 from common.cli import setup_logging
-from common.config import fmt_vcf_feature, lookup_ebm_run
+from common.config import (
+    fmt_vcf_feature,
+    lookup_all_index_cols,
+    lookup_ebm_run,
+)
 from common.prepare import process_labeled_data, process_unlabeled_data
 
 logger = setup_logging(snakemake.log[0])
@@ -27,8 +30,7 @@ def write_labeled(xpath, ypath, sconf, rconf, filter_col, df):
         rconf["features"],
         rconf["error_labels"],
         rconf["filtered_are_candidates"],
-        lookup_bed_cols_ordered(sconf),
-        # fconf["index"]["chr"],
+        lookup_all_index_cols(sconf),
         filter_col,
         label_col,
         df,
@@ -40,8 +42,7 @@ def write_labeled(xpath, ypath, sconf, rconf, filter_col, df):
 def write_unlabeled(xpath, sconf, rconf, df):
     processed = process_unlabeled_data(
         rconf["features"],
-        lookup_bed_cols_ordered(sconf),
-        # fconf["index"]["chr"],
+        lookup_all_index_cols(sconf),
         df,
     )
     write_tsv(xpath, processed)
