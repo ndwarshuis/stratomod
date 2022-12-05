@@ -3,12 +3,7 @@ import pandas as pd
 from functools import partial
 from common.tsv import read_tsv, write_tsv
 from common.cli import setup_logging
-from common.config import fmt_vcf_feature, lookup_ebm_run
-from common.config import (
-    fmt_vcf_feature,
-    lookup_ebm_run,
-    lookup_bed_cols_ordered,
-)
+from common.config import fmt_vcf_feature, lookup_ebm_run, lookup_all_index_cols
 from common.prepare import process_labeled_data
 
 logger = setup_logging(snakemake.log[0])
@@ -39,7 +34,7 @@ def main():
         rconf["features"],
         rconf["error_labels"],
         rconf["filtered_are_candidates"],
-        lookup_bed_cols_ordered(sconf),
+        lookup_all_index_cols(sconf),
         filter_col,
         label_col,
         raw_df,

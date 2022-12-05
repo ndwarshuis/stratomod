@@ -48,7 +48,9 @@ resources:
 features:
   label: label
 
-  index:
+  raw_index: variant_index
+
+  bed_index:
     chr: chrom
     start: chromStart
     end: chromEnd

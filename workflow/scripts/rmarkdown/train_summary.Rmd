@@ -56,6 +56,7 @@ train_x <- readr::read_tsv(snakemake@input[["train_x"]],
                            col_types = cols(chrom = "-",
                                             chromStart = "-",
                                             chromEnd = "-",
+                                            variant_index = "-",
                                             .default = "d"))
 train_y <- readr::read_tsv(snakemake@input[["train_y"]],
                            col_types = cols(.default = "d"))
