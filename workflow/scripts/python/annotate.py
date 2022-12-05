@@ -3,6 +3,7 @@ import numpy as np
 from pybedtools import BedTool as bt
 from common.tsv import read_tsv, write_tsv
 from common.cli import setup_logging
+from common.config import lookup_raw_index
 
 logger = setup_logging(snakemake.log[0])
 
@@ -51,6 +52,11 @@ def left_outer_intersect(left, path):
 def intersect_tsvs(ifile, ofile, tsv_paths):
     target_df = read_tsv(ifile)
     new_df = reduce(left_outer_intersect, tsv_paths, target_df)
+    new_df.insert(
+        loc=0,
+        column=lookup_raw_index(snakemake.config),
+        value=new_df.index,
+    )
     write_tsv(ofile, new_df)
 
 

@@ -227,14 +227,20 @@ properties:
 
   features:
     additionalProperties: false
-    required: [label, index, vcf, mappability, homopolymers, repeat_masker, segdups, tandem_repeats]
+    required: [label, raw_index, bed_index, vcf, mappability, homopolymers, repeat_masker, segdups, tandem_repeats]
     properties:
       label: &column
         description: the label column for all dataframes
         type: string
         pattern: ^[_a-zA-Z0-9]+$
 
-      index:
+      raw_index:
+        <<: *column
+        description: |
+          a raw numeric index used to track each variant (unique per annoated
+          input tsv file)
+
+      bed_index:
         additionalProperties: false
         required: [chr, start, end]
         properties:

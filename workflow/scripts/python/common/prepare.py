@@ -53,10 +53,13 @@ def check_columns(wanted_cols, df_cols):
     ), "configuration features must be a subset of columns in input dataframe"
 
 
-def select_columns(features, coord_cols, label_col, df):
+def select_columns(features, idx_cols, label_col, df):
     wanted_cols = [*features] if label_col is None else [*features, label_col]
     check_columns(wanted_cols, df.columns.tolist())
-    all_cols = coord_cols + wanted_cols
+    # TODO ensure that "VCF_input" is included even when we don't "want" it,
+    # since this will work with whatever the column represented by "idx_col"
+    # to make a complete index mapping back to the input variant
+    all_cols = idx_cols + wanted_cols
     to_rename = {k: n for k, v in features.items() if (n := v["alt_name"]) is not None}
     return df[all_cols].rename(columns=to_rename)
 
@@ -92,7 +95,7 @@ def process_labeled_data(
     features,
     error_labels,
     filtered_are_candidates,
-    coord_cols,
+    idx_cols,
     filter_col,
     label_col,
     df,
@@ -101,7 +104,7 @@ def process_labeled_data(
     # deep copy (which will happen on a slice of a slice)
     return compose(
         partial(collapse_labels, error_labels, label_col),
-        partial(select_columns, features, coord_cols, label_col),
+        partial(select_columns, features, idx_cols, label_col),
         partial(mask_labels, filtered_are_candidates, label_col, filter_col),
         partial(process_columns, features),
     )(df)
@@ -121,8 +124,8 @@ def process_labeled_data(
     # )
 
 
-def process_unlabeled_data(features, coord_cols, df):
+def process_unlabeled_data(features, idx_cols, df):
     return compose(
-        partial(select_columns, features, coord_cols, None),
+        partial(select_columns, features, idx_cols, None),
         partial(process_columns, features),
     )(df)
