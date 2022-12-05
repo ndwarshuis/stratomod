@@ -261,8 +261,12 @@ def ebm_run_test_keys(ebm_run):
 # training step after several hours because a feature was named incorrectly.
 
 
+def lookup_raw_index(config):
+    return config["features"]["raw_index"]
+
+
 def lookup_bed_cols(config):
-    return config["features"]["index"]
+    return config["features"]["bed_index"]
 
 
 def bed_cols_ordered(bed_cols):
@@ -275,6 +279,10 @@ def bed_cols_indexed(indices, bed_cols):
 
 def lookup_bed_cols_ordered(config):
     return bed_cols_ordered(lookup_bed_cols(config))
+
+
+def lookup_all_index_cols(config):
+    return [lookup_raw_index(config), *bed_cols_ordered(lookup_bed_cols(config))]
 
 
 def fmt_feature(prefix, rest):

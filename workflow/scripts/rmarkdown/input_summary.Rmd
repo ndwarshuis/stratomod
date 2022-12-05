@@ -85,12 +85,14 @@ path <- snakemake@input[[1]]
 
 fconf <- snakemake@config[["features"]]
 label_col <- fconf[["label"]]
-idx <- fconf[["index"]]
+raw_index_col <- fconf[["raw_index"]]
+idx <- fconf[["bed_index"]]
 
 ## TODO super wet...
 x_col_types <- if (has_label) {
                    cols(
                        !!label_col := "-",
+                       !!raw_index_col := "-",
                        !!idx[["chr"]] := "-",
                        !!idx[["start"]] := "-",
                        !!idx[["end"]] := "-",
@@ -101,6 +103,7 @@ x_col_types <- if (has_label) {
                        .default = "d")
                } else {
                    cols(
+                       !!raw_index_col := "-",
                        !!idx[["chr"]] := "-",
                        !!idx[["start"]] := "-",
                        !!idx[["end"]] := "-",

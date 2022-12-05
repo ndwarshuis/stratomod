@@ -4,7 +4,7 @@ import numpy as np
 from common.cli import setup_logging
 from common.ebm import read_model
 from common.tsv import read_tsv, write_tsv
-from common.config import lookup_bed_cols_ordered
+from common.config import lookup_all_index_cols
 
 setup_logging(snakemake.log[0])
 
@@ -146,7 +146,7 @@ def main():
     write_model_json(ebm)
 
     label = sconf["features"]["label"]
-    bed_cols = lookup_bed_cols_ordered(sconf)
+    bed_cols = lookup_all_index_cols(sconf)
 
     def write_predictions(xpath, ypath, out_path):
         X = read_tsv(xpath).drop(columns=bed_cols)

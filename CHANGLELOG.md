@@ -1,3 +1,9 @@
+# 6.1.0
+
+- add column for raw absolute index in annotated dataframes which will be
+  carried through the train/test split step; this will allow full mapping of
+  each row in the EBM test/train dataframes back to the original input dataframe
+
 # 6.0.1
 
 - fix off-by-one error in vcf -> bed parser
