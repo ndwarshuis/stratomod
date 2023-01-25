@@ -1,3 +1,7 @@
+# 6.1.1
+
+- allow user to run train without any test datasets
+
 # 6.1.0
 
 - add column for raw absolute index in annotated dataframes which will be
