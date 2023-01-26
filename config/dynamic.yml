@@ -20,8 +20,8 @@ inputs:
           gt: null
           gq: null
   HG002_Illumina_DV:
+    chr_filter: *filter
     train:
-      chr_filter: *filter
       url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG002.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
       ref: GRCh38
       benchmark: HG002_v4.2.1
@@ -41,7 +41,7 @@ ebm_runs:
     inputs: &ebm_inputs
       - HG002_Element_DV: [Clinvar_Element]
       - HG002_Illumina_DV: [Clinvar_Illumina]
-      - HG002_Ultima_DV: [Clinvar_Illumina]
+      - HG002_Ultima_DV: [Clinvar_Ultima]
     filter: [SNP, INDEL]
     ebm_settings: &ebm_settings
       split_parameters:
