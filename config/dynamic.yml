@@ -27,34 +27,40 @@ inputs:
       benchmark: HG002_v4.2.1
     test:
       Clinvar_Illumina: *clinvar
+  HG002_Ultima_DV:
+    chr_filter: *filter
+    train:
+      url: https://s3.amazonaws.com/ultima-selected-1k-genomes-vcf-only/DeepVariant_vcfs/HG002_005401-UGAv3-1-CACATCCTGCATGTGAT.vcf.gz
+      ref: GRCh38
+      benchmark: HG002_v4.2.1
+    test:
+      Clinvar_Ultima: *clinvar
 
 ebm_runs:
-  full_fp_v0:
-    inputs:
+  fn_full_v1:
+    inputs: &ebm_inputs
       - HG002_Element_DV: [Clinvar_Element]
       - HG002_Illumina_DV: [Clinvar_Illumina]
+      - HG002_Ultima_DV: [Clinvar_Illumina]
     filter: [SNP, INDEL]
     ebm_settings: &ebm_settings
       split_parameters:
         test_size: 0.2
-    error_labels: [fp]
+    error_labels: [fn]
     filtered_are_candidates: false
-    interactions:
+    interactions: &interactions
       - VCF_input
       - [VCF_indel_length, HOMOPOL_A_length]
       - [VCF_indel_length, HOMOPOL_T_length]
       - [VCF_indel_length, HOMOPOL_G_length]
       - [VCF_indel_length, HOMOPOL_C_length]
+
     features: &base_features
       VCF_input:
         feature_type: categorical
-      VCF_VAF: {}
-      VCF_DP:
-        visualization:
-          plot_type: bar
-          truncate: {lower: 0, upper: 100}
       VCF_indel_length:
         visualization:
+          plot_type: bar
           truncate: {lower: -50, upper: 50}
 
       HOMOPOL_A_length: &homopol_length
@@ -76,13 +82,13 @@ ebm_runs:
         visualization:
           plot_type: bar
           truncate: {lower: 0, upper: 50}
-      TR_unit_copies_max:
-        visualization:
-          truncate: {lower: 0, upper: 50}
       TR_identity_min: {}
-      TR_score_max: {}
       TR_percent_AT_median:
         fill_na: -1
+        visualization:
+          split_missing: 0
+      TR_length:
+        transform: log
         visualization:
           split_missing: 0
 
@@ -102,8 +108,25 @@ ebm_runs:
         feature_type: categorical
 
       SEGDUP_size_max: {}
-      SEGDUP_identity_mean: {}
+      SEGDUP_identity_mean:
+        visualization:
+          split_missing: 0.85
       SEGDUP_count:
         visualization:
           plot_type: bar
           truncate: {upper: 50}
+
+  full_fp_v1:
+    inputs: *ebm_inputs
+    filter: [SNP, INDEL]
+    ebm_settings: *ebm_settings
+    error_labels: [fp]
+    filtered_are_candidates: true
+    interactions: *interactions
+    features:
+      <<: *base_features
+      VCF_VAF: {}
+      VCF_DP:
+        visualization:
+          plot_type: bar
+          truncate: {lower: 0, upper: 100}
