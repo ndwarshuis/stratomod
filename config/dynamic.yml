@@ -1,6 +1,7 @@
 inputs:
   HG002_Element_DV:
-    chr_filter: [21]
+    # chr_filter: &filter [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22]
+    chr_filter: &filter [21]
     train:
       url: https://storage.googleapis.com/brain-genomics/awcarroll/share/giab/element/HG002.element.1.80x.dv1.4.vcf.gz
       ref: GRCh38
@@ -18,11 +19,20 @@ inputs:
           dp: null
           gt: null
           gq: null
+  HG002_Illumina_DV:
+    train:
+      chr_filter: *filter
+      url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG002.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
+      ref: GRCh38
+      benchmark: HG002_v4.2.1
+    test:
+      Clinvar_Illumina: *clinvar
 
 ebm_runs:
-  small_set_v3:
+  full_fp_v0:
     inputs:
       - HG002_Element_DV: [Clinvar_Element]
+      - HG002_Illumina_DV: [Clinvar_Illumina]
     filter: [SNP, INDEL]
     ebm_settings: &ebm_settings
       split_parameters:
