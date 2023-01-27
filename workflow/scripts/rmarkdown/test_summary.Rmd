@@ -31,6 +31,12 @@ truth_y <- readr::read_tsv(snakemake@input[["truth_y"]],
 y <- tibble(label = truth_y$label, prob = pred_y$`1`)
 ```
 
+# Model Overview
+
+* Variant Type: `r snakemake@wildcards$filter_key`
+* Input Key: `r snakemake@wildcards$input_key`
+* Test Key: `r snakemake@wildcards$test_key`
+* EBM Run Key: `r snakemake@wildcards$run_key`
 
 # Model Statistics
 
@@ -39,10 +45,8 @@ y <- tibble(label = truth_y$label, prob = pred_y$`1`)
 ```{r, echo = FALSE, eval = has_label, results = "asis"}
 
 cat(sprintf("* N: %i\n", nrow(pred_y)))
+cat(sprintf("* Perc. Pos: %f\n\n", sum(y$label)/nrow(y)))
 
-if (has_label) {
-    cat(sprintf("* Perc. Pos: %f\n\n", sum(y$label)/nrow(y)))
-}
 ```
 
 ## Prediction Distribution

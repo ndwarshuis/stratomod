@@ -18,6 +18,11 @@ get_run_features <- function(wildcards, config) {
     config[["ebm_runs"]][[run_key]][["features"]]
 }
 
+get_run_error_labels <- function(wildcards, config) {
+    run_key <- wildcards[["run_key"]]
+    config[["ebm_runs"]][[run_key]][["error_labels"]]
+}
+
 read_model <- function(path) {
     jsonlite::read_json(path, simplifyVector = TRUE, simplifyDataFrame = FALSE)
 }
@@ -46,6 +51,7 @@ to_bivariate <- function(model) {
 }
 
 run_features <- get_run_features(snakemake@wildcards, snakemake@config)
+error_labels <- get_run_error_labels(snakemake@wildcards, snakemake@config)
 
 mod <- read_model(snakemake@input[["model"]])
 test_pred <- read_predictions(snakemake@input[["predictions"]])
@@ -74,6 +80,12 @@ univariate <- to_univariate(mod)
 bivariate <- to_bivariate(mod)
 
 ```
+
+# Model Overview
+
+* Variant Type: `r snakemake@wildcards$filter_key`
+* EBM Run Key: `r snakemake@wildcards$run_key`
+* Error Labels: `r str_c(error_labels, collapse = ", ")`
 
 # Model Statistics
 
