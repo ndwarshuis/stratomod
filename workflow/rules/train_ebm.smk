@@ -116,14 +116,7 @@ use rule summarize_labeled_input as summarize_unlabeled_input with:
 # pickling
 
 
-def get_git_tag():
-    args = ["git", "describe", "--tags", "--abbrev=0", "--always"]
-    return sp.run(args, capture_output=True).stdout.strip().decode()
-
-
-git_tag = get_git_tag()
-
-ebm_dir = Path("ebm") / f"{git_tag}-{{input_keys}}-{{filter_key}}-{{run_key}}"
+ebm_dir = Path("ebm") / "{input_keys}-{filter_key}-{run_key}"
 
 train_results_dir = results_dir / ebm_dir
 train_log_dir = log_dir / ebm_dir
