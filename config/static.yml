@@ -44,6 +44,9 @@ resources:
         simreps: https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/simpleRepeat.txt.gz
         repeat_masker: https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/rmsk.txt.gz
 
+tools:
+  repseq: https://github.com/ndwarshuis/repseq/archive/refs/tags/v1.0.0.tar.gz
+
 # TODO some of these feature names might be reference-dependent
 features:
   label: label

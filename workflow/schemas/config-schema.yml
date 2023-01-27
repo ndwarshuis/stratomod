@@ -413,6 +413,17 @@ properties:
          operations: *merge_operations
 
 ################################################################################
+# tools
+
+  tools:
+    additionalProperties: false
+    required: [repseq]
+    properties:
+      repseq:
+        type: string
+        format: uri
+
+################################################################################
 # EBM runs
 
   ebm_runs:
