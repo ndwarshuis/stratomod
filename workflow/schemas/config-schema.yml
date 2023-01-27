@@ -440,7 +440,6 @@ properties:
                 ^[\w\.\_]+$:
                   description: the vcf file(s) to test within this run
                   type: array
-                  minItems: 1
                   uniqueItems: true
                   items:
                     type: string
