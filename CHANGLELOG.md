@@ -1,3 +1,8 @@
+# 6.2.0
+
+- remove tags from output dirs
+- add useful info at top of reports
+
 # 6.1.2
 
 - update snakemake version
