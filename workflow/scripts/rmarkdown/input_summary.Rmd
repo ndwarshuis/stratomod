@@ -117,6 +117,7 @@ x_col_types <- if (has_label) {
 
 df_x <- readr::read_tsv(path, col_types = x_col_types)
 features <- names(df_x)
+N <- nrow(df_x)
 
 ```
 
@@ -131,13 +132,10 @@ y_labels <- unique(df_y)
 
 # Dataframe Overview
 
-```{r, echo=FALSE}
-N <- length(df_x)
-P <- length(names(df_x))
-```
-
+* Variant Type: `r snakemake@wildcards$filter_key`
+* Input Key: `r snakemake@wildcards$input_key`
 * N Rows: `r N`
-* N Features: `r P`
+* N Features: `r length(names(df_x))`
 
 ## Label fractions
 
