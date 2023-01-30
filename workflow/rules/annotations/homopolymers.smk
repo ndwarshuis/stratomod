@@ -6,24 +6,60 @@ homopolymers_results_dir = annotations_tsv_dir / homopolymers_dir
 homopolymers_log_dir = annotations_log_dir / homopolymers_dir
 
 
+rule download_repseq:
+    output:
+        resources_dir / "tools" / "repseq.tar.gz",
+    params:
+        url=config["tools"]["repseq"],
+    conda:
+        envs_path("utils.yml")
+    shell:
+        "curl -sS -L -o {output} {params.url}"
+
+
+rule unpack_repseq:
+    input:
+        rules.download_repseq.output,
+    output:
+        directory(results_dir / "tools" / "make" / "repseq"),
+    shell:
+        """
+        mkdir {output} && \
+        tar xzf {input} --directory {output} --strip-components=1
+        """
+
+
+# TODO add logging
+rule build_repseq:
+    input:
+        rules.unpack_repseq.output,
+    output:
+        results_dir / "tools" / "bin" / "repseq",
+    conda:
+        envs_path("build.yml")
+    log:
+        log_dir / "tools" / "repseq.log",
+    shell:
+        "make -C {input} > {log} && mv {input}/repseq {output}"
+
+
 rule find_simple_repeats:
     # TODO don't hardcode GRCh38 (when applicable)
     input:
-        expand(rules.sdf_to_fasta.output, ref_key="GRCh38"),
+        ref=expand(rules.sdf_to_fasta.output, ref_key="GRCh38"),
+        bin=rules.build_repseq.output,
     output:
         homopolymers_results_dir / "simple_repeats_p3.bed",
     conda:
         envs_path("find_simple_repeats.yml")
     benchmark:
         homopolymers_results_dir / "find_regions.bench"
+    log:
+        homopolymers_log_dir / "find_regions.log",
     resources:
         mem_mb=attempt_mem_gb(4),
     shell:
-        f"""
-        python {python_path("find_regions.py")} \
-        -p 3 -d 100000 -t 100000 -q 100000 \
-        {{input}} {{output}}
-        """
+        "{input.bin} 1 4 {input.ref} > {output} 2> {log}"
 
 
 # This rule is here because I got tired of doing this step twice (once for AT
