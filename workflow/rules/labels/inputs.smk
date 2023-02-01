@@ -230,10 +230,10 @@ rule subtract_mhc_bench_bed:
     conda:
         envs_path("bedtools.yml")
     shell:
-        f"""
-        gunzip {{input.mhc}} -c | \
-        bedtools subtract -a {{input.bed}} -b - \
-        > {{output}}
+        """
+        gunzip {input.mhc} -c | \
+        bedtools subtract -a {input.bed} -b - \
+        > {output}
         """
 
 
