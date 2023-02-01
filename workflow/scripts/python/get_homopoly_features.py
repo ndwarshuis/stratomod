@@ -18,7 +18,7 @@ SLOP = 1
 fmt_feature = partial(cfg.fmt_homopolymer_feature, snakemake.config)
 
 
-def read_input(path, bed_cols):
+def read_input(path: str, bed_cols: dict[str, str]):
     logger.info("Reading dataframe from %s", path)
     names = [*cfg.bed_cols_ordered(bed_cols), BASE_COL]
     return read_tsv(path, header=None, comment="#", names=names)

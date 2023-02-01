@@ -1,5 +1,5 @@
 import re
-from typing import Any
+from typing import Any, Dict, List, Tuple, Set
 from more_itertools import flatten, duplicates_everseen, unzip
 from itertools import product, filterfalse
 from functools import partial
@@ -128,7 +128,7 @@ def attempt_mem_gb(mem_gb):
 # wildcard sets (for building targets)
 
 
-def all_benchkeys(config: dict) -> dict[str, list[str]]:
+def all_benchkeys(config: dict) -> Dict[str, List[str]]:
     bks = [
         (inputkey_to_refkey(config, k), b)
         for k, v in flat_inputs(config).items()
@@ -167,7 +167,7 @@ def chr_index_to_str(i: int) -> str:
     return "X" if i == 23 else ("Y" if i == 24 else str(i))
 
 
-def chr_indices_to_name(prefix: str, xs: list[int]):
+def chr_indices_to_name(prefix: str, xs: List[int]):
     return [f"{prefix}{chr_index_to_str(i)}" for i in xs]
 
 
@@ -175,13 +175,13 @@ def chr_indices_to_name(prefix: str, xs: list[int]):
 # lookup from ref_key
 
 
-def refkey_to_ref(config: dict, args: list[str], ref_key: str) -> Any:
+def refkey_to_ref(config: dict, args: List[str], ref_key: str) -> Any:
     return lookup_config(config, ["references", ref_key, *args])
 
 
 def refkey_to_benchmark(
     config: dict,
-    args: list[str],
+    args: List[str],
     bench_key: str,
     ref_key: str,
 ) -> Any:
@@ -194,7 +194,7 @@ def refkey_to_benchmark(
 
 def refsetkey_to_benchmark(
     config: dict,
-    args: list[str],
+    args: List[str],
     bench_key: str,
     refset_key: str,
 ) -> Any:
@@ -204,7 +204,7 @@ def refsetkey_to_benchmark(
     )(refset_key)
 
 
-def refsetkey_to_refset(config: dict, args: list[str], refset_key: str):
+def refsetkey_to_refset(config: dict, args: List[str], refset_key: str):
     return lookup_config(config, ["reference_sets", refset_key, *args])
 
 
@@ -212,14 +212,14 @@ def refsetkey_to_refkey(config, refset_key):
     return refsetkey_to_refset(config, ["ref"], refset_key)
 
 
-def refsetkey_to_ref(config: dict, args: list[str], refset_key: str) -> Any:
+def refsetkey_to_ref(config: dict, args: List[str], refset_key: str) -> Any:
     return compose(
         partial(refkey_to_ref, config, args),
         partial(refsetkey_to_refkey, config),
     )(refset_key)
 
 
-def refsetkey_to_chr_indices(config: dict, refset_key: str) -> list[int]:
+def refsetkey_to_chr_indices(config: dict, refset_key: str) -> List[int]:
     f = refsetkey_to_refset(config, ["chr_filter"], refset_key)
     return list(range(1, 25)) if len(f) == 0 else f
 
@@ -231,7 +231,7 @@ def refsetkey_to_chr_prefix(config: dict, refset_key: str) -> str:
     )(refset_key)
 
 
-def refsetkey_to_chr_filter(config: dict, refset_key: str) -> list[str]:
+def refsetkey_to_chr_filter(config: dict, refset_key: str) -> List[str]:
     indices = refsetkey_to_chr_indices(config, refset_key)
     prefix = refsetkey_to_ref(config, ["chr_prefix"], refset_key)
     return chr_indices_to_name(prefix, indices)
@@ -245,7 +245,7 @@ def refsetkey_to_chr_filter(config: dict, refset_key: str) -> list[str]:
 # or test_key" (most of the time)
 
 
-def inputkey_to_input(config: dict, args: list[str], input_key: str) -> Any:
+def inputkey_to_input(config: dict, args: List[str], input_key: str) -> Any:
     return walk_dict(flat_inputs(config)[input_key], args)
 
 
@@ -284,11 +284,11 @@ def lookup_train(config: dict, train_key: str) -> dict:
     return config["inputs"][train_key]
 
 
-def lookup_all_train(config: dict) -> list[tuple[str, dict]]:
+def lookup_all_train(config: dict) -> List[Tuple[str, dict]]:
     return [(k, v["train"]) for k, v in lookup_inputs(config).items()]
 
 
-def lookup_all_test(config: dict) -> list[tuple[str, dict]]:
+def lookup_all_test(config: dict) -> List[Tuple[str, dict]]:
     return [ts for i in lookup_inputs(config).values() for ts in i["test"].items()]
 
 
@@ -304,17 +304,17 @@ def input_test_keys(config):
     return [i[0] for i in lookup_all_test(config)]
 
 
-def all_refsetkeys(config: dict) -> set[str]:
+def all_refsetkeys(config: dict) -> Set[str]:
     return set(v["refset"] for v in config["inputs"].values())
 
 
-def all_refkeys(config: dict) -> set[str]:
+def all_refkeys(config: dict) -> Set[str]:
     return set(map(partial(refsetkey_to_refkey, config), all_refsetkeys(config)))
 
 
 # TODO this isn't a well defined function in terms of types since the test
 # dictionary has several optional fields and the train does not.
-def flat_inputs(config: dict) -> dict[str, Any]:
+def flat_inputs(config: dict) -> Dict[str, Any]:
     """Return a dictionary of all inputs in the config."""
     return dict(
         flatten(
@@ -334,7 +334,7 @@ def inputkey_to_chr_prefix(config: dict, input_key: str) -> str:
         return input_prefix
 
 
-def inputkey_to_chr_filter(config: dict, input_key: str) -> list[str]:
+def inputkey_to_chr_filter(config: dict, input_key: str) -> List[str]:
     prefix = inputkey_to_chr_prefix(config, input_key)
     return compose(
         partial(chr_indices_to_name, prefix),
@@ -382,23 +382,23 @@ def lookup_raw_index(config: dict) -> str:
     return config["features"]["raw_index"]
 
 
-def lookup_bed_cols(config: dict) -> dict[str, str]:
+def lookup_bed_cols(config: dict) -> Dict[str, str]:
     return config["features"]["bed_index"]
 
 
-def bed_cols_ordered(bed_cols: dict[str, str]) -> list[str]:
+def bed_cols_ordered(bed_cols: Dict[str, str]) -> List[str]:
     return [bed_cols["chr"], bed_cols["start"], bed_cols["end"]]
 
 
-def bed_cols_indexed(indices: list[int], bed_cols: dict[str, str]) -> dict[int, str]:
+def bed_cols_indexed(indices: List[int], bed_cols: Dict[str, str]) -> Dict[int, str]:
     return dict(zip(indices, bed_cols_ordered(bed_cols)))
 
 
-def lookup_bed_cols_ordered(config: dict) -> list[str]:
+def lookup_bed_cols_ordered(config: dict) -> List[str]:
     return bed_cols_ordered(lookup_bed_cols(config))
 
 
-def lookup_all_index_cols(config: dict) -> list[str]:
+def lookup_all_index_cols(config: dict) -> List[str]:
     return [lookup_raw_index(config), *bed_cols_ordered(lookup_bed_cols(config))]
 
 

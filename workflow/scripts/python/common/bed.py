@@ -1,4 +1,5 @@
 import logging
+from typing import List, Dict
 from functools import partial
 from itertools import product
 from more_itertools import unzip
@@ -13,7 +14,7 @@ from common.config import (
 )
 
 
-def filter_chromosomes(chr_filter: list[int], df: pd.DataFrame) -> pd.DataFrame:
+def filter_chromosomes(chr_filter: List[int], df: pd.DataFrame) -> pd.DataFrame:
     if len(chr_filter) > 0:
         logging.info(
             "Pre-filtering chromosomes: %s",
@@ -56,10 +57,10 @@ def sort_bed_numerically(df: pd.DataFrame, drop_chr: bool = True) -> pd.DataFram
 
 def read_bed_df(
     path: str,
-    bed_mapping: dict[int, str],
-    col_mapping: dict[int, str],
+    bed_mapping: Dict[int, str],
+    col_mapping: Dict[int, str],
     prefix: str,
-    filt: list[int],
+    filt: List[int],
 ) -> pd.DataFrame:
     mapping = {**bed_mapping, **col_mapping}
     df = read_tsv(path, header=None)[[*mapping]].rename(columns=mapping)
@@ -72,14 +73,14 @@ def read_bed_df(
 
 
 def merge_and_apply_stats(
-    merge_stats: list[str],
-    bed_cols: dict[str, str],
+    merge_stats: List[str],
+    bed_cols: Dict[str, str],
     prefix: str,
     bed_df: pd.DataFrame,
 ):
     # import this here so we can import other functions in this module
     # without pulling in bedtools
-    from pybedtools import BedTool as bt  # pylint: disable=import-error
+    from pybedtools import BedTool as bt  # type: ignore
 
     # compute stats on all columns except the first 3
     drop_n = 3
