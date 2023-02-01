@@ -10,7 +10,7 @@ from scripts.python.common.config import (
     all_benchkeys,
 )
 
-min_version("6.12")
+min_version("7.20")
 
 
 configfile: "config/static.yml"
