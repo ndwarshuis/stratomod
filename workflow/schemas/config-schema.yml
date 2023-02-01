@@ -1,6 +1,6 @@
 $schema: "http://json-schema.org/draft-07/schema#"
 description: explainable boosted machines pipeline
-required: [paths, inputs, resources, features, ebm_runs]
+required: [paths, inputs, references, reference_sets, features, ebm_runs]
 additionalProperties: false
 properties:
 
@@ -19,15 +19,18 @@ properties:
         type: string
 
 ################################################################################
-# inputs
-
-  inputs:
+# reference sets
+  reference_sets:
     additionalProperties: false
     patternProperties:
       ^[\w\.\_]+$:
-        required: [train, test, chr_filter]
         additionalProperties: false
+        required: [ref, chr_filter]
         properties:
+          ref:
+            description: the reference to use for this reference set
+            type: string
+
           chr_filter:
             description: |
               A list of chromosomes filter when running all analyses. Empty list
@@ -41,16 +44,27 @@ properties:
               maximum: 24
             default: []
 
+
+################################################################################
+# inputs
+
+  inputs:
+    additionalProperties: false
+    patternProperties:
+      ^[\w\.\_]+$:
+        required: [train, test, refset]
+        additionalProperties: false
+        properties:
+          refset:
+            type: string
+            description: the index of the reference set to use
+
           train:
-            required: [benchmark, ref, url]
+            required: [benchmark, url]
             additionalProperties: false
             properties:
               benchmark:
                 description: the benchmark index to use for this input
-                type: string
-
-              ref: &input_ref
-                description: the reference index to use for this input
                 type: string
 
               chr_prefix: &input_chr
@@ -124,9 +138,8 @@ properties:
             additionalProperties: false
             patternProperties:
               ^[\w\.\_]+$:
-                required: [ref, url, benchmark]
+                required: [url, benchmark]
                 properties:
-                  ref: *input_ref
                   url: *input_url
                   format_fields: *input_parse
                   chr_prefix: *input_chr
@@ -140,87 +153,92 @@ properties:
   
 
 ################################################################################
-# resources
+# references
 
-  resources:
+
+  references:
     additionalProperties: false
-    required: [benchmarks, references]
-    properties:
-
-      benchmarks:
+    patternProperties:
+      ^[\w\.\-]+$:
+        required: [sdf, genome, strats, annotations, benchmarks, chr_prefix]
         additionalProperties: false
-        patternProperties:
-          ^[\w\.\-]+$:
-            additionalProperties: false
-            required: [vcf_url, bed_url]
-            properties:
-              vcf_url:
-                description: the url for the benchmark VCF to use
-                oneOf: &bench_url_type
-                  - type: string
-                    format: uri
-                  - type: "null"
-              bed_url:
-                description: the url for the benchmark bed to use
-                oneOf: *bench_url_type
+        properties:
+          chr_prefix:
+            description: the chromosome prefix to be used with this reference
+            type: string
+          sdf:
+            description: the url for the reference SDF to use
+            type: string
+            format: uri
 
-      references:
-        additionalProperties: false
-        patternProperties:
-          ^[\w\.\-]+$:
-            required: [sdf, genome, strats, annotations]
+          genome:
+              description: the url to the genome database file
+              type: string
+              format: uri
+
+          strats:
             additionalProperties: false
+            required: [mhc]
             properties:
-              sdf:
-                description: the url for the reference SDF to use
+              mhc:
+                description: url to the MHC stratification bed file
                 type: string
                 format: uri
 
-              genome:
-                  description: the url to the genome database file
-                  type: string
-                  format: uri
-
-              strats:
+          annotations:
+            additionalProperties: false
+            required: [mappability, superdups, simreps, repeat_masker]
+            properties:
+              mappability:
                 additionalProperties: false
-                required: [mhc]
+                required: [low, high]
                 properties:
-                  mhc:
-                    description: url to the MHC stratification bed file
+                  low:
+                    description: the url for low stringency mappability bed file
                     type: string
                     format: uri
+                  high:
+                    description: the url for high stringency mappability bed file
+                    type: string
+                    format: uri
+      
+              superdups:
+                description: the url to the superdups txt file
+                type: string
+                format: uri
+      
+              simreps:
+                description: the url to the simreps database file
+                type: string
+                format: uri
+      
+              repeat_masker:
+                description: the url to the repeat masker database file
+                type: string
+                format: uri
 
-              annotations:
+          benchmarks:
+            additionalProperties: false
+            patternProperties:
+              ^[\w\.\-]+$:
                 additionalProperties: false
-                required: [mappability, superdups, simreps, repeat_masker]
+                required: [vcf_url, bed_url, corrections]
                 properties:
-                  mappability:
+                  vcf_url:
+                    description: the url for the benchmark VCF to use
+                    oneOf: &bench_url_type
+                      - type: string
+                        format: uri
+                      - type: "null"
+                  bed_url:
+                    description: the url for the benchmark bed to use
+                    oneOf: *bench_url_type
+                  corrections:
                     additionalProperties: false
-                    required: [low, high]
-                    properties:
-                      low:
-                        description: the url for low stringency mappability bed file
-                        type: string
-                        format: uri
-                      high:
-                        description: the url for high stringency mappability bed file
-                        type: string
-                        format: uri
-          
-                  superdups:
-                    description: the url to the superdups txt file
-                    type: string
-                    format: uri
-          
-                  simreps:
-                    description: the url to the simreps database file
-                    type: string
-                    format: uri
-          
-                  repeat_masker:
-                    description: the url to the repeat masker database file
-                    type: string
-                    format: uri
+                    required: [strip_IPS]
+                    patternProperties:
+                      strip_IPS:
+                        type: boolean
 
 ################################################################################
 # resources

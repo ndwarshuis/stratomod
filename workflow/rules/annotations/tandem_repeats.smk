@@ -1,8 +1,4 @@
-from scripts.python.common.config import (
-    lookup_global_chr_filter,
-    lookup_annotations,
-    attempt_mem_gb,
-)
+from scripts.python.common.config import attempt_mem_gb
 
 tandem_repeats_dir = "tandem_repeats"
 tandem_repeats_results_dir = annotations_tsv_dir / tandem_repeats_dir
@@ -13,7 +9,7 @@ rule download_tandem_repeats:
     output:
         annotations_src_dir / tandem_repeats_dir / "simple_repeats.txt.gz",
     params:
-        url=lookup_annotations(config)["simreps"],
+        url=partial(refkey_to_ref_wc, ["annotations", "simreps"]),
     conda:
         envs_path("utils.yml")
     shell:
@@ -23,14 +19,17 @@ rule download_tandem_repeats:
 # NOTE sorting is done internally by the script
 rule get_tandem_repeats:
     input:
-        src=rules.download_tandem_repeats.output,
+        src=partial(
+            expand_refkey_from_refsetkey,
+            rules.download_tandem_repeats.output,
+        ),
         genome=rules.get_genome.output,
     output:
         tandem_repeats_results_dir / "tandem_repeats.tsv.gz",
     conda:
         envs_path("bedtools.yml")
     params:
-        filt=lookup_global_chr_filter(config),
+        filt=refsetkey_to_chr_filter_wc,
     log:
         annotations_log_dir / tandem_repeats_dir / "tandem_repeats.log",
     benchmark:

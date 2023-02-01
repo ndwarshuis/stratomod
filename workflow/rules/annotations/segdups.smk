@@ -1,8 +1,4 @@
-from scripts.python.common.config import (
-    lookup_global_chr_filter,
-    lookup_annotations,
-    attempt_mem_gb,
-)
+from scripts.python.common.config import attempt_mem_gb
 
 segdups_dir = "segdups"
 segdups_results_dir = annotations_tsv_dir / segdups_dir
@@ -12,7 +8,7 @@ rule download_superdups:
     output:
         annotations_src_dir / segdups_dir / "superdups.txt.gz",
     params:
-        url=lookup_annotations(config)["superdups"],
+        url=partial(refkey_to_ref_wc, ["annotations", "superdups"]),
     conda:
         envs_path("utils.yml")
     shell:
@@ -21,13 +17,13 @@ rule download_superdups:
 
 rule get_segdups:
     input:
-        rules.download_superdups.output,
+        partial(expand_refkey_from_refsetkey, rules.download_superdups.output),
     output:
         segdups_results_dir / "segdups.tsv.gz",
     conda:
         envs_path("bedtools.yml")
     params:
-        filt=lookup_global_chr_filter(config),
+        filt=refsetkey_to_chr_filter_wc,
     log:
         annotations_log_dir / segdups_dir / "segdups.log",
     benchmark:

@@ -1,14 +1,19 @@
 from pybedtools import BedTool as bt
 from common.tsv import read_tsv, write_tsv
 from common.bed import standardize_chr_column
-from common.config import bed_cols_indexed, lookup_bed_cols, fmt_mappability_feature
+from common.config import (
+    bed_cols_indexed,
+    lookup_bed_cols,
+    fmt_mappability_feature,
+    lookup_refset_chr_prefix,
+)
 from common.cli import setup_logging
 
 
 logger = setup_logging(snakemake.log[0])
 
 
-def read_plain_bed(path, key):
+def read_plain_bed(path, key, prefix):
     logger.info("Reading mappability %s", key)
     # these are just plain bed files with no extra columns
     bed_cols = [*lookup_bed_cols(snakemake.config).values()]
@@ -16,12 +21,15 @@ def read_plain_bed(path, key):
     # add a new column with all '1' (this will be a binary feature)
     bin_col = fmt_mappability_feature(snakemake.config, key)
     df[bin_col] = 1
-    return standardize_chr_column(bed_cols[0], df)
+    return standardize_chr_column(bed_cols[0], prefix, df)
 
 
 def main():
-    high = read_plain_bed(snakemake.input["high"], "high")
-    low = read_plain_bed(snakemake.input["low"], "low")
+    prefix = lookup_refset_chr_prefix(
+        snakemake.config, snakemake.wildcards["refset_key"]
+    )
+    high = read_plain_bed(snakemake.input["high"], "high", prefix)
+    low = read_plain_bed(snakemake.input["low"], "low", prefix)
 
     # subtract high from low (since the former is a subset of the latter)
     new_low = (

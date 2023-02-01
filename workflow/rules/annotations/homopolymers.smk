@@ -1,4 +1,4 @@
-from scripts.python.common.config import lookup_annotations, attempt_mem_gb
+from scripts.python.common.config import attempt_mem_gb
 
 homopolymers_dir = "homopolymers"
 homopolymers_src_dir = annotations_src_dir / homopolymers_dir
@@ -44,9 +44,8 @@ rule build_repseq:
 
 
 rule find_simple_repeats:
-    # TODO don't hardcode GRCh38 (when applicable)
     input:
-        ref=expand(rules.sdf_to_fasta.output, ref_key="GRCh38"),
+        ref=partial(expand_refkey_from_refsetkey, rules.sdf_to_fasta.output),
         bin=rules.build_repseq.output,
     output:
         homopolymers_results_dir / "simple_repeats_p3.bed",

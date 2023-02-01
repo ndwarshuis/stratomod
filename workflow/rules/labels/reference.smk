@@ -1,32 +1,21 @@
 from os.path import dirname
 from functools import partial
-from scripts.python.common.config import lookup_global_chr_filter
+from scripts.python.common.config import refsetkey_to_chr_filter
 
 ref_resources_dir = resources_dir / "reference" / "{ref_key}"
-ref_results_dir = results_dir / "reference" / "{ref_key}"
-
-
-def lookup_reference_key(which, wildcards):
-    return lookup_config(
-        config,
-        "resources",
-        "references",
-        wildcards.ref_key,
-        which,
-    )
-
-def lookup_reference(wildcards):
-    return lookup_reference_key("sdf", wildcards)
-
+refset_dir = results_dir / "{refset_key}"
 
 ################################################################################
 # download reference
 
+refset_ref_dir = refset_dir / "reference"
+
+
 rule download_ref_sdf:
     output:
-        directory(ref_resources_dir / "{ref_key}.sdf"),
+        directory(ref_resources_dir / wildcard_format("{}.sdf", "ref_key")),
     params:
-        url=lookup_reference,
+        url=partial(refkey_to_ref_wc, ["sdf"]),
         dir=lambda _, output: dirname(output[0]),
     conda:
         envs_path("utils.yml")
@@ -36,18 +25,15 @@ rule download_ref_sdf:
 
 rule sdf_to_fasta:
     input:
-        rules.download_ref_sdf.output,
+        partial(expand_refkey_from_refsetkey, rules.download_ref_sdf.output),
     output:
-        ref_results_dir / "{ref_key}.fa",
-    # if filter is empty, this will produce a blank string and rtg sdf2fasta
-    # will filter nothing
+        refset_ref_dir / "ref.fa",
     params:
-        # TODO this will need to change to accommodate other references
-        filt=" ".join([f"chr{i}" for i in lookup_global_chr_filter(config)]),
+        filt=lambda wildcards: " ".join(refsetkey_to_chr_filter_wc(wildcards)),
     conda:
         envs_path("rtg.yml")
     benchmark:
-        ref_results_dir / "{ref_key}.bench"
+        refset_ref_dir / "ref.bench"
     shell:
         """
         rtg sdf2fasta \
@@ -55,6 +41,7 @@ rule sdf_to_fasta:
         -i {input} \
         -o {output} {params.filt}
         """
+
 
 ################################################################################
 # download stratifications
@@ -66,11 +53,10 @@ rule sdf_to_fasta:
 
 rule download_mhc_strat:
     output:
-        ref_resources_dir / "strats" / "mhc.bed.gz"
+        ref_resources_dir / "strats" / "mhc.bed.gz",
     params:
-        url=lambda wildcards: lookup_reference_key("strats", wildcards)["mhc"],
+        url=partial(refkey_to_ref_wc, ["strats", "mhc"]),
     conda:
         envs_path("utils.yml")
     shell:
         "curl -sS -L -o {output} {params.url}"
-

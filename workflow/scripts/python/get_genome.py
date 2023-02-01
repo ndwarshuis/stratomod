@@ -3,6 +3,7 @@ from common.tsv import write_tsv, read_tsv
 from common.bed import standardize_chr_column
 from common.cli import setup_logging
 from common.functional import compose
+from common.config import lookup_refset_chr_prefix
 
 logger = setup_logging(snakemake.log[0])
 
@@ -23,9 +24,12 @@ def write_output(path, df):
 
 
 def main():
+    prefix = lookup_refset_chr_prefix(
+        snakemake.config, snakemake.wildcards["refset_key"]
+    )
     df = compose(
         sort_genome,
-        partial(standardize_chr_column, CHR_COL),
+        partial(standardize_chr_column, prefix, CHR_COL),
         read_input,
     )(snakemake.input[0])
 

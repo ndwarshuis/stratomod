@@ -1,7 +1,9 @@
 import re
-from more_itertools import flatten, duplicates_everseen
-from itertools import product
+from typing import Any
+from more_itertools import flatten, duplicates_everseen, unzip
+from itertools import product, filterfalse
 from functools import partial
+from .functional import maybe, compose
 
 # ------------------------------------------------------------------------------
 # too useful...
@@ -123,53 +125,158 @@ def attempt_mem_gb(mem_gb):
 
 
 # ------------------------------------------------------------------------------
-# "macros" for rule expansion
-
-
-def expand_rules(rules, names, attr):
-    return [p for r in names for p in getattr(getattr(rules, r), attr)]
-
-
-# ------------------------------------------------------------------------------
 # wildcard sets (for building targets)
 
 
-def input_set(config, attr):
+def all_benchkeys(config: dict) -> dict[str, list[str]]:
+    bks = [
+        (inputkey_to_refkey(config, k), b)
+        for k, v in flat_inputs(config).items()
+        if (b := v["benchmark"]) is not None
+    ]
+    return {k: list(v) for k, v in zip(["bench_key", "ref_key"], unzip(bks))}
+
+
+def input_set(config, key):
     return set(
-        flatten(
-            [
-                *[a for t in nv["test"].values() if (a := t[attr]) is not None],
-                nv["train"][attr],
-            ]
-            for nk, nv in config["inputs"].items()
-        )
+        filterfalse(lambda x: not x, [x[key] for x in flat_inputs(config).values()])
     )
+    # flatten(
+    #     [
+    #         *[a for t in nv["test"].values() if (a := t[attr]) is not None],
+    #         nv["train"][attr],
+    #     ]
+    #     for nk, nv in config["inputs"].items()
+    # )
+    # )
 
 
 # ------------------------------------------------------------------------------
 # global lookup
 
 
-def lookup_config(config, *keys):
+def walk_dict(d, keys):
     k = keys[0]
     ks = keys[1:]
-    return config[k] if len(ks) == 0 else lookup_config(config[k], *ks)
+    dnext = d[k]
+    return dnext if len(ks) == 0 else walk_dict(dnext, ks)
 
 
-def lookup_annotations(config):
-    # TODO sometime in the future if/when we use more than just GRCh38, don't
-    # hard-code this
-    return lookup_config(
-        config,
-        "resources",
-        "references",
-        "GRCh38",
-        "annotations",
-    )
+def lookup_config(config, keys):
+    return walk_dict(config, keys)
+
+
+def chr_index_to_str(i: int) -> str:
+    return "X" if i == 23 else ("Y" if i == 24 else str(i))
+
+
+def chr_indices_to_name(prefix: str, xs: list[int]):
+    return [f"{prefix}{chr_index_to_str(i)}" for i in xs]
 
 
 # ------------------------------------------------------------------------------
-# input lookup
+# lookup from ref_key
+
+
+def refkey_to_ref(config: dict, args: list[str], ref_key: str) -> Any:
+    return lookup_config(config, ["references", ref_key, *args])
+
+
+def refkey_to_benchmark(
+    config: dict,
+    args: list[str],
+    bench_key: str,
+    ref_key: str,
+) -> Any:
+    return refkey_to_ref(config, ["benchmarks", bench_key, *args], ref_key)
+
+
+# ------------------------------------------------------------------------------
+# lookup from refset_key
+
+
+def refsetkey_to_benchmark(
+    config: dict,
+    args: list[str],
+    bench_key: str,
+    refset_key: str,
+) -> Any:
+    return compose(
+        partial(refkey_to_benchmark, config, args, bench_key),
+        partial(refsetkey_to_refkey, config),
+    )(refset_key)
+
+
+def refsetkey_to_refset(config: dict, args: list[str], refset_key: str):
+    return lookup_config(config, ["reference_sets", refset_key, *args])
+
+
+def refsetkey_to_refkey(config, refset_key):
+    return refsetkey_to_refset(config, ["ref"], refset_key)
+
+
+def refsetkey_to_ref(config: dict, args: list[str], refset_key: str) -> Any:
+    return compose(
+        partial(refkey_to_ref, config, args),
+        partial(inputkey_to_refkey, config, refset_key),
+    )
+
+
+def refsetkey_to_chr_indices(config: dict, refset_key: str) -> list[int]:
+    f = refsetkey_to_refset(config, ["chr_filter"], refset_key)
+    return list(range(1, 25)) if len(f) == 0 else f
+
+
+def refsetkey_to_chr_prefix(config: dict, refset_key: str) -> str:
+    return compose(
+        partial(refkey_to_ref, config, ["chr_prefix"]),
+        partial(refsetkey_to_refkey, config),
+    )(refset_key)
+
+
+def refsetkey_to_chr_filter(config: dict, refset_key: str) -> list[str]:
+    indices = refsetkey_to_chr_indices(config, refset_key)
+    prefix = refsetkey_to_ref(config, ["chr_prefix"], refset_key)
+    return chr_indices_to_name(prefix, indices)
+
+
+# ------------------------------------------------------------------------------
+# lookup from input_key
+
+# This is tricky because 99% of the time I want to think of train and test
+# inputs as being part of a flat list; therefore, "input_key" means "train_key
+# or test_key" (most of the time)
+
+
+def inputkey_to_input(config: dict, args: list[str], input_key: str):
+    return walk_dict(flat_inputs(config)[input_key], args)
+
+
+def inputkey_to_shared(config: dict, input_key: str, shared_key: str) -> Any:
+    """
+    Given an input key, return a value indicated by 'shared_key', which is a
+    key common to all input dictionaries.
+    """
+    return dict(
+        flatten(
+            [
+                (train_key, v[shared_key]),
+                *[(test_key, v[shared_key]) for test_key in v["test"]],
+            ]
+            for train_key, v in config["inputs"].items()
+        )
+    )[input_key]
+
+
+def inputkey_to_refkey(config: dict, input_key: str):
+    return compose(
+        partial(refsetkey_to_refkey, config),
+        partial(inputkey_to_refsetkey, config),
+    )(input_key)
+
+
+def inputkey_to_refsetkey(config: dict, input_key: str):
+    return inputkey_to_shared(config, input_key, "refset")
 
 
 def lookup_inputs(config):
@@ -206,11 +313,22 @@ def flat_inputs_(config):
     )
 
 
+def all_refsetkeys(config):
+    return set(v["refset"] for v in config["inputs"].values())
+
+
+def all_refkeys(config):
+    return set(map(partial(refsetkey_to_refkey, config), all_refsetkeys(config)))
+
+
 def flat_input_names(config):
     return [i[0] for i in flat_inputs_(config)]
 
 
-def flat_inputs(config):
+# TODO this isn't a well defined function in terms of types since the test
+# dictionary has several optional fields and the train does not.
+def flat_inputs(config: dict) -> dict[str, Any]:
+    """Return a dictionary of all inputs in the config."""
     return dict(
         flatten(
             [(k, v["train"]), *v["test"].items()] for k, v in config["inputs"].items()
@@ -218,21 +336,33 @@ def flat_inputs(config):
     )
 
 
-def lookup_train_test_input(config, input_key):
-    return flat_inputs(config)[input_key]
+def inputkey_to_chr_prefix(config: dict, input_key: str) -> str:
+    input_prefix = inputkey_to_input(config, ["chr_prefix"], input_key)
+    if input_prefix is None:
+        return compose(
+            partial(refsetkey_to_chr_prefix, config),
+            partial(inputkey_to_refsetkey, config),
+        )(input_key)
+    else:
+        return input_prefix
 
 
-def flat_chr_filters(config):
-    return dict(
-        flatten(
-            [(k, v["chr_filter"]), *[(t, v["chr_filter"]) for t in v["test"]]]
-            for k, v in config["inputs"].items()
-        )
-    )
+def inputkey_to_chr_filter(config: dict, input_key: str) -> list[str]:
+    prefix = inputkey_to_chr_prefix(config, input_key)
+    return compose(
+        partial(chr_indices_to_name, prefix),
+        partial(refsetkey_to_chr_indices, config),
+        partial(inputkey_to_refsetkey, config),
+    )(input_key)
 
 
-def lookup_global_chr_filter(config):
-    return [*set(flatten(i["chr_filter"] for i in config["inputs"].values()))]
+def inputkey_to_bench_correction(config: dict, key: str, input_key: str) -> bool:
+    bench_key = inputkey_to_input(config, ["benchmark"], input_key)
+    return compose(
+        partial(refkey_to_benchmark, config, ["corrections", key], bench_key),
+        partial(refsetkey_to_refkey, config),
+        partial(inputkey_to_refsetkey, config),
+    )(input_key)
 
 
 # ------------------------------------------------------------------------------
@@ -332,7 +462,7 @@ def homopolymer_feature_names(config):
 
 def fmt_repeat_masker_feature(config, grp, fam=None):
     fconf = config["features"]["repeat_masker"]
-    rest = grp if fam is None else f"{grp}_{fam}"
+    rest = maybe(grp, lambda f: f"{grp}_{fam}", fam)
     # TODO this is hardcoded for now
     suffix = fconf["suffixes"]["len"]
     return fmt_feature(fconf["prefix"], f"{rest}_{suffix}")

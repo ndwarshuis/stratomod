@@ -23,16 +23,17 @@ def filter_chromosomes(chr_filter, df):
     return df
 
 
-def standardize_chr_series(ser):
-    _ser = ser.str.replace("chr", "")
+# TODO use chr prefix here
+def standardize_chr_series(prefix, ser):
+    _ser = ser if prefix == "" else ser.str.replace(prefix, "")
     _ser[_ser == "X"] = "23"
     _ser[_ser == "Y"] = "24"
     return pd.to_numeric(_ser, errors="coerce").astype("Int64")
 
 
-def standardize_chr_column(chr_col, df):
+def standardize_chr_column(prefix, chr_col, df):
     logging.info("Standardizing chromosome column: %s", chr_col)
-    df[chr_col] = standardize_chr_series(df[chr_col])
+    df[chr_col] = standardize_chr_series(prefix, df[chr_col])
     logging.info(
         "Removing %i rows with non-standard chromosomes",
         df[chr_col].isna().sum(),

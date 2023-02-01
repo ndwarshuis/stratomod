@@ -9,6 +9,7 @@ from common.config import (
     fmt_homopolymer_feature,
     lookup_bed_cols,
     bed_cols_ordered,
+    lookup_refset_chr_prefix,
 )
 
 logger = setup_logging(snakemake.log[0])
