@@ -23,7 +23,7 @@ rule get_segdups:
     conda:
         envs_path("bedtools.yml")
     params:
-        filt=refsetkey_to_chr_filter_wc,
+        filt=refsetkey_to_chr_indices_wc,
     log:
         annotations_log_dir / segdups_dir / "segdups.log",
     benchmark:

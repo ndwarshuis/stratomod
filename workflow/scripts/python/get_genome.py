@@ -1,9 +1,9 @@
+import common.config as cfg
 from functools import partial
 from common.tsv import write_tsv, read_tsv
 from common.bed import standardize_chr_column
 from common.cli import setup_logging
 from common.functional import compose
-from common.config import lookup_refset_chr_prefix
 
 logger = setup_logging(snakemake.log[0])
 
@@ -24,7 +24,7 @@ def write_output(path, df):
 
 
 def main():
-    prefix = lookup_refset_chr_prefix(
+    prefix = cfg.refsetkey_to_chr_prefix(
         snakemake.config, snakemake.wildcards["refset_key"]
     )
     df = compose(

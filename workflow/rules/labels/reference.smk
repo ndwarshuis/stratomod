@@ -35,7 +35,9 @@ rule sdf_to_fasta:
     output:
         refset_ref_dir / "ref.fa",
     params:
-        filt=compose(" ".join, refsetkey_to_chr_filter_wc),
+        filt=lambda wildcards: " ".join(
+            refsetkey_to_chr_filter(config, wildcards.refset_key)
+        ),
     conda:
         envs_path("rtg.yml")
     benchmark:

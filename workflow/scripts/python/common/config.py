@@ -156,10 +156,7 @@ def input_set(config, key):
 
 
 def walk_dict(d, keys):
-    k = keys[0]
-    ks = keys[1:]
-    dnext = d[k]
-    return dnext if len(ks) == 0 else walk_dict(dnext, ks)
+    return d if len(keys) == 0 else walk_dict(d[keys[0]], keys[1:])
 
 
 def lookup_config(config, keys):
@@ -218,8 +215,8 @@ def refsetkey_to_refkey(config, refset_key):
 def refsetkey_to_ref(config: dict, args: list[str], refset_key: str) -> Any:
     return compose(
         partial(refkey_to_ref, config, args),
-        partial(inputkey_to_refkey, config, refset_key),
-    )
+        partial(refsetkey_to_refkey, config),
+    )(refset_key)
 
 
 def refsetkey_to_chr_indices(config: dict, refset_key: str) -> list[int]:
@@ -248,7 +245,7 @@ def refsetkey_to_chr_filter(config: dict, refset_key: str) -> list[str]:
 # or test_key" (most of the time)
 
 
-def inputkey_to_input(config: dict, args: list[str], input_key: str):
+def inputkey_to_input(config: dict, args: list[str], input_key: str) -> Any:
     return walk_dict(flat_inputs(config)[input_key], args)
 
 
@@ -268,34 +265,34 @@ def inputkey_to_shared(config: dict, input_key: str, shared_key: str) -> Any:
     )[input_key]
 
 
-def inputkey_to_refkey(config: dict, input_key: str):
+def inputkey_to_refkey(config: dict, input_key: str) -> str:
     return compose(
         partial(refsetkey_to_refkey, config),
         partial(inputkey_to_refsetkey, config),
     )(input_key)
 
 
-def inputkey_to_refsetkey(config: dict, input_key: str):
+def inputkey_to_refsetkey(config: dict, input_key: str) -> str:
     return inputkey_to_shared(config, input_key, "refset")
 
 
-def lookup_inputs(config):
+def lookup_inputs(config: dict) -> dict:
     return config["inputs"]
 
 
-def lookup_train(config, train_key):
+def lookup_train(config: dict, train_key: str) -> dict:
     return config["inputs"][train_key]
 
 
-def lookup_all_train(config):
+def lookup_all_train(config: dict) -> list[tuple[str, dict]]:
     return [(k, v["train"]) for k, v in lookup_inputs(config).items()]
 
 
-def lookup_all_test(config):
+def lookup_all_test(config: dict) -> list[tuple[str, dict]]:
     return [ts for i in lookup_inputs(config).values() for ts in i["test"].items()]
 
 
-def lookup_test(config, test_key):
+def lookup_test(config: dict, test_key: str) -> dict:
     return dict(lookup_all_test(config))[test_key]
 
 
@@ -307,22 +304,12 @@ def input_test_keys(config):
     return [i[0] for i in lookup_all_test(config)]
 
 
-def flat_inputs_(config):
-    return flatten(
-        [(k, v["train"]), *v["test"].items()] for k, v in config["inputs"].items()
-    )
-
-
-def all_refsetkeys(config):
+def all_refsetkeys(config: dict) -> set[str]:
     return set(v["refset"] for v in config["inputs"].values())
 
 
-def all_refkeys(config):
+def all_refkeys(config: dict) -> set[str]:
     return set(map(partial(refsetkey_to_refkey, config), all_refsetkeys(config)))
-
-
-def flat_input_names(config):
-    return [i[0] for i in flat_inputs_(config)]
 
 
 # TODO this isn't a well defined function in terms of types since the test
@@ -391,35 +378,35 @@ def ebm_run_test_keys(ebm_run):
 # training step after several hours because a feature was named incorrectly.
 
 
-def lookup_raw_index(config):
+def lookup_raw_index(config: dict) -> str:
     return config["features"]["raw_index"]
 
 
-def lookup_bed_cols(config):
+def lookup_bed_cols(config: dict) -> dict[str, str]:
     return config["features"]["bed_index"]
 
 
-def bed_cols_ordered(bed_cols):
+def bed_cols_ordered(bed_cols: dict[str, str]) -> list[str]:
     return [bed_cols["chr"], bed_cols["start"], bed_cols["end"]]
 
 
-def bed_cols_indexed(indices, bed_cols):
+def bed_cols_indexed(indices: list[int], bed_cols: dict[str, str]) -> dict[int, str]:
     return dict(zip(indices, bed_cols_ordered(bed_cols)))
 
 
-def lookup_bed_cols_ordered(config):
+def lookup_bed_cols_ordered(config: dict) -> list[str]:
     return bed_cols_ordered(lookup_bed_cols(config))
 
 
-def lookup_all_index_cols(config):
+def lookup_all_index_cols(config: dict) -> list[str]:
     return [lookup_raw_index(config), *bed_cols_ordered(lookup_bed_cols(config))]
 
 
-def fmt_feature(prefix, rest):
+def fmt_feature(prefix: str, rest: str) -> str:
     return f"{prefix}_{rest}"
 
 
-def fmt_vcf_feature(config, which):
+def fmt_vcf_feature(config: dict, which: str) -> str:
     fconf = config["features"]["vcf"]
     return fmt_feature(fconf["prefix"], fconf["columns"][which])
 

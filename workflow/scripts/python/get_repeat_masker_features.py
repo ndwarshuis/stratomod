@@ -1,16 +1,11 @@
 import re
+import common.config as cfg
 from functools import partial
 from os.path import basename, splitext
 from pybedtools import BedTool as bt
 from common.tsv import write_tsv
 from common.cli import setup_logging
 from common.bed import read_bed_df
-from common.config import (
-    fmt_repeat_masker_feature,
-    lookup_bed_cols,
-    bed_cols_indexed,
-    bed_cols_ordered,
-)
 
 # The repeat masker database is documented here:
 # https://genome.ucsc.edu/cgi-bin/hgTables?db=hg38&hgta_group=rep&hgta_track=rmsk&hgta_table=rmsk&hgta_doSchema=describe+table+schema
@@ -26,12 +21,15 @@ COLS = {
     12: FAMCOL,
 }
 
-fmt_feature = partial(fmt_repeat_masker_feature, snakemake.config)
+fmt_feature = partial(cfg.fmt_repeat_masker_feature, snakemake.config)
 
 
 def read_rmsk_df(path, bed_cols):
-    bed_mapping = bed_cols_indexed([5, 6, 7], bed_cols)
-    return read_bed_df(path, bed_mapping, COLS, snakemake.params["filt"])
+    bed_mapping = cfg.bed_cols_indexed([5, 6, 7], bed_cols)
+    prefix = cfg.refsetkey_to_chr_prefix(
+        snakemake.config, snakemake.wildcards["refset_key"]
+    )
+    return read_bed_df(path, bed_mapping, COLS, prefix, snakemake.params["filt"])
 
 
 def merge_and_write_group(df, path, bed_cols, groupcol, clsname, famname=None):
@@ -40,7 +38,7 @@ def merge_and_write_group(df, path, bed_cols, groupcol, clsname, famname=None):
     merged = (
         bt.from_dataframe(dropped)
         .merge()
-        .to_dataframe(names=bed_cols_ordered(bed_cols))
+        .to_dataframe(names=cfg.bed_cols_ordered(bed_cols))
     )
     if len(merged.index) == 0:
         logger.warning("Empty dataframe for %s", path)
@@ -74,7 +72,7 @@ def parse_output(path, df, file_prefix, bed_cols):
 
 
 def main():
-    bed_cols = lookup_bed_cols(snakemake.config)
+    bed_cols = cfg.lookup_bed_cols(snakemake.config)
     rmsk_df = read_rmsk_df(snakemake.input[0], bed_cols)
     for path in snakemake.output:
         parse_output(path, rmsk_df, snakemake.params.file_prefix, bed_cols)

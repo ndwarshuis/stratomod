@@ -1,17 +1,12 @@
-from functools import partial
-from collections import namedtuple
 import numpy as np
 import pandas as pd
+import common.config as cfg
+from functools import partial
+from collections import namedtuple
 from more_itertools import partition, unzip
 from common.tsv import write_tsv
 from common.bed import standardize_chr_column
 from common.cli import setup_logging
-from common.config import (
-    fmt_vcf_feature,
-    assert_empty,
-    lookup_train_test_input,
-    fmt_strs,
-)
 from common.functional import compose
 
 logger = setup_logging(snakemake.log[0])
@@ -102,7 +97,7 @@ def assign_format_sample_fields(chrom, start, fields, df):
     present = ~format_len.isna() & ~sample_len.isna()
     eqlen = format_len == sample_len
 
-    assert_empty(
+    cfg.assert_empty(
         [
             f"{r[chrom]}@{r[start]}"
             for r in df[~eqlen & present].to_dict(orient="records")
@@ -191,7 +186,7 @@ def select_columns(non_field_cols, fields, label_col, label, df):
         logger.info("Applying label %s to column %s", label, label_col)
         df[label_col] = label
     cols = non_field_cols + [*fields] + ([] if label is None else [label_col])
-    logger.info("Selecting columns for final TSV: %s", fmt_strs(cols))
+    logger.info("Selecting columns for final TSV: %s", cfg.fmt_strs(cols))
     return df[cols]
 
 
@@ -204,16 +199,17 @@ def main():
     wildcards = snakemake.wildcards
     sconf = snakemake.config
     fconf = sconf["features"]
-    iconf = lookup_train_test_input(sconf, wildcards.input_key)
+    iconf = cfg.inputkey_to_input(sconf, [], wildcards.input_key)
     idx = fconf["bed_index"]
+    prefix = cfg.refsetkey_to_chr_prefix(sconf, wildcards["refset_key"])
 
     chrom = idx["chr"]
     pos = idx["start"]
-    qual = fmt_vcf_feature(sconf, "qual")
-    info = fmt_vcf_feature(sconf, "info")
-    filt = fmt_vcf_feature(sconf, "filter")
+    qual = cfg.fmt_vcf_feature(sconf, "qual")
+    info = cfg.fmt_vcf_feature(sconf, "info")
+    filt = cfg.fmt_vcf_feature(sconf, "filter")
     end = idx["end"]
-    indel_length = fmt_vcf_feature(sconf, "len")
+    indel_length = cfg.fmt_vcf_feature(sconf, "len")
 
     input_cols = {
         chrom: input_col(str, None),
@@ -230,17 +226,19 @@ def main():
 
     non_field_cols = [chrom, pos, end, indel_length, qual, filt, info]
 
-    fields = {fmt_vcf_feature(sconf, k): v for k, v in iconf["format_fields"].items()}
+    fields = {
+        cfg.fmt_vcf_feature(sconf, k): v for k, v in iconf["format_fields"].items()
+    }
     label = get_label(wildcards)
 
     return compose(
         partial(write_tsv, snakemake.output[0]),
         partial(select_columns, non_field_cols, fields, fconf["label"], label),
         partial(assign_format_sample_fields, chrom, pos, fields),
-        partial(standardize_chr_column, chrom),
+        partial(standardize_chr_column, prefix, chrom),
         partial(
             add_length_and_filter,
-            fmt_vcf_feature(sconf, "len"),
+            cfg.fmt_vcf_feature(sconf, "len"),
             pos,
             end,
             wildcards.filter_key,

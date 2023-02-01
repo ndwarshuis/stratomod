@@ -1,4 +1,4 @@
-from scripts.python.common.config import attempt_mem_gb
+from scripts.python.common.config import attempt_mem_gb, refsetkey_to_chr_prefix
 
 homopolymers_dir = "homopolymers"
 homopolymers_src_dir = annotations_src_dir / homopolymers_dir
@@ -76,10 +76,14 @@ rule sort_and_filter_simple_repeats:
         homopolymers_results_dir / "sorted.bench"
     resources:
         mem_mb=attempt_mem_gb(16),
+    params:
+        prefix=lambda wildcards: refsetkey_to_chr_prefix(config, wildcards.refset_key),
+    # TODO replace this hacky script with something more elegant (since this sort
+    # script is only used once in the entire pipeline)
     shell:
         f"""
         cat {{input}} | \
-        python {python_path('sort_and_filter_bed.py')} -c "#" -s 0 2> {{log}} | \
+        python {python_path('sort_and_filter_bed.py')} -p {{params.prefix}} -c "#" -s 0 2> {{log}} | \
         gzip -c \
         > {{output}}
         """

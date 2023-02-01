@@ -57,10 +57,6 @@ def refsetkey_to_refkey_wc(wildcards):
     return cfg.refsetkey_to_refkey(config, wildcards.refset_key)
 
 
-# def refsetkey_to_ref_wc(args, wildcards):
-#     return refsetkey_to_ref(config, args, wildcards.refset_key)
-
-
 def refkey_to_ref_wc(args, wildcards):
     return cfg.refkey_to_ref(config, args, wildcards.ref_key)
 
@@ -74,8 +70,8 @@ def inputkey_to_chr_filter_wc(wildcards):
     return "\\|".join(f"{f}\\b" for f in filt)
 
 
-def refsetkey_to_chr_filter_wc(wildcards):
-    return cfg.refsetkey_to_chr_filter(config, wildcards.refset_key)
+def refsetkey_to_chr_indices_wc(wildcards):
+    return cfg.refsetkey_to_chr_indices(config, wildcards.refset_key)
 
 
 def refsetkey_to_benchmark_wc(key, wildcards):

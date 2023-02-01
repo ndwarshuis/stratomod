@@ -1,4 +1,4 @@
-from scripts.python.common.config import attempt_mem_gb
+from scripts.python.common.config import attempt_mem_gb, refsetkey_to_chr_filter
 
 tandem_repeats_dir = "tandem_repeats"
 tandem_repeats_results_dir = annotations_tsv_dir / tandem_repeats_dir
@@ -29,7 +29,7 @@ rule get_tandem_repeats:
     conda:
         envs_path("bedtools.yml")
     params:
-        filt=refsetkey_to_chr_filter_wc,
+        filt=refsetkey_to_chr_indices_wc,
     log:
         annotations_log_dir / tandem_repeats_dir / "tandem_repeats.log",
     benchmark:

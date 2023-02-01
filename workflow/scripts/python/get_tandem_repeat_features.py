@@ -1,13 +1,10 @@
+import pandas as pd
+import common.config as cfg
 from functools import partial
-from pybedtools import BedTool as bt
+from pybedtools import BedTool as bt  # pylint: disable=import-error
 from common.tsv import write_tsv
 from common.bed import read_bed_df, merge_and_apply_stats
 from common.cli import setup_logging
-from common.config import (
-    fmt_tandem_repeat_base,
-    lookup_bed_cols,
-    bed_cols_indexed,
-)
 
 # Input dataframe documented here:
 # https://genome.ucsc.edu/cgi-bin/hgTables?db=hg38&hgta_group=rep&hgta_track=simpleRepeat&hgta_table=simpleRepeat&hgta_doSchema=describe+table+schema
@@ -22,12 +19,18 @@ logger = setup_logging(snakemake.log[0])
 SLOP = 5
 
 
-def format_base(bs_prefix, base):
+def format_base(bs_prefix: int, base: str) -> str:
     return f"{bs_prefix}_{base}"
 
 
-def read_tandem_repeats(path, fconf, bed_cols, sconf):
-    fmt_base = partial(fmt_tandem_repeat_base, sconf)
+def read_tandem_repeats(
+    path: str,
+    fconf: dict,
+    bed_cols: dict[str, str],
+    sconf: dict,
+    prefix: str,
+) -> pd.DataFrame:
+    fmt_base = partial(cfg.fmt_tandem_repeat_base, sconf)
     cols = fconf["columns"]
     perc_a_col = fmt_base("A")
     perc_t_col = fmt_base("T")
@@ -44,8 +47,8 @@ def read_tandem_repeats(path, fconf, bed_cols, sconf):
         13: perc_g_col,
         14: perc_t_col,
     }
-    bed_mapping = bed_cols_indexed([1, 2, 3], bed_cols)
-    df = read_bed_df(path, bed_mapping, feature_cols, snakemake.params["filt"])
+    bed_mapping = cfg.bed_cols_indexed([1, 2, 3], bed_cols)
+    df = read_bed_df(path, bed_mapping, feature_cols, prefix, snakemake.params["filt"])
     df[fmt_base("AT")] = df[perc_a_col] + df[perc_t_col]
     df[fmt_base("GC")] = df[perc_g_col] + df[perc_c_col]
     # Filter out all TRs that have period == 1, since those by definition are
@@ -57,14 +60,14 @@ def read_tandem_repeats(path, fconf, bed_cols, sconf):
     return df[df[cols["period"]] > 1]
 
 
-def merge_tandem_repeats(gfile, df, fconf, bed_cols):
+def merge_tandem_repeats(
+    gfile: str,
+    df: pd.DataFrame,
+    fconf: dict,
+    bed_cols: dict[str, str],
+) -> pd.DataFrame:
     prefix = fconf["prefix"]
-    bed, names = merge_and_apply_stats(
-        fconf["operations"],
-        bed_cols,
-        prefix,
-        df,
-    )
+    bed, names = merge_and_apply_stats(fconf["operations"], bed_cols, prefix, df)
     merged_df = bed.slop(b=SLOP, g=gfile).to_dataframe(names=names)
     len_col = f"{prefix}_{fconf['other']['len']}"
     merged_df[len_col] = (
@@ -76,9 +79,10 @@ def merge_tandem_repeats(gfile, df, fconf, bed_cols):
 def main():
     i = snakemake.input
     sconf = snakemake.config
-    bed_cols = lookup_bed_cols(sconf)
+    prefix = cfg.refsetkey_to_chr_prefix(sconf, snakemake.wildcards["refset_key"])
+    bed_cols = cfg.lookup_bed_cols(sconf)
     fconf = sconf["features"]["tandem_repeats"]
-    repeat_df = read_tandem_repeats(i.src[0], fconf, bed_cols, sconf)
+    repeat_df = read_tandem_repeats(i.src[0], fconf, bed_cols, sconf, prefix)
     merged_df = merge_tandem_repeats(i.genome[0], repeat_df, fconf, bed_cols)
     write_tsv(snakemake.output[0], merged_df, header=True)
 

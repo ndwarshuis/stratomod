@@ -38,7 +38,7 @@ rule get_repeat_masker_classes:
         annotations_log_dir / rmsk_dir / "rmsk.log",
     params:
         file_prefix=rmsk_file_prefix,
-        filt=refsetkey_to_chr_filter_wc,
+        filt=refsetkey_to_chr_indices_wc,
     benchmark:
         rmsk_results_dir / "rmsk.bench"
     resources:

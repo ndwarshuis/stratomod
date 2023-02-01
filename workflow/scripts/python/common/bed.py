@@ -13,7 +13,7 @@ from common.config import (
 )
 
 
-def filter_chromosomes(chr_filter, df):
+def filter_chromosomes(chr_filter: list[int], df: pd.DataFrame) -> pd.DataFrame:
     if len(chr_filter) > 0:
         logging.info(
             "Pre-filtering chromosomes: %s",
@@ -23,25 +23,24 @@ def filter_chromosomes(chr_filter, df):
     return df
 
 
-# TODO use chr prefix here
-def standardize_chr_series(prefix, ser):
+def standardize_chr_series(prefix: str, ser: pd.Series) -> pd.Series:
     _ser = ser if prefix == "" else ser.str.replace(prefix, "")
     _ser[_ser == "X"] = "23"
     _ser[_ser == "Y"] = "24"
     return pd.to_numeric(_ser, errors="coerce").astype("Int64")
 
 
-def standardize_chr_column(prefix, chr_col, df):
+def standardize_chr_column(prefix: str, chr_col: str, df: pd.DataFrame) -> pd.DataFrame:
     logging.info("Standardizing chromosome column: %s", chr_col)
     df[chr_col] = standardize_chr_series(prefix, df[chr_col])
     logging.info(
         "Removing %i rows with non-standard chromosomes",
         df[chr_col].isna().sum(),
     )
-    return df.dropna(subset=[chr_col]).astype({chr_col: int})
+    return df.dropna(subset=[chr_col]).astype({chr_col: "int"})
 
 
-def sort_bed_numerically(df, drop_chr=True):
+def sort_bed_numerically(df: pd.DataFrame, drop_chr: bool = True) -> pd.DataFrame:
     # ASSUME: the first three columns correspond to a bed file and the first
     # column has already been standardized (eg all chromosomes are numbered 1 to
     # 24 and there are no incomplete chromosomes)
@@ -55,21 +54,32 @@ def sort_bed_numerically(df, drop_chr=True):
     )
 
 
-def read_bed_df(path, bed_mapping, col_mapping, filt):
+def read_bed_df(
+    path: str,
+    bed_mapping: dict[int, str],
+    col_mapping: dict[int, str],
+    prefix: str,
+    filt: list[int],
+) -> pd.DataFrame:
     mapping = {**bed_mapping, **col_mapping}
     df = read_tsv(path, header=None)[[*mapping]].rename(columns=mapping)
     chr_col = df.columns.tolist()[0]
     return compose(
         sort_bed_numerically,
         partial(filter_chromosomes, filt),
-        partial(standardize_chr_column, chr_col),
+        partial(standardize_chr_column, prefix, chr_col),
     )(df.astype({chr_col: str}))
 
 
-def merge_and_apply_stats(merge_stats, bed_cols, prefix, bed_df):
+def merge_and_apply_stats(
+    merge_stats: list[str],
+    bed_cols: dict[str, str],
+    prefix: str,
+    bed_df: pd.DataFrame,
+):
     # import this here so we can import other functions in this module
     # without pulling in bedtools
-    from pybedtools import BedTool as bt
+    from pybedtools import BedTool as bt  # pylint: disable=import-error
 
     # compute stats on all columns except the first 3
     drop_n = 3
