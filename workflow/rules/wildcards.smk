@@ -105,6 +105,14 @@ def expand_refkey_from_refsetkey(path, wildcards):
     )
 
 
+def expand_refsetkey_from_inputkey(path, wildcards):
+    return expand(
+        path,
+        allow_missing=True,
+        refset_key=inputkey_to_refsetkey(config, wildcards.input_key),
+    )
+
+
 def expand_benchkey_from_inputkey(path, wildcards):
     return expand(
         path,

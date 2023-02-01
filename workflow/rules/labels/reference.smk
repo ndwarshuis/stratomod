@@ -14,14 +14,19 @@ refset_ref_dir = refset_dir / "reference"
 
 rule download_ref_sdf:
     output:
-        directory(ref_resources_dir / wildcard_ext("ref_key", "sdf")),
+        directory(ref_resources_dir / "sdf"),
     params:
         url=partial(refkey_to_ref_wc, ["sdf"]),
-        dir=lambda _, output: dirname(output[0]),
     conda:
         envs_path("utils.yml")
     shell:
-        "curl -Ss {params.url} | bsdtar -xf - -C {params.dir}"
+        """
+        mkdir {output} && \
+        curl -Ss {params.url} | \
+        bsdtar -xf - \
+        --directory {output} \
+        --strip-components=1
+        """
 
 
 rule sdf_to_fasta:

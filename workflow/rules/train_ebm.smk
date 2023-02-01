@@ -12,8 +12,18 @@ from scripts.python.common.config import (
 labeled_dir = "labeled"
 unlabeled_dir = "unlabeled"
 
-
 INPUT_DELIM = "&"
+
+
+def expand_from_inputkeys(path, wildcards):
+    input_keys = wildcards.input_keys.split(INPUT_DELIM)
+    return expand(
+        rules.annotate_labeled_tsv.output,
+        zip,
+        allow_missing=True,
+        input_key=input_keys,
+        refset_key=[inputkey_to_refsetkey(config, k) for k in input_keys],
+    )
 
 
 ################################################################################
@@ -130,11 +140,7 @@ train_log_dir = log_dir / ebm_dir
 
 rule prepare_train_data:
     input:
-        lambda wildcards: expand(
-            rules.annotate_labeled_tsv.output,
-            allow_missing=True,
-            input_key=wildcards.input_keys.split(INPUT_DELIM),
-        ),
+        partial(expand_from_inputkeys, rules.annotate_labeled_tsv.output),
     output:
         df=train_results_dir / "train.tsv.gz",
         paths=train_results_dir / "input_paths.json",
@@ -235,11 +241,7 @@ unlabeled_test_log_dir = test_log_dir / unlabeled_dir / test_subdir
 
 def test_data_input(annotated_path, wildcards):
     return {
-        "annotated": expand(
-            annotated_path,
-            allow_missing=True,
-            input_key=wildcards.test_key,
-        ),
+        "annotated": expand_from_inputkeys(annotated_path, wildcards),
         "paths": rules.prepare_train_data.output.paths,
     }
 
