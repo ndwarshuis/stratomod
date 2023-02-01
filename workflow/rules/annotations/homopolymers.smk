@@ -85,18 +85,22 @@ rule sort_and_filter_simple_repeats:
         """
 
 
+def homopolymer_file(ext):
+    return wildcard_format_ext("homopolymers_{}", ["base"], ext)
+
+
 rule get_homopolymers:
     input:
         bed=rules.sort_and_filter_simple_repeats.output,
         genome=rules.get_genome.output,
     output:
-        homopolymers_results_dir / "homopolymers_{base}.tsv.gz",
+        homopolymers_results_dir / homopolymer_file("tsv.gz"),
     conda:
         envs_path("bedtools.yml")
     log:
-        homopolymers_log_dir / "homopolymers_{base}.log",
+        homopolymers_log_dir / homopolymer_file("log"),
     benchmark:
-        homopolymers_results_dir / "homopolymers_{base}.bench"
+        homopolymers_results_dir / homopolymer_file("bench")
     resources:
         mem_mb=attempt_mem_gb(16),
     script:

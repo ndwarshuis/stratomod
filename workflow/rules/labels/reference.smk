@@ -1,9 +1,10 @@
 from os.path import dirname
 from functools import partial
 from scripts.python.common.config import refsetkey_to_chr_filter
+from scripts.python.common.functional import compose
 
-ref_resources_dir = resources_dir / "reference" / "{ref_key}"
-refset_dir = results_dir / "{refset_key}"
+ref_resources_dir = resources_dir / "reference" / all_wildcards["ref_key"]
+refset_dir = results_dir / all_wildcards["refset_key"]
 
 ################################################################################
 # download reference
@@ -13,7 +14,7 @@ refset_ref_dir = refset_dir / "reference"
 
 rule download_ref_sdf:
     output:
-        directory(ref_resources_dir / wildcard_format("{}.sdf", "ref_key")),
+        directory(ref_resources_dir / wildcard_ext("ref_key", "sdf")),
     params:
         url=partial(refkey_to_ref_wc, ["sdf"]),
         dir=lambda _, output: dirname(output[0]),
@@ -29,7 +30,7 @@ rule sdf_to_fasta:
     output:
         refset_ref_dir / "ref.fa",
     params:
-        filt=lambda wildcards: " ".join(refsetkey_to_chr_filter_wc(wildcards)),
+        filt=compose(" ".join, refsetkey_to_chr_filter_wc),
     conda:
         envs_path("rtg.yml")
     benchmark:

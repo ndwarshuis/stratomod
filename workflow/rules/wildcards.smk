@@ -3,6 +3,15 @@ import scripts.python.common.config as cfg
 # wildcards shall not be used for multiple nodes in a filepath
 # TODO there are lots of characters that should be avoided to prevent ambiguity
 
+ALL_LABELS = ["fp", "fn", "tp"]
+
+all_bases = config["features"]["homopolymers"]["bases"]
+
+
+def alternate_constraint(xs):
+    return f"({'|'.join(xs)})"
+
+
 _constraints = {
     "ref_key": "[^/]+",
     "refset_key": "[^/]+",
@@ -12,7 +21,8 @@ _constraints = {
     "filter_key": "[^/]+",
     "run_key": "[^/]+",
     "test_key": "[^/]+",
-    "label": "(tp|fp|fn)",
+    "label": alternate_constraint(ALL_LABELS),
+    "base": alternate_constraint(all_bases),
 }
 
 
@@ -33,6 +43,10 @@ def wildcard_ext(key, ext):
 
 def wildcard_format(format_str, *keys):
     return format_str.format(*[all_wildcards[k] for k in keys])
+
+
+def wildcard_format_ext(format_str, keys, ext):
+    return wildcard_format(f"{format_str}.{ext}", *keys)
 
 
 ################################################################################

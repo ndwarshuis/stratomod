@@ -20,9 +20,9 @@ INPUT_DELIM = "&"
 # add annotations
 
 
-annotated_tsv = wildcard_format("{}.tsv.gz", "filter_key")
-annotated_log = wildcard_format("{}.log", "filter_key")
-annotated_bench = wildcard_format("{}.bench", "filter_key")
+annotated_tsv = wildcard_ext("filter_key", "tsv.gz")
+annotated_log = wildcard_ext("filter_key", "log")
+annotated_bench = wildcard_ext("filter_key", "bench")
 
 annotated_dir = Path("annotated_input") / all_wildcards["refset_key"]
 rel_annotated_labeled_dir = annotated_dir / labeled_dir / all_wildcards["input_key"]
@@ -43,7 +43,7 @@ def annotation_input(tsv_path):
             rules.get_segdups.output,
             expand(
                 rules.get_homopolymers.output,
-                base=config["features"]["homopolymers"]["bases"],
+                base=all_bases,
                 allow_missing=True,
             ),
         ],

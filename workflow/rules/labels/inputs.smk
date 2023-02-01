@@ -35,8 +35,6 @@ rtg_dir = results_dir / rel_rtg_dir
 
 # log dirs
 
-LABELS = ["fp", "fn", "tp"]
-
 
 def lookup_benchmark_vcf(wildcards):
     return (
@@ -258,7 +256,7 @@ rule label_vcf:
         bench_tbi=rules.generate_bench_tbi.output,
         sdf=partial(expand_refkey_from_refsetkey, rules.download_ref_sdf.output),
     output:
-        [rtg_dir / f"{lbl}.vcf.gz" for lbl in LABELS],
+        [rtg_dir / f"{lbl}.vcf.gz" for lbl in ALL_LABELS],
     conda:
         envs_path("rtg.yml")
     params:
@@ -292,12 +290,12 @@ rule label_vcf:
 
 
 def labeled_file(ext):
-    return wildcard_format(f"{{}}_{{}}.{ext}", "filter_key", "label")
+    return wildcard_format_ext(f"{{}}_{{}}", ["filter_key", "label"], ext)
 
 
 rule parse_labeled_vcf:
     input:
-        rtg_dir / wildcard_format("{}.vcf.gz", "label"),
+        rtg_dir / wildcard_ext("label", "vcf.gz"),
     output:
         labeled_dir / labeled_file("tsv.gz"),
     log:
@@ -314,7 +312,7 @@ rule parse_labeled_vcf:
 
 rule concat_labeled_tsvs:
     input:
-        expand(rules.parse_labeled_vcf.output, label=LABELS, allow_missing=True),
+        expand(rules.parse_labeled_vcf.output, label=ALL_LABELS, allow_missing=True),
     output:
         labeled_dir / wildcard_format("{}_labeled.tsv.gz", "filter_key"),
     conda:
@@ -331,16 +329,18 @@ rule concat_labeled_tsvs:
 # vcf -> tsv (unlabeled)
 
 
+def unlabeled_file(ext):
+    return wildcard_format_ext("{}%{}", ["input_key", "filter_key"], ext)
+
+
 use rule parse_labeled_vcf as parse_unlabeled_vcf with:
     input:
         rules.filter_query_vcf.output,
     output:
-        unlabeled_dir / wildcard_format("{}%{}.tsv.gz", "input_key", "filter_key"),
+        unlabeled_dir / unlabeled_file("tsv.gz"),
     log:
-        log_dir
-        / rel_unlabeled_dir
-        / wildcard_format("{}%{}.log", "input_key", "filter_key"),
+        log_dir / rel_unlabeled_dir / unlabeled_file("log"),
     resources:
         mem_mb=attempt_mem_gb(2),
     benchmark:
-        unlabeled_dir / wildcard_format("{}%{}.bench", "input_key", "filter_key")
+        unlabeled_dir / unlabeled_file("bench")
