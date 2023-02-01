@@ -1,0 +1,24 @@
+# development environment
+# for use in IDEs when editing .smk and .py files
+name: snakemake-ebm-dev
+channels:
+  - bioconda
+  - conda-forge
+dependencies:
+  - python
+  - more-itertools
+  - black
+  - snakefmt
+  - flake8
+  - mypy
+  - ipython
+  # to silence import warnings and such
+  - pybedtools
+  # type checking for pandas (kinda)
+  - pandas-stubs
+  - pip # conda complains without this
+  - numba=0.54.1 # needed for interpret packages below
+  # the conda packages for these are broken :(
+  - pip:
+    - interpret==0.2.7
+    - interpret-core==0.2.7
