@@ -1,15 +1,29 @@
 import re
-from typing import Any, Dict, List, Tuple, Set
+from typing import (
+    Any,
+    Dict,
+    List,
+    Tuple,
+    Set,
+    Iterable,
+    Collection,
+    Callable,
+    Optional,
+)
 from more_itertools import flatten, duplicates_everseen, unzip
 from itertools import product, filterfalse
 from functools import partial
 from .functional import maybe, compose
 
+# JSONVal = Union[bool, str, float, int, List["JSONVal"], "JSONDict"]
+
+JSONDict = Dict[str, Any]  # booooooooooo
+
 # ------------------------------------------------------------------------------
 # too useful...
 
 
-def fmt_strs(ss):
+def fmt_strs(ss: Iterable[str]) -> str:
     return ", ".join(ss)
 
 
@@ -17,12 +31,18 @@ def fmt_strs(ss):
 # assertions
 
 
-def assert_empty(xs, msg):
+def assert_empty(xs: Collection, msg: str) -> None:
     assert len(xs) == 0, f"{msg}: {fmt_strs(xs)}"
 
 
-def assert_no_dups(xs, msg):
+def assert_no_dups(xs: Collection, msg: str) -> None:
     assert_empty(set(duplicates_everseen(xs)), msg)
+
+
+def assert_match(pat: str, s: str) -> str:
+    res = re.match(pat, s)
+    assert res is not None, f"match failed for pattern '{pat}' and query '{s}'"
+    return res[0]
 
 
 # ------------------------------------------------------------------------------
@@ -43,14 +63,14 @@ def assert_no_dups(xs, msg):
 #   under each 'test') are unique
 
 
-def validate_inputs(config):
+def validate_inputs(config: JSONDict) -> None:
     train = input_train_keys(config)
     test = input_test_keys(config)
     assert_no_dups(train + test, "Duplicate input keys found")
 
 
 # TODO make unittests for these
-def validate_ebm_features(config):
+def validate_ebm_features(config: JSONDict) -> None:
     def assert_1(run_name, feature_list, feature):
         assert (
             feature in feature_list
@@ -81,8 +101,8 @@ def validate_ebm_features(config):
             # test feature alt names
             alt = v["alt_name"]
             if alt is not None:
-                prefix = re.match("^[^_]+", k)[0]
-                alt_prefix = re.match("^[^_]+", alt)[0]
+                prefix = assert_match("^[^_]+", k)
+                alt_prefix = assert_match("^[^_]+", alt)
                 assert alt_prefix == prefix, f"Alt prefix must match for {k}"
 
             # test truncation values
@@ -102,7 +122,7 @@ def validate_ebm_features(config):
             check(run_name, flat_feature_names, i)
 
 
-def validate_ebm_inputs(config):
+def validate_ebm_inputs(config: JSONDict) -> None:
     def assert_keys_exist(what, get_input_keys, get_ebm_keys):
         iks = get_input_keys(config)
         eks = [*flatten(get_ebm_keys(e) for e in config["ebm_runs"].values())]
@@ -119,7 +139,7 @@ def validate_ebm_inputs(config):
 # resources
 
 
-def attempt_mem_gb(mem_gb):
+def attempt_mem_gb(mem_gb: int) -> Callable[[dict, int], int]:
     # double initial memory on each attempt
     return lambda wildcards, attempt: mem_gb * 1000 * 2 ** (attempt - 1)
 
@@ -128,16 +148,16 @@ def attempt_mem_gb(mem_gb):
 # wildcard sets (for building targets)
 
 
-def all_benchkeys(config: dict) -> Dict[str, List[str]]:
+def all_benchkeys(config: JSONDict) -> Dict[str, List[str]]:
     bks = [
         (inputkey_to_refkey(config, k), b)
         for k, v in flat_inputs(config).items()
         if (b := v["benchmark"]) is not None
     ]
-    return {k: list(v) for k, v in zip(["bench_key", "ref_key"], unzip(bks))}
+    return {k: list(v) for k, v in zip(["ref_key", "bench_key"], unzip(bks))}
 
 
-def input_set(config, key):
+def input_set(config: JSONDict, key: str) -> Set[str]:
     return set(
         filterfalse(lambda x: not x, [x[key] for x in flat_inputs(config).values()])
     )
@@ -155,11 +175,11 @@ def input_set(config, key):
 # global lookup
 
 
-def walk_dict(d, keys):
+def walk_dict(d: JSONDict, keys: List[str]) -> Any:
     return d if len(keys) == 0 else walk_dict(d[keys[0]], keys[1:])
 
 
-def lookup_config(config, keys):
+def lookup_config(config: JSONDict, keys: List[str]) -> Any:
     return walk_dict(config, keys)
 
 
@@ -167,7 +187,7 @@ def chr_index_to_str(i: int) -> str:
     return "X" if i == 23 else ("Y" if i == 24 else str(i))
 
 
-def chr_indices_to_name(prefix: str, xs: List[int]):
+def chr_indices_to_name(prefix: str, xs: List[int]) -> List[str]:
     return [f"{prefix}{chr_index_to_str(i)}" for i in xs]
 
 
@@ -175,12 +195,12 @@ def chr_indices_to_name(prefix: str, xs: List[int]):
 # lookup from ref_key
 
 
-def refkey_to_ref(config: dict, args: List[str], ref_key: str) -> Any:
+def refkey_to_ref(config: JSONDict, args: List[str], ref_key: str) -> Any:
     return lookup_config(config, ["references", ref_key, *args])
 
 
 def refkey_to_benchmark(
-    config: dict,
+    config: JSONDict,
     args: List[str],
     bench_key: str,
     ref_key: str,
@@ -193,7 +213,7 @@ def refkey_to_benchmark(
 
 
 def refsetkey_to_benchmark(
-    config: dict,
+    config: JSONDict,
     args: List[str],
     bench_key: str,
     refset_key: str,
@@ -204,7 +224,7 @@ def refsetkey_to_benchmark(
     )(refset_key)
 
 
-def refsetkey_to_refset(config: dict, args: List[str], refset_key: str):
+def refsetkey_to_refset(config: JSONDict, args: List[str], refset_key: str):
     return lookup_config(config, ["reference_sets", refset_key, *args])
 
 
@@ -212,26 +232,26 @@ def refsetkey_to_refkey(config, refset_key):
     return refsetkey_to_refset(config, ["ref"], refset_key)
 
 
-def refsetkey_to_ref(config: dict, args: List[str], refset_key: str) -> Any:
+def refsetkey_to_ref(config: JSONDict, args: List[str], refset_key: str) -> Any:
     return compose(
         partial(refkey_to_ref, config, args),
         partial(refsetkey_to_refkey, config),
     )(refset_key)
 
 
-def refsetkey_to_chr_indices(config: dict, refset_key: str) -> List[int]:
+def refsetkey_to_chr_indices(config: JSONDict, refset_key: str) -> List[int]:
     f = refsetkey_to_refset(config, ["chr_filter"], refset_key)
     return list(range(1, 25)) if len(f) == 0 else f
 
 
-def refsetkey_to_chr_prefix(config: dict, refset_key: str) -> str:
+def refsetkey_to_chr_prefix(config: JSONDict, refset_key: str) -> str:
     return compose(
         partial(refkey_to_ref, config, ["chr_prefix"]),
         partial(refsetkey_to_refkey, config),
     )(refset_key)
 
 
-def refsetkey_to_chr_filter(config: dict, refset_key: str) -> List[str]:
+def refsetkey_to_chr_filter(config: JSONDict, refset_key: str) -> List[str]:
     indices = refsetkey_to_chr_indices(config, refset_key)
     prefix = refsetkey_to_ref(config, ["chr_prefix"], refset_key)
     return chr_indices_to_name(prefix, indices)
@@ -245,11 +265,11 @@ def refsetkey_to_chr_filter(config: dict, refset_key: str) -> List[str]:
 # or test_key" (most of the time)
 
 
-def inputkey_to_input(config: dict, args: List[str], input_key: str) -> Any:
+def inputkey_to_input(config: JSONDict, args: List[str], input_key: str) -> Any:
     return walk_dict(flat_inputs(config)[input_key], args)
 
 
-def inputkey_to_shared(config: dict, input_key: str, shared_key: str) -> Any:
+def inputkey_to_shared(config: JSONDict, input_key: str, shared_key: str) -> Any:
     """
     Given an input key, return a value indicated by 'shared_key', which is a
     key common to all input dictionaries.
@@ -265,56 +285,56 @@ def inputkey_to_shared(config: dict, input_key: str, shared_key: str) -> Any:
     )[input_key]
 
 
-def inputkey_to_refkey(config: dict, input_key: str) -> str:
+def inputkey_to_refkey(config: JSONDict, input_key: str) -> str:
     return compose(
         partial(refsetkey_to_refkey, config),
         partial(inputkey_to_refsetkey, config),
     )(input_key)
 
 
-def inputkey_to_refsetkey(config: dict, input_key: str) -> str:
+def inputkey_to_refsetkey(config: JSONDict, input_key: str) -> str:
     return inputkey_to_shared(config, input_key, "refset")
 
 
-def lookup_inputs(config: dict) -> dict:
+def lookup_inputs(config: JSONDict) -> JSONDict:
     return config["inputs"]
 
 
-def lookup_train(config: dict, train_key: str) -> dict:
+def lookup_train(config: JSONDict, train_key: str) -> JSONDict:
     return config["inputs"][train_key]
 
 
-def lookup_all_train(config: dict) -> List[Tuple[str, dict]]:
+def lookup_all_train(config: JSONDict) -> List[Tuple[str, JSONDict]]:
     return [(k, v["train"]) for k, v in lookup_inputs(config).items()]
 
 
-def lookup_all_test(config: dict) -> List[Tuple[str, dict]]:
+def lookup_all_test(config: JSONDict) -> List[Tuple[str, JSONDict]]:
     return [ts for i in lookup_inputs(config).values() for ts in i["test"].items()]
 
 
-def lookup_test(config: dict, test_key: str) -> dict:
+def lookup_test(config: JSONDict, test_key: str) -> JSONDict:
     return dict(lookup_all_test(config))[test_key]
 
 
-def input_train_keys(config):
+def input_train_keys(config: JSONDict):
     return [*lookup_inputs(config)]
 
 
-def input_test_keys(config):
+def input_test_keys(config: JSONDict):
     return [i[0] for i in lookup_all_test(config)]
 
 
-def all_refsetkeys(config: dict) -> Set[str]:
+def all_refsetkeys(config: JSONDict) -> Set[str]:
     return set(v["refset"] for v in config["inputs"].values())
 
 
-def all_refkeys(config: dict) -> Set[str]:
+def all_refkeys(config: JSONDict) -> Set[str]:
     return set(map(partial(refsetkey_to_refkey, config), all_refsetkeys(config)))
 
 
 # TODO this isn't a well defined function in terms of types since the test
 # dictionary has several optional fields and the train does not.
-def flat_inputs(config: dict) -> Dict[str, Any]:
+def flat_inputs(config: JSONDict) -> JSONDict:
     """Return a dictionary of all inputs in the config."""
     return dict(
         flatten(
@@ -323,7 +343,7 @@ def flat_inputs(config: dict) -> Dict[str, Any]:
     )
 
 
-def inputkey_to_chr_prefix(config: dict, input_key: str) -> str:
+def inputkey_to_chr_prefix(config: JSONDict, input_key: str) -> str:
     input_prefix = inputkey_to_input(config, ["chr_prefix"], input_key)
     if input_prefix is None:
         return compose(
@@ -334,7 +354,7 @@ def inputkey_to_chr_prefix(config: dict, input_key: str) -> str:
         return input_prefix
 
 
-def inputkey_to_chr_filter(config: dict, input_key: str) -> List[str]:
+def inputkey_to_chr_filter(config: JSONDict, input_key: str) -> List[str]:
     prefix = inputkey_to_chr_prefix(config, input_key)
     return compose(
         partial(chr_indices_to_name, prefix),
@@ -343,7 +363,7 @@ def inputkey_to_chr_filter(config: dict, input_key: str) -> List[str]:
     )(input_key)
 
 
-def inputkey_to_bench_correction(config: dict, key: str, input_key: str) -> bool:
+def inputkey_to_bench_correction(config: JSONDict, key: str, input_key: str) -> bool:
     bench_key = inputkey_to_input(config, ["benchmark"], input_key)
     return compose(
         partial(refkey_to_benchmark, config, ["corrections", key], bench_key),
@@ -356,15 +376,15 @@ def inputkey_to_bench_correction(config: dict, key: str, input_key: str) -> bool
 # ebm run lookup
 
 
-def lookup_ebm_run(config, run_key):
+def lookup_ebm_run(config: JSONDict, run_key: str) -> Any:
     return config["ebm_runs"][run_key]
 
 
-def ebm_run_train_keys(ebm_run):
+def ebm_run_train_keys(ebm_run: JSONDict) -> List[str]:
     return [*flatten([[*i] for i in ebm_run["inputs"]])]
 
 
-def ebm_run_test_keys(ebm_run):
+def ebm_run_test_keys(ebm_run: JSONDict) -> List[str]:
     return [*flatten([[*ts] for i in ebm_run["inputs"] for ts in i.values()])]
 
 
@@ -378,11 +398,11 @@ def ebm_run_test_keys(ebm_run):
 # training step after several hours because a feature was named incorrectly.
 
 
-def lookup_raw_index(config: dict) -> str:
+def lookup_raw_index(config: JSONDict) -> str:
     return config["features"]["raw_index"]
 
 
-def lookup_bed_cols(config: dict) -> Dict[str, str]:
+def lookup_bed_cols(config: JSONDict) -> Dict[str, str]:
     return config["features"]["bed_index"]
 
 
@@ -394,11 +414,11 @@ def bed_cols_indexed(indices: List[int], bed_cols: Dict[str, str]) -> Dict[int, 
     return dict(zip(indices, bed_cols_ordered(bed_cols)))
 
 
-def lookup_bed_cols_ordered(config: dict) -> List[str]:
+def lookup_bed_cols_ordered(config: JSONDict) -> List[str]:
     return bed_cols_ordered(lookup_bed_cols(config))
 
 
-def lookup_all_index_cols(config: dict) -> List[str]:
+def lookup_all_index_cols(config: JSONDict) -> List[str]:
     return [lookup_raw_index(config), *bed_cols_ordered(lookup_bed_cols(config))]
 
 
@@ -406,12 +426,12 @@ def fmt_feature(prefix: str, rest: str) -> str:
     return f"{prefix}_{rest}"
 
 
-def fmt_vcf_feature(config: dict, which: str) -> str:
+def fmt_vcf_feature(config: JSONDict, which: str) -> str:
     fconf = config["features"]["vcf"]
     return fmt_feature(fconf["prefix"], fconf["columns"][which])
 
 
-def vcf_feature_names(config):
+def vcf_feature_names(config: JSONDict) -> List[str]:
     return [
         *map(
             lambda f: fmt_vcf_feature(config, f),
@@ -420,12 +440,12 @@ def vcf_feature_names(config):
     ]
 
 
-def fmt_mappability_feature(config, which):
+def fmt_mappability_feature(config: JSONDict, which: str) -> str:
     fconf = config["features"]["mappability"]
     return fmt_feature(fconf["prefix"], fconf["suffixes"][which])
 
 
-def mappability_feature_names(config):
+def mappability_feature_names(config: JSONDict):
     return [
         *map(
             lambda f: fmt_mappability_feature(config, f),
@@ -434,12 +454,12 @@ def mappability_feature_names(config):
     ]
 
 
-def fmt_homopolymer_feature(config, bases, which):
+def fmt_homopolymer_feature(config: JSONDict, bases: List[str], which: str) -> str:
     fconf = config["features"]["homopolymers"]
     return fmt_feature(fconf["prefix"], f"{bases}_{fconf['suffixes'][which]}")
 
 
-def homopolymer_feature_names(config):
+def homopolymer_feature_names(config: JSONDict) -> List[str]:
     fconf = config["features"]["homopolymers"]
     return [
         fmt_homopolymer_feature(config, b, s)
@@ -447,7 +467,11 @@ def homopolymer_feature_names(config):
     ]
 
 
-def fmt_repeat_masker_feature(config, grp, fam=None):
+def fmt_repeat_masker_feature(
+    config: JSONDict,
+    grp: str,
+    fam: Optional[str] = None,
+) -> str:
     fconf = config["features"]["repeat_masker"]
     rest = maybe(grp, lambda f: f"{grp}_{fam}", fam)
     # TODO this is hardcoded for now
@@ -455,7 +479,7 @@ def fmt_repeat_masker_feature(config, grp, fam=None):
     return fmt_feature(fconf["prefix"], f"{rest}_{suffix}")
 
 
-def repeat_masker_feature_names(config):
+def repeat_masker_feature_names(config: JSONDict) -> List[str]:
     fconf = config["features"]["repeat_masker"]
     fmt = partial(fmt_repeat_masker_feature, config)
     return [
@@ -464,22 +488,22 @@ def repeat_masker_feature_names(config):
     ]
 
 
-def fmt_count_feature(prefix):
+def fmt_count_feature(prefix: str) -> str:
     return fmt_feature(prefix, "count")
 
 
-def fmt_merged_feature(prefix, middle, op):
+def fmt_merged_feature(prefix: str, middle: str, op: str) -> str:
     return fmt_feature(prefix, f"{middle}_{op}")
 
 
-def merged_feature_names(prefix, names, ops):
+def merged_feature_names(prefix: str, names: List[str], ops: str) -> List[str]:
     return [
         *[fmt_merged_feature(prefix, n, o) for n, o in product(names, ops)],
         fmt_count_feature(prefix),
     ]
 
 
-def segdup_feature_names(config):
+def segdup_feature_names(config: JSONDict) -> List[str]:
     fconf = config["features"]["segdups"]
     prefix = fconf["prefix"]
     return merged_feature_names(
@@ -489,12 +513,12 @@ def segdup_feature_names(config):
     )
 
 
-def fmt_tandem_repeat_base(config, bases):
+def fmt_tandem_repeat_base(config: JSONDict, bases: str) -> str:
     bs_prefix = config["features"]["tandem_repeats"]["bases_prefix"]
     return f"{bs_prefix}_{bases}"
 
 
-def tandem_repeat_feature_names(config):
+def tandem_repeat_feature_names(config: JSONDict) -> List[str]:
     fconf = config["features"]["tandem_repeats"]
     prefix = fconf["prefix"]
     # TODO weirdly hardcoded in several places
@@ -507,7 +531,7 @@ def tandem_repeat_feature_names(config):
     ]
 
 
-def all_feature_names(config):
+def all_feature_names(config: JSONDict) -> List[str]:
     return [
         *vcf_feature_names(config),
         *mappability_feature_names(config),
