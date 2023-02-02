@@ -1,0 +1,144 @@
+inputs:
+  HG002_Illumina_DV:
+    # manually restrict to not X/Y because clinvar has X/Y and the benchmarks
+    # don't, and currently the model will try to run any chromosomes it can find
+    # if I don't use a filter
+    chr_filter: &filter [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22]
+    train:
+      url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG002.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
+      ref: GRCh38
+      benchmark: HG002_v4.2.1
+    test:
+      Clinvar_Illumina: &clinvar
+        url: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/archive_2.0/2022/clinvar_20220812.vcf.gz
+        ref: GRCh38
+        # isn't genomics wonderful?
+        chr_prefix: ''
+        format_fields: {}
+        benchmark: null
+        # There are some super long variants in clinvar. Filter these out
+        # because a) they would overlap with so many annotations that a new
+        # universe would spawn into existance and b) they are outside what a
+        # trained model would be good at testing anyways (until we incorporate
+        # structural variants)
+        max_ref: 50
+        max_alt: 50
+        format_fields:
+          vaf: null
+          dp: null
+          gt: null
+          gq: null
+  HG002_Hifi_DV:
+    chr_filter: *filter
+    train:
+      url: https://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/data/AshkenazimTrio/analysis/PacBio_CCS_15kb_20kb_chemistry2_10312019/GRCh38/deepvariant_HG002_GRCh38_15kb_37X_SequelII.vcf.gz
+      ref: GRCh38
+      benchmark: HG002_v4.2.1
+    test:
+      Clinvar_Hifi: *clinvar
+  HG002_Singular_DV:
+    chr_filter: *filter
+    train:
+      url: null
+      ref: GRCh38
+      benchmark: HG002_v4.2.1
+    test:
+      Clinvar_Singular: *clinvar
+  HG002_Ultima_DV:
+    chr_filter: *filter
+    train:
+      url: null
+      ref: GRCh38
+      benchmark: HG002_v4.2.1
+    test:
+      Clinvar_Ultima: *clinvar
+  HG002_PM_DV:
+    chr_filter: *filter
+    train:
+      url: https://data.nist.gov/od/ds/ark:/88434/mds2-2336/submission_vcfs/RU88N/RU88N_HG002.vcf.gz
+      ref: GRCh38
+      benchmark: HG002_v4.2.1
+    test:
+      Clinvar_PM_DV: *clinvar
+
+ebm_runs:
+  vcf_fn_v1:
+    inputs: &ebm_inputs
+      - HG002_Hifi_DV: [Clinvar_Hifi]
+        HG002_Illumina_DV: [Clinvar_Illumina]
+        HG002_Ultima_DV: [Clinvar_Ultima]
+        HG002_Singular_DV: [Clinvar_Singular]
+        HG002_PM_DV: [Clinvar_PM_DV]
+    filter: [SNP, INDEL]
+    ebm_settings: &ebm_settings
+      split_parameters:
+        test_size: 0.2
+    error_labels: [fn]
+    filtered_are_candidates: false
+    interactions:
+      - VCF_input
+      - [VCF_indel_length, HOMOPOL_A_length]
+      - [VCF_indel_length, HOMOPOL_T_length]
+      - [VCF_indel_length, HOMOPOL_G_length]
+      - [VCF_indel_length, HOMOPOL_C_length]
+
+    features: &base_features
+      VCF_input:
+        feature_type: categorical
+      VCF_indel_length:
+        visualization:
+          plot_type: bar
+          truncate: {lower: -50, upper: 50}
+
+      HOMOPOL_A_length: &homopol_length
+        visualization:
+          plot_type: bar
+          truncate: {lower: 0, upper: 50}
+      HOMOPOL_T_length: *homopol_length
+      HOMOPOL_G_length: *homopol_length
+      HOMOPOL_C_length: *homopol_length
+      HOMOPOL_A_imperfect_frac: &homopol_frac
+        fill_na: -1
+        visualization:
+          split_missing: 0
+      HOMOPOL_T_imperfect_frac: *homopol_frac
+      HOMOPOL_G_imperfect_frac: *homopol_frac
+      HOMOPOL_C_imperfect_frac: *homopol_frac
+
+      TR_unit_size_max:
+        visualization:
+          plot_type: bar
+          truncate: {lower: 0, upper: 50}
+      TR_identity_min: {}
+      TR_percent_AT_median:
+        fill_na: -1
+        visualization:
+          split_missing: 0
+      TR_length:
+        transform: log
+        visualization:
+          split_missing: 0
+
+      REPMASK_SINE_length:
+        transform: binary
+        alt_name: REPMASK_SINE
+        feature_type: categorical
+      REPMASK_LTR_length:
+        transform: binary
+        alt_name: REPMASK_LTR
+        feature_type: categorical
+      REPMASK_LINE_length: {}
+
+      MAP_difficult_250bp:
+        feature_type: categorical
+      MAP_difficult_100bp:
+        feature_type: categorical
+
+      SEGDUP_size_max: {}
+      SEGDUP_identity_mean:
+        visualization:
+          split_missing: 0.85
+      SEGDUP_count:
+        visualization:
+          plot_type: bar
+          truncate: {upper: 50}
