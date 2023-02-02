@@ -1,5 +1,5 @@
 annotations_dir = "annotations"
-annotations_src_dir = resources_dir / all_wildcards["ref_key"] / annotations_dir
+annotations_src_dir = resources_dir / annotations_dir / all_wildcards["ref_key"]
 annotations_tsv_dir = results_dir / annotations_dir / all_wildcards["refset_key"]
 annotations_log_dir = log_dir / annotations_dir / all_wildcards["refset_key"]
 
