@@ -47,7 +47,7 @@ inputs:
   HG002_Ultima_DV:
     chr_filter: *filter
     train:
-      url: null
+      url: https://s3.amazonaws.com/ultima-selected-1k-genomes-vcf-only/DeepVariant_vcfs/HG002_005401-UGAv3-1-CACATCCTGCATGTGAT.vcf.gz
       ref: GRCh38
       benchmark: HG002_v4.2.1
     test:
