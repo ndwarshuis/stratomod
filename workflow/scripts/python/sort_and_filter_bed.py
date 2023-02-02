@@ -2,7 +2,6 @@ import argparse
 import logging
 from common.tsv import read_tsv, write_tsv
 from common.bed import sort_bed_numerically, standardize_chr_column
-from common.config import refsetkey_to_chr_prefix
 
 # simple wrapper script to sort bed files in a pipe using stdin/stdout
 
@@ -20,7 +19,7 @@ logging.basicConfig(level=logging.INFO)
 logging.captureWarnings(True)
 
 
-def make_parser():
+def make_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("-H", "--header", action="store_true")
     parser.add_argument("-c", "--comment", type=str, default="#")
@@ -29,7 +28,7 @@ def make_parser():
     return parser
 
 
-def main():
+def main() -> None:
     args = make_parser().parse_args()
     df = read_tsv(
         None,

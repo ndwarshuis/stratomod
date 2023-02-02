@@ -1,6 +1,7 @@
 from functools import reduce
+from typing import List
 import numpy as np
-from pybedtools import BedTool as bt
+from pybedtools import BedTool as bt  # type: ignore
 from common.tsv import read_tsv, write_tsv
 from common.cli import setup_logging
 from common.config import lookup_raw_index
@@ -49,7 +50,7 @@ def left_outer_intersect(left, path):
     return new_df.drop(columns=new_pky)
 
 
-def intersect_tsvs(ifile, ofile, tsv_paths):
+def intersect_tsvs(ifile: str, ofile: str, tsv_paths: List[str]):
     target_df = read_tsv(ifile)
     new_df = reduce(left_outer_intersect, tsv_paths, target_df)
     new_df.insert(
@@ -60,7 +61,7 @@ def intersect_tsvs(ifile, ofile, tsv_paths):
     write_tsv(ofile, new_df)
 
 
-def main():
+def main() -> None:
     tsvs = snakemake.input.annotations
     vcf = snakemake.input.variants[0]
     logger.info("Adding annotations to %s\n", vcf)

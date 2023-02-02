@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+import common.config as cfg
+from typing import List, Set
 from functools import partial
 from more_itertools import duplicates_everseen
 from common.functional import compose
@@ -13,7 +15,7 @@ FN_LABEL = "fn"
 FILTERED_VAL = "RefCall"
 
 
-def process_series(opts, ser):
+def process_series(opts: cfg.JSONDict, ser: pd.Series) -> pd.Series:
     trans = opts["transform"]
     _ser = pd.to_numeric(ser, errors="coerce")
     if trans == "binary":
@@ -31,14 +33,14 @@ def process_series(opts, ser):
 #     )
 
 
-def process_columns(features, df):
+def process_columns(features: cfg.JSONDict, df: pd.DataFrame) -> pd.DataFrame:
     for col, opts in features.items():
         df[col] = process_series(opts, df[col])
     return df
 
 
-def check_columns(wanted_cols, df_cols):
-    def assert_dups(xs, msg):
+def check_columns(wanted_cols: List[str], df_cols: List[str]) -> None:
+    def assert_dups(xs: List[str], msg: str) -> Set[str]:
         dups = [*duplicates_everseen(xs)]
         assert 0 == len(dups), f"{msg}: {dups}"
         return set(xs)
@@ -53,7 +55,12 @@ def check_columns(wanted_cols, df_cols):
     ), "configuration features must be a subset of columns in input dataframe"
 
 
-def select_columns(features, idx_cols, label_col, df):
+def select_columns(
+    features: cfg.JSONDict,
+    idx_cols: List[str],
+    label_col: str,
+    df: pd.DataFrame,
+) -> pd.DataFrame:
     wanted_cols = [*features] if label_col is None else [*features, label_col]
     check_columns(wanted_cols, df.columns.tolist())
     # TODO ensure that "VCF_input" is included even when we don't "want" it,
@@ -64,10 +71,15 @@ def select_columns(features, idx_cols, label_col, df):
     return df[all_cols].rename(columns=to_rename)
 
 
-def mask_labels(filtered_are_candidates, label_col, filter_col, df):
+def mask_labels(
+    filtered_are_candidates: bool,
+    label_col: str,
+    filter_col: str,
+    df: pd.DataFrame,
+):
     # if we don't want to include filtered labels (from the perspective of
     # the truth set) they all become false negatives
-    def mask(row):
+    def mask(row: dict) -> str:
         if row[filter_col] == FILTERED_VAL:
             if row[label_col] == FP_LABEL:
                 return TN_LABEL
@@ -84,7 +96,11 @@ def mask_labels(filtered_are_candidates, label_col, filter_col, df):
     return df
 
 
-def collapse_labels(error_labels, label_col, df):
+def collapse_labels(
+    error_labels: List[str],
+    label_col: str,
+    df: pd.DataFrame,
+) -> pd.DataFrame:
     all_labels = [*error_labels, TP_LABEL]
     return df[df[label_col].apply(lambda x: x in all_labels)].assign(
         **{label_col: lambda x: (x[label_col] == TP_LABEL).astype(int)}
@@ -92,13 +108,13 @@ def collapse_labels(error_labels, label_col, df):
 
 
 def process_labeled_data(
-    features,
-    error_labels,
-    filtered_are_candidates,
-    idx_cols,
-    filter_col,
-    label_col,
-    df,
+    features: cfg.JSONDict,
+    error_labels: List[str],
+    filtered_are_candidates: bool,
+    idx_cols: List[str],
+    filter_col: str,
+    label_col: str,
+    df: pd.DataFrame,
 ):
     # select columns after transforms to avoid pandas asking me to make a
     # deep copy (which will happen on a slice of a slice)

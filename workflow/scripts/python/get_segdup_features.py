@@ -1,6 +1,6 @@
 import pandas as pd
+from typing import Dict
 import common.config as cfg
-from pybedtools import BedTool as bt  # pylint: disable=import-error
 from common.tsv import write_tsv
 from common.bed import read_bed_df, merge_and_apply_stats
 from common.cli import setup_logging
@@ -16,7 +16,11 @@ from common.cli import setup_logging
 logger = setup_logging(snakemake.log[0])
 
 
-def read_segdups(path: str, fconf: dict, bed_cols: dict[str, str]) -> pd.DataFrame:
+def read_segdups(
+    path: str,
+    fconf: cfg.JSONDict,
+    bed_cols: Dict[str, str],
+) -> pd.DataFrame:
     cols = fconf["columns"]
     feature_cols = {
         18: cols["alignL"],
@@ -37,8 +41,8 @@ def read_segdups(path: str, fconf: dict, bed_cols: dict[str, str]) -> pd.DataFra
 
 def merge_segdups(
     df: pd.DataFrame,
-    fconf: dict,
-    bed_cols: dict[str, str],
+    fconf: cfg.JSONDict,
+    bed_cols: Dict[str, str],
 ) -> pd.DataFrame:
     bed, names = merge_and_apply_stats(
         fconf["operations"],
@@ -49,7 +53,7 @@ def merge_segdups(
     return bed.to_dataframe(names=names)
 
 
-def main():
+def main() -> None:
     fconf = snakemake.config["features"]["segdups"]
     bed_cols = cfg.lookup_bed_cols(snakemake.config)
     repeat_df = read_segdups(snakemake.input[0], fconf, bed_cols)

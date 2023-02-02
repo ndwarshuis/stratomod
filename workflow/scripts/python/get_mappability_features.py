@@ -8,7 +8,7 @@ from common.cli import setup_logging
 logger = setup_logging(snakemake.log[0])
 
 
-def read_plain_bed(path, key, prefix):
+def read_plain_bed(path: str, key: str, prefix: str):
     logger.info("Reading mappability %s", key)
     # these are just plain bed files with no extra columns
     bed_cols = [*cfg.lookup_bed_cols(snakemake.config).values()]
@@ -19,7 +19,7 @@ def read_plain_bed(path, key, prefix):
     return standardize_chr_column(prefix, bed_cols[0], df)
 
 
-def main():
+def main() -> None:
     prefix = cfg.refsetkey_to_chr_prefix(
         snakemake.config, snakemake.wildcards["refset_key"]
     )

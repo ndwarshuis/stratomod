@@ -1,10 +1,12 @@
 import json
 import pandas as pd
 import numpy as np
+from typing import Any, List
 from common.cli import setup_logging
 from common.ebm import read_model
 from common.tsv import read_tsv, write_tsv
 from common.config import lookup_all_index_cols
+from interpret.glassbox import ExplainableBoostingClassifier  # type: ignore
 
 setup_logging(snakemake.log[0])
 
@@ -13,12 +15,12 @@ setup_logging(snakemake.log[0])
 # just to avoid the pickle thing
 
 
-def array_to_list(arr, repeat_last):
+def array_to_list(arr: Any, repeat_last: bool) -> Any:
     al = arr.tolist()
     return al + [al[-1]] if repeat_last else al
 
 
-def get_univariate_df(vartype, feature_data, stdev):
+def get_univariate_df(vartype: str, feature_data: Any, stdev: Any) -> Any:
     def proc_scores(scores):
         if vartype == "continuous":
             return array_to_list(scores, True)
@@ -36,7 +38,7 @@ def get_univariate_df(vartype, feature_data, stdev):
     }
 
 
-def build_scores_array(arr, left_type, right_type):
+def build_scores_array(arr: Any, left_type: str, right_type: str) -> Any:
     # any continuous dimension is going to be one less than the names length,
     # so copy the last row/column to the end in these cases
     if left_type == "continuous":
@@ -46,8 +48,14 @@ def build_scores_array(arr, left_type, right_type):
     return arr
 
 
-def get_bivariate_df(all_features, ebm_global, name, data_index, stdevs):
-    def lookup_feature_type(name):
+def get_bivariate_df(
+    all_features: dict,
+    ebm_global: ExplainableBoostingClassifier,
+    name: str,
+    data_index: int,
+    stdevs: Any,
+) -> dict:
+    def lookup_feature_type(name: str) -> str:
         return all_features[name][0]
 
     feature_data = ebm_global.data(data_index)
@@ -90,12 +98,16 @@ def get_bivariate_df(all_features, ebm_global, name, data_index, stdevs):
     }
 
 
-def get_global_scores(ebm_global):
+def get_global_scores(ebm_global: ExplainableBoostingClassifier) -> dict:
     glob = ebm_global.data()
     return {"variable": glob["names"], "score": glob["scores"]}
 
 
-def get_univariate_list(ebm_global, all_features, stdevs):
+def get_univariate_list(
+    ebm_global: ExplainableBoostingClassifier,
+    all_features: Any,
+    stdevs: Any,
+) -> List[dict]:
     return [
         {
             "name": name,
@@ -107,7 +119,11 @@ def get_univariate_list(ebm_global, all_features, stdevs):
     ]
 
 
-def get_bivariate_list(ebm_global, all_features, stdevs):
+def get_bivariate_list(
+    ebm_global: ExplainableBoostingClassifier,
+    all_features: Any,
+    stdevs: Any,
+) -> List[dict]:
     return [
         get_bivariate_df(all_features, ebm_global, name, i, stdevs)
         for name, (vartype, i) in all_features.items()
@@ -115,7 +131,7 @@ def get_bivariate_list(ebm_global, all_features, stdevs):
     ]
 
 
-def get_model_dict(ebm):
+def get_model_dict(ebm: ExplainableBoostingClassifier) -> dict:
     ebm_global = ebm.explain_global()
     stdevs = ebm.term_standard_deviations_
     all_features = {
@@ -132,12 +148,12 @@ def get_model_dict(ebm):
     }
 
 
-def write_model_json(ebm):
+def write_model_json(ebm: ExplainableBoostingClassifier) -> None:
     with open(snakemake.output["model"], "w") as f:
         json.dump(get_model_dict(ebm), f)
 
 
-def main():
+def main() -> None:
     sin = snakemake.input
     sout = snakemake.output
     sconf = snakemake.config

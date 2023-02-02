@@ -1,7 +1,7 @@
 import pandas as pd
+from typing import Dict
 import common.config as cfg
 from functools import partial
-from pybedtools import BedTool as bt  # pylint: disable=import-error
 from common.tsv import write_tsv
 from common.bed import read_bed_df, merge_and_apply_stats
 from common.cli import setup_logging
@@ -26,7 +26,7 @@ def format_base(bs_prefix: int, base: str) -> str:
 def read_tandem_repeats(
     path: str,
     fconf: dict,
-    bed_cols: dict[str, str],
+    bed_cols: Dict[str, str],
     sconf: dict,
     prefix: str,
 ) -> pd.DataFrame:
@@ -64,7 +64,7 @@ def merge_tandem_repeats(
     gfile: str,
     df: pd.DataFrame,
     fconf: dict,
-    bed_cols: dict[str, str],
+    bed_cols: Dict[str, str],
 ) -> pd.DataFrame:
     prefix = fconf["prefix"]
     bed, names = merge_and_apply_stats(fconf["operations"], bed_cols, prefix, df)
@@ -76,7 +76,7 @@ def merge_tandem_repeats(
     return merged_df
 
 
-def main():
+def main() -> None:
     i = snakemake.input
     sconf = snakemake.config
     prefix = cfg.refsetkey_to_chr_prefix(sconf, snakemake.wildcards["refset_key"])

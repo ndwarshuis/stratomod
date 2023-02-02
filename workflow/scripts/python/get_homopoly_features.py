@@ -1,10 +1,10 @@
 import pandas as pd
+from typing import Dict
 import common.config as cfg
 from functools import partial
-from pybedtools import BedTool as bt
+from pybedtools import BedTool as bt  # type: ignore
 from pybedtools import cleanup
 from common.tsv import write_tsv, read_tsv
-from common.bed import sort_bed_numerically
 from common.cli import setup_logging
 
 logger = setup_logging(snakemake.log[0])
@@ -18,13 +18,18 @@ SLOP = 1
 fmt_feature = partial(cfg.fmt_homopolymer_feature, snakemake.config)
 
 
-def read_input(path: str, bed_cols: dict[str, str]):
+def read_input(path: str, bed_cols: Dict[str, str]):
     logger.info("Reading dataframe from %s", path)
     names = [*cfg.bed_cols_ordered(bed_cols), BASE_COL]
     return read_tsv(path, header=None, comment="#", names=names)
 
 
-def merge_base(df, base, genome, bed_cols):
+def merge_base(
+    df: pd.DataFrame,
+    base: str,
+    genome: str,
+    bed_cols: Dict[str, str],
+) -> pd.DataFrame:
     logger.info("Filtering bed file for %ss", base)
     _df = df[df[BASE_COL] == f"unit={base}"].drop(columns=[BASE_COL])
     ldf = len(_df)
@@ -57,7 +62,7 @@ def merge_base(df, base, genome, bed_cols):
     return merged.drop(columns=[PFCT_LEN_COL])
 
 
-def main():
+def main() -> None:
     bed_cols = cfg.lookup_bed_cols(snakemake.config)
     # ASSUME this file is already sorted
     simreps = read_input(snakemake.input["bed"][0], bed_cols)
