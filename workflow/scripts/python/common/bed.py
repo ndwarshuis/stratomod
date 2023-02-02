@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict
+from typing import List, Dict, Union
 from functools import partial
 from itertools import product
 from more_itertools import unzip
@@ -31,7 +31,11 @@ def standardize_chr_series(prefix: str, ser: pd.Series) -> pd.Series:
     return pd.to_numeric(_ser, errors="coerce").astype("Int64")
 
 
-def standardize_chr_column(prefix: str, chr_col: str, df: pd.DataFrame) -> pd.DataFrame:
+def standardize_chr_column(
+    prefix: str,
+    chr_col: Union[str, int],
+    df: pd.DataFrame,
+) -> pd.DataFrame:
     logging.info("Standardizing chromosome column: %s", chr_col)
     df[chr_col] = standardize_chr_series(prefix, df[chr_col])
     logging.info(
