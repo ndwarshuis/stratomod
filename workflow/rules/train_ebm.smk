@@ -3,11 +3,7 @@ import json
 import subprocess as sp
 from collections import namedtuple
 from more_itertools import flatten, partition, unzip
-from scripts.python.common.config import (
-    attempt_mem_gb,
-    inputkey_to_refsetkey,
-    lookup_config,
-)
+import scripts.python.common.config as cfg
 
 labeled_dir = "labeled"
 unlabeled_dir = "unlabeled"
@@ -22,7 +18,7 @@ def expand_from_inputkeys(path, wildcards):
         zip,
         allow_missing=True,
         input_key=input_keys,
-        refset_key=[inputkey_to_refsetkey(config, k) for k in input_keys],
+        refset_key=[cfg.inputkey_to_refsetkey(config, k) for k in input_keys],
     )
 
 
@@ -72,7 +68,7 @@ rule annotate_labeled_tsv:
     benchmark:
         labeled_annotated_dir / annotated_bench
     resources:
-        mem_mb=attempt_mem_gb(32),
+        mem_mb=cfg.attempt_mem_gb(32),
     script:
         python_path("annotate.py")
 
@@ -358,160 +354,22 @@ use rule summarize_labeled_test as summarize_unlabeled_test with:
 # global targets
 
 
-def expand_unzip(path, keys, key_set):
-    if isinstance(keys, dict):
-        lookup = keys.values()
-        keys = [*keys]
-    else:
-        lookup = keys
-    subkeys = [[getattr(s, l) for l in lookup] for s in key_set]
-    return expand(path, zip, **{k: [*s] for k, s in zip(keys, unzip(subkeys))})
-
-
-def test_has_bench(run_keys_test):
-    return (
-        lookup_config(
-            config,
-            [
-                "inputs",
-                run_keys_test.input_key,
-                "test",
-                run_keys_test.test_key,
-                "benchmark",
-            ],
-        )
-        is not None
-    )
-
-
-RunKeys = namedtuple("RunKeys", ["run_key", "filter_key", "input_keys", "inputs"])
-RunKeysTrain = namedtuple(
-    "RunKeysTrain",
-    [
-        "run_key",
-        "filter_key",
-        "input_keys",
-        "input_key",
-        "refset_key",
-    ],
-)
-RunKeysTest = namedtuple(
-    "RunKeysTest",
-    [
-        "run_key",
-        "filter_key",
-        "input_keys",
-        "input_key",
-        "test_key",
-        "refset_key",
-    ],
-)
-
-
-run_set = [
-    RunKeys(k, f, INPUT_DELIM.join([*ns]), ns)
-    for k, rs in config["ebm_runs"].items()
-    for f in rs["filter"]
-    for ns in rs["inputs"]
-]
-
-train_set = [
-    RunKeysTrain(
-        r.run_key,
-        r.filter_key,
-        r.input_keys,
-        i,
-        inputkey_to_refsetkey(config, i),
-    )
-    for r in run_set
-    for i in r.inputs
-]
-
-test_set = [
-    RunKeysTest(
-        r.run_key,
-        r.filter_key,
-        r.input_keys,
-        i,
-        t,
-        inputkey_to_refsetkey(config, i),
-    )
-    for r in run_set
-    for i, ts in r.inputs.items()
-    for t in ts
-]
-unlabeled_test_set, labeled_test_set = map(list, partition(test_has_bench, test_set))
-
-
-def all_input_summary_files():
-    def labeled_targets(key_set):
-        return expand_unzip(
-            rules.summarize_labeled_input.output,
-            ["run_key", "filter_key", "input_key", "refset_key"],
-            train_set,
-        )
-
-    train = labeled_targets(train_set)
-    # labeled_test = labeled_targets(labeled_test_set)
-    labeled_test = expand_unzip(
-        rules.summarize_labeled_input.output,
-        {
-            "run_key": "run_key",
-            "filter_key": "filter_key",
-            "input_key": "test_key",
-            "refset_key": "refset_key",
-        },
-        labeled_test_set,
-    )
-    unlabeled_test = expand_unzip(
-        rules.summarize_unlabeled_input.output,
-        {
-            "run_key": "run_key",
-            "filter_key": "filter_key",
-            "input_key": "test_key",
-            "refset_key": "refset_key",
-        },
-        unlabeled_test_set,
-    )
-    return train + labeled_test + unlabeled_test
-
-
-def all_ebm_files():
-    train = expand_unzip(
-        rules.summarize_model.output,
-        ["run_key", "filter_key", "input_keys"],
-        run_set,
-    )
-
-    def expand_unzip_test(path, key_set):
-        keys = [
-            "run_key",
-            "filter_key",
-            "input_keys",
-            "input_key",
-            "test_key",
-            "refset_key",
-        ]
-        return expand_unzip(path, keys, key_set)
-
-    # TODO these should eventually point to the test summary htmls
-    labeled_test = expand_unzip_test(
-        rules.summarize_labeled_test.output,
-        labeled_test_set,
-    )
-    unlabeled_test = expand_unzip_test(
-        rules.summarize_unlabeled_test.output,
-        unlabeled_test_set,
-    )
-
-    return train + labeled_test + unlabeled_test
-
-
 rule all_summary:
     input:
-        all_input_summary_files(),
+        cfg.all_input_summary_files(
+            config,
+            INPUT_DELIM,
+            rules.summarize_labeled_input.output,
+            rules.summarize_unlabeled_input.output,
+        ),
 
 
 rule all_ebm:
     input:
-        all_ebm_files(),
+        cfg.all_ebm_files(
+            config,
+            INPUT_DELIM,
+            rules.summarize_model.output,
+            rules.summarize_labeled_test.output,
+            rules.summarize_unlabeled_test.output,
+        ),

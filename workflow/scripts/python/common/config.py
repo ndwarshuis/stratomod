@@ -9,11 +9,13 @@ from typing import (
     Collection,
     Callable,
     Optional,
+    NamedTuple,
 )
-from more_itertools import flatten, duplicates_everseen, unzip
-from itertools import product, filterfalse
+from more_itertools import flatten, duplicates_everseen, unzip, partition
+from itertools import product
 from functools import partial
 from .functional import maybe, compose
+from snakemake.io import expand, InputFiles  # type: ignore
 
 # JSONVal = Union[bool, str, float, int, List["JSONVal"], "JSONDict"]
 
@@ -145,30 +147,172 @@ def attempt_mem_gb(mem_gb: int) -> Callable[[dict, int], int]:
 
 
 # ------------------------------------------------------------------------------
-# wildcard sets (for building targets)
+# expanding targets
 
 
-def all_benchkeys(config: JSONDict) -> Dict[str, List[str]]:
-    bks = [
+def all_benchkeys(config: JSONDict, target: InputFiles) -> InputFiles:
+    rs, bs = unzip(
         (inputkey_to_refkey(config, k), b)
         for k, v in flat_inputs(config).items()
         if (b := v["benchmark"]) is not None
-    ]
-    return {k: list(v) for k, v in zip(["ref_key", "bench_key"], unzip(bks))}
-
-
-def input_set(config: JSONDict, key: str) -> Set[str]:
-    return set(
-        filterfalse(lambda x: not x, [x[key] for x in flat_inputs(config).values()])
     )
-    # flatten(
-    #     [
-    #         *[a for t in nv["test"].values() if (a := t[attr]) is not None],
-    #         nv["train"][attr],
-    #     ]
-    #     for nk, nv in config["inputs"].items()
-    # )
-    # )
+    return expand(target, zip, ref_key=rs, bench_key=bs)
+
+
+class RunKeys(NamedTuple):
+    run_key: str
+    filter_key: str
+    input_keys: str
+    inputs: JSONDict
+
+
+class RunKeysTrain(NamedTuple):
+    run_key: str
+    filter_key: str
+    input_keys: str
+    input_key: str
+    refset_key: str
+
+
+class RunKeysTest(NamedTuple):
+    run_key: str
+    filter_key: str
+    input_keys: str
+    input_key: str
+    test_key: str
+    refset_key: str
+
+
+def test_has_bench(config: JSONDict, runs: RunKeysTest) -> bool:
+    keys = ["inputs", runs.input_key, "test", runs.test_key, "benchmark"]
+    return lookup_config(config, keys) is not None
+
+
+def lookup_run_set(config: JSONDict, delim: str) -> List[RunKeys]:
+    return [
+        RunKeys(k, f, delim.join([*ns]), ns)
+        for k, rs in config["ebm_runs"].items()
+        for f in rs["filter"]
+        for ns in rs["inputs"]
+    ]
+
+
+def lookup_train_set(config: JSONDict, run_set: List[RunKeys]) -> List[RunKeysTrain]:
+    return [
+        RunKeysTrain(
+            r.run_key,
+            r.filter_key,
+            r.input_keys,
+            i,
+            inputkey_to_refsetkey(config, i),
+        )
+        for r in run_set
+        for i in r.inputs
+    ]
+
+
+def lookup_test_set(config: JSONDict, run_set: List[RunKeys]) -> List[RunKeysTest]:
+    return [
+        RunKeysTest(
+            r.run_key,
+            r.filter_key,
+            r.input_keys,
+            i,
+            t,
+            inputkey_to_refsetkey(config, i),
+        )
+        for r in run_set
+        for i, ts in r.inputs.items()
+        for t in ts
+    ]
+
+
+def lookup_test_sets(
+    config: JSONDict,
+    run_set: List[RunKeys],
+) -> Tuple[List, List]:
+    test_set = lookup_test_set(config, run_set)
+    unlabeled, labeled = partition(lambda t: test_has_bench(config, t), test_set)
+    return list(unlabeled), list(labeled)
+
+
+def all_input_summary_files(
+    config: JSONDict,
+    delim: str,
+    labeled_target: InputFiles,
+    unlabeled_target: InputFiles,
+) -> InputFiles:
+    def labeled_targets(target: InputFiles, key_set: List[RunKeysTrain]):
+        return expand(
+            labeled_target,
+            zip,
+            run_key=map(lambda x: x.run_key, train_set),
+            filter_key=map(lambda x: x.filter_key, train_set),
+            input_key=map(lambda x: x.input_key, train_set),
+            refset_key=map(lambda x: x.refset_key, train_set),
+        )
+
+    def test_targets(target: InputFiles, key_set: List[RunKeysTest]) -> InputFiles:
+        return expand(
+            target,
+            zip,
+            run_key=map(lambda x: x.run_key, key_set),
+            filter_key=map(lambda x: x.filter_key, key_set),
+            input_key=map(lambda x: x.test_key, key_set),
+            refset_key=map(lambda x: x.refset_key, key_set),
+        )
+
+    run_set = lookup_run_set(config, delim)
+    train_set = lookup_train_set(config, run_set)
+    unlabeled_test_set, labeled_test_set = lookup_test_sets(config, run_set)
+
+    return (
+        labeled_targets(labeled_target, train_set)
+        + test_targets(labeled_target, labeled_test_set)
+        + test_targets(unlabeled_target, unlabeled_test_set)
+    )
+
+
+def all_ebm_files(
+    config: JSONDict,
+    delim: str,
+    train_target: InputFiles,
+    labeled_test_target: InputFiles,
+    unlabeled_test_target: InputFiles,
+) -> InputFiles:
+    def test_targets(path: InputFiles, key_set: List[RunKeysTest]) -> InputFiles:
+        return expand(
+            path,
+            zip,
+            run_key=map(lambda x: x.run_key, key_set),
+            filter_key=map(lambda x: x.filter_key, key_set),
+            input_keys=map(lambda x: x.input_keys, key_set),
+            input_key=map(lambda x: x.input_key, key_set),
+            test_key=map(lambda x: x.test_key, key_set),
+            refset_key=map(lambda x: x.refset_key, key_set),
+        )
+
+    run_set = lookup_run_set(config, delim)
+    unlabeled_test_set, labeled_test_set = lookup_test_sets(config, run_set)
+    train = expand(
+        train_target,
+        zip,
+        run_key=map(lambda x: x.run_key, run_set),
+        filter_key=map(lambda x: x.filter_key, run_set),
+        input_keys=map(lambda x: x.input_keys, run_set),
+    )
+
+    # TODO these should eventually point to the test summary htmls
+    labeled_test = test_targets(
+        labeled_test_target,
+        labeled_test_set,
+    )
+    unlabeled_test = test_targets(
+        unlabeled_test_target,
+        unlabeled_test_set,
+    )
+
+    return train + labeled_test + unlabeled_test
 
 
 # ------------------------------------------------------------------------------

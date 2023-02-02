@@ -1,14 +1,7 @@
 from functools import partial
 from pathlib import Path
 from snakemake.utils import min_version, validate
-from scripts.python.common.config import (
-    input_set,
-    validate_inputs,
-    validate_ebm_inputs,
-    validate_ebm_features,
-    all_refkeys,
-    all_benchkeys,
-)
+import scripts.python.common.config as cfg
 
 min_version("7.20")
 
@@ -17,9 +10,9 @@ configfile: "config/static.yml"
 
 
 validate(config, "schemas/config-schema.yml")
-validate_inputs(config)
-validate_ebm_features(config)
-validate_ebm_inputs(config)
+cfg.validate_inputs(config)
+cfg.validate_ebm_features(config)
+cfg.validate_ebm_inputs(config)
 
 ################################################################################
 # Wildcards
@@ -78,12 +71,12 @@ rule all_resources:
         # query vcfs
         expand(rules.download_query_vcf.output, input_key=[*config["inputs"]]),
         # benchmark vcfs/beds
-        expand(
+        cfg.all_benchkeys(
+            config,
             [
                 *rules.download_bench_vcf.output,
                 *rules.download_bench_bed.output,
             ],
-            **all_benchkeys(config)
         ),
         # reference and reference-dependent annotation files
         expand(
@@ -96,5 +89,5 @@ rule all_resources:
                 *rules.download_superdups.output,
                 *rules.download_tandem_repeats.output,
             ],
-            ref_key=all_refkeys(config),
+            ref_key=cfg.all_refkeys(config),
         ),
