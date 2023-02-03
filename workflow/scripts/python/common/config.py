@@ -388,16 +388,14 @@ def refsetkey_to_chr_indices(config: JSONDict, refset_key: str) -> List[int]:
     return list(range(1, 25)) if len(f) == 0 else f
 
 
-def refsetkey_to_chr_prefix(config: JSONDict, refset_key: str) -> str:
-    return compose(
-        partial(refkey_to_ref, config, ["chr_prefix"]),
-        partial(refsetkey_to_refkey, config),
-    )(refset_key)
+def refsetkey_to_chr_prefix(config: JSONDict, args: List[str], refset_key: str) -> str:
+    ref_key = refsetkey_to_refkey(config, refset_key)
+    return refkey_to_ref(config, [*args, "chr_prefix"], ref_key)
 
 
-def refsetkey_to_chr_filter(config: JSONDict, refset_key: str) -> List[str]:
+def refsetkey_to_sdf_chr_filter(config: JSONDict, refset_key: str) -> List[str]:
     indices = refsetkey_to_chr_indices(config, refset_key)
-    prefix = refsetkey_to_ref(config, ["chr_prefix"], refset_key)
+    prefix = refsetkey_to_ref(config, ["sdf", "chr_prefix"], refset_key)
     return chr_indices_to_name(prefix, indices)
 
 
@@ -488,16 +486,18 @@ def flat_inputs(config: JSONDict) -> JSONDict:
 
 
 def inputkey_to_chr_prefix(config: JSONDict, input_key: str) -> str:
-    input_prefix = inputkey_to_input(config, ["chr_prefix"], input_key)
-    if input_prefix is None:
-        return compose(
-            partial(refsetkey_to_chr_prefix, config),
-            partial(inputkey_to_refsetkey, config),
-        )(input_key)
-    else:
-        return input_prefix
+    return inputkey_to_input(config, ["chr_prefix"], input_key)
+    # if input_prefix is None:
+    #     return compose(
+    #         partial(refsetkey_to_chr_prefix, config),
+    #         partial(inputkey_to_refsetkey, config),
+    #     )(input_key)
+    # else:
+    #     return input_prefix
 
 
+# TODO return integers here since I will be standardizing all columns when
+# they come in
 def inputkey_to_chr_filter(config: JSONDict, input_key: str) -> List[str]:
     prefix = inputkey_to_chr_prefix(config, input_key)
     return compose(

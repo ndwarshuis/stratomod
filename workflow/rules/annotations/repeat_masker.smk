@@ -12,7 +12,7 @@ rule download_repeat_masker:
     output:
         annotations_src_dir / rmsk_dir / "repeat_masker.txt.gz",
     params:
-        url=partial(refkey_to_ref_wc, ["annotations", "repeat_masker"]),
+        url=partial(refkey_to_ref_wc, ["annotations", "repeat_masker", "url"]),
     conda:
         envs_path("utils.yml")
     shell:

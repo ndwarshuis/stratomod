@@ -1,6 +1,6 @@
 from os.path import dirname
 from functools import partial
-from scripts.python.common.config import refsetkey_to_chr_filter
+from scripts.python.common.config import refsetkey_to_sdf_chr_filter
 from scripts.python.common.functional import compose
 
 ref_resources_dir = resources_dir / "reference" / all_wildcards["ref_key"]
@@ -16,7 +16,7 @@ rule download_ref_sdf:
     output:
         directory(ref_resources_dir / "sdf"),
     params:
-        url=partial(refkey_to_ref_wc, ["sdf"]),
+        url=partial(refkey_to_ref_wc, ["sdf", "url"]),
     conda:
         envs_path("utils.yml")
     shell:
@@ -36,7 +36,7 @@ rule sdf_to_fasta:
         refset_ref_dir / "ref.fa",
     params:
         filt=lambda wildcards: " ".join(
-            refsetkey_to_chr_filter(config, wildcards.refset_key)
+            refsetkey_to_sdf_chr_filter(config, wildcards.refset_key)
         ),
     conda:
         envs_path("rtg.yml")
@@ -63,7 +63,7 @@ rule download_mhc_strat:
     output:
         ref_resources_dir / "strats" / "mhc.bed.gz",
     params:
-        url=partial(refkey_to_ref_wc, ["strats", "mhc"]),
+        url=partial(refkey_to_ref_wc, ["strats", "mhc", "url"]),
     conda:
         envs_path("utils.yml")
     shell:

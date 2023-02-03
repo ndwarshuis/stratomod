@@ -8,7 +8,7 @@ rule download_superdups:
     output:
         annotations_src_dir / segdups_dir / "superdups.txt.gz",
     params:
-        url=partial(refkey_to_ref_wc, ["annotations", "superdups"]),
+        url=partial(refkey_to_ref_wc, ["annotations", "superdups", "url"]),
     conda:
         envs_path("utils.yml")
     shell:

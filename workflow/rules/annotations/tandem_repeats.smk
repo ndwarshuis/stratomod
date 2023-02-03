@@ -1,4 +1,4 @@
-from scripts.python.common.config import attempt_mem_gb, refsetkey_to_chr_filter
+from scripts.python.common.config import attempt_mem_gb
 
 tandem_repeats_dir = "tandem_repeats"
 tandem_repeats_results_dir = annotations_tsv_dir / tandem_repeats_dir
@@ -9,7 +9,7 @@ rule download_tandem_repeats:
     output:
         annotations_src_dir / tandem_repeats_dir / "simple_repeats.txt.gz",
     params:
-        url=partial(refkey_to_ref_wc, ["annotations", "simreps"]),
+        url=partial(refkey_to_ref_wc, ["annotations", "simreps", "url"]),
     conda:
         envs_path("utils.yml")
     shell:

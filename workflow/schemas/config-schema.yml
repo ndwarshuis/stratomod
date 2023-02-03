@@ -60,22 +60,19 @@ properties:
             description: the index of the reference set to use
 
           train:
-            required: [benchmark, url]
+            required: [benchmark, url, chr_prefix]
             additionalProperties: false
             properties:
               benchmark:
                 description: the benchmark index to use for this input
                 type: string
 
-              chr_prefix: &input_chr
+              chr_prefix: &chr_prefix
                 description: |
-                  The prefix at the front of each chromosome. 'None' implies
-                  whatever is the default for the indicated reference ('chr' for
-                  hg38 and '' for hg37). Isn't genomics wonderful?
-                default: null
-                oneOf:
-                  - type: string
-                  - type: "null"
+                  The prefix at the front of each chromosome. Defaults to "chr".
+                  Isn't genomics wonderful?
+                default: chr
+                type: string
 
               url: &input_url
                 description: the url to use in obtaining this input vcf
@@ -142,7 +139,7 @@ properties:
                 properties:
                   url: *input_url
                   format_fields: *input_parse
-                  chr_prefix: *input_chr
+                  chr_prefix: *chr_prefix
                   max_ref: *input_max_ref
                   max_alt: *input_max_alt
                   benchmark:
@@ -155,35 +152,34 @@ properties:
 ################################################################################
 # references
 
-
   references:
     additionalProperties: false
     patternProperties:
       ^[\w\.\-]+$:
-        required: [sdf, genome, strats, annotations, benchmarks, chr_prefix]
+        required: [sdf, genome, strats, annotations, benchmarks]
         additionalProperties: false
         properties:
-          chr_prefix:
-            description: the chromosome prefix to be used with this reference
-            type: string
-          sdf:
-            description: the url for the reference SDF to use
-            type: string
-            format: uri
+          sdf: &url_prefix
+            description: the sdf (from rtg) of the reference
+            required: [url, chr_prefix]
+            additionalProperties: false
+            properties:
+              url: 
+                type: string
+                format: uri
+              chr_prefix: *chr_prefix
 
           genome:
-              description: the url to the genome database file
-              type: string
-              format: uri
+            <<: *url_prefix
+            description: the url to the genome database file
 
           strats:
             additionalProperties: false
             required: [mhc]
             properties:
               mhc:
-                description: url to the MHC stratification bed file
-                type: string
-                format: uri
+                <<: *url_prefix
+                description: the MHC stratification bed file
 
           annotations:
             additionalProperties: false
@@ -194,44 +190,40 @@ properties:
                 required: [low, high]
                 properties:
                   low:
+                    <<: *url_prefix
                     description: the url for low stringency mappability bed file
-                    type: string
-                    format: uri
                   high:
+                    <<: *url_prefix
                     description: the url for high stringency mappability bed file
-                    type: string
-                    format: uri
       
               superdups:
+                <<: *url_prefix
                 description: the url to the superdups txt file
-                type: string
-                format: uri
       
               simreps:
+                <<: *url_prefix
                 description: the url to the simreps database file
-                type: string
-                format: uri
       
               repeat_masker:
+                <<: *url_prefix
                 description: the url to the repeat masker database file
-                type: string
-                format: uri
 
           benchmarks:
             additionalProperties: false
             patternProperties:
               ^[\w\.\-]+$:
                 additionalProperties: false
-                required: [vcf_url, bed_url, corrections]
+                required: [vcf_url, bed_url, corrections, chr_prefix]
                 properties:
+                  chr_prefix: *chr_prefix
                   vcf_url:
-                    description: the url for the benchmark VCF to use
+                    description: the url for the benchmark VCF
                     oneOf: &bench_url_type
                       - type: string
                         format: uri
                       - type: "null"
                   bed_url:
-                    description: the url for the benchmark bed to use
+                    description: the url for the benchmark bed
                     oneOf: *bench_url_type
                   corrections:
                     additionalProperties: false

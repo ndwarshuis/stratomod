@@ -69,19 +69,26 @@ rule download_query_vcf:
         "curl -sS -L -o {output} {params.url}"
 
 
-# TODO update filter here
+# TODO standardize chromosome columns here since I'm no longer going to
+# assume that ANYTHING has the same chromosome prefix
 rule filter_query_vcf:
     input:
         rules.download_query_vcf.output,
     output:
         prepare_dir / "filtered.vcf",
     params:
+        # TODO use integers for filtering here
         filt=inputkey_to_chr_filter_wc,
+        # TODO make this dynamic
+        prefix="chr",
     conda:
         envs_path("utils.yml")
     shell:
         """
         gunzip -c {input} | \
+        sed '/^{params.prefix}//' | \
+        sed '/^X/23/' | \
+        sed '/^Y/24/' | \
         sed -n '/^\(#\|{params.filt}\)/p' \
         > {output}
         """
