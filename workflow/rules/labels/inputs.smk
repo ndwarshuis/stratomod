@@ -69,8 +69,6 @@ rule download_query_vcf:
         "curl -sS -L -o {output} {params.url}"
 
 
-# TODO standardize chromosome columns here since I'm no longer going to
-# assume that ANYTHING has the same chromosome prefix
 rule filter_query_vcf:
     input:
         rules.download_query_vcf.output,
@@ -81,24 +79,6 @@ rule filter_query_vcf:
         gzip_out=False,
     script:
         python_path("standardize_bed.py")
-
-
-# params:
-#     # TODO use integers for filtering here
-#     filt=inputkey_to_chr_filter_wc,
-#     # TODO make this dynamic
-#     prefix="chr",
-# conda:
-#     envs_path("utils.yml")
-# shell:
-#     """
-#     gunzip -c {input} | \
-#     sed 's/^{params.prefix}//' | \
-#     sed 's/^X/23/' | \
-#     sed 's/^Y/24/' | \
-#     sed -n '/^\(#\|{params.filt}\)/p' \
-#     > {output}
-#     """
 
 
 # TODO this is (probably) just for DV VCFs
@@ -217,7 +197,6 @@ rule download_bench_bed:
         "curl -sS -L -o {output} {params.url}"
 
 
-# NOTE this is identical to the vcf version but without gunzip
 rule filter_bench_bed:
     input:
         partial(expand_benchmark_path, rules.download_bench_bed.output),
@@ -226,25 +205,8 @@ rule filter_bench_bed:
     params:
         gzip_in=False,
         gzip_out=False,
-    # params:
-    #     filt=inputkey_to_chr_filter_wc,
-    #     # TODO make this dynamic
-    #     prefix="chr",
     script:
         python_path("standardize_bed.py")
-
-
-# conda:
-#     envs_path("utils.yml")
-# shell:
-#     """
-#     cat {input} | \
-#     sed 's/^{params.prefix}//' | \
-#     sed 's/^X/23/' | \
-#     sed 's/^Y/24/' | \
-#     sed -n '/^\(#\|{params.filt}\)/p' \
-#     > {output}
-#     """
 
 
 rule standardize_mhc_strat:

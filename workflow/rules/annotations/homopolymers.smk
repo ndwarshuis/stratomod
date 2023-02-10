@@ -29,7 +29,6 @@ rule unpack_repseq:
         """
 
 
-# TODO add logging
 rule build_repseq:
     input:
         rules.unpack_repseq.output,
@@ -65,23 +64,6 @@ rule find_simple_repeats:
         sort -k 1,1n -k 2,2n -k 3,3n \
         > {output}
         """
-
-
-# rule sort_simple_repeats:
-#     input:
-#         rules.find_simple_repeats.output,
-#     output:
-#         homopolymers_results_dir / "simple_repeats_p3_sorted.bed.gz",
-#     log:
-#         homopolymers_log_dir / "sorted.log",
-#     conda:
-#         envs_path("bedtools.yml")
-#     benchmark:
-#         homopolymers_results_dir / "sorted.bench"
-#     resources:
-#         mem_mb=attempt_mem_gb(16),
-#     script:
-#         python_path("sort_and_filter_bed.py")
 
 
 def homopolymer_file(ext):

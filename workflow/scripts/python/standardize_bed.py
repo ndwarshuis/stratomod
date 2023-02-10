@@ -12,13 +12,10 @@ def filter_file(smk, fi: io.TextIOWrapper) -> None:
         smk.config,
         smk.wildcards["input_key"],
     )
-    # contig = "##contig=<ID="
-    # contig_prefix = contig + chr_prefix
     fs = tuple(["#", *[f"{c}\t" for c in chr_filter]])
 
     def tolines(f: io.TextIOWrapper):
         f.writelines(
-            # x.replace(contig_prefix, contig) if x.startswith("#") else x
             x
             for x in filter(
                 lambda x: x.startswith(fs),
