@@ -7,46 +7,46 @@ reference_sets:
     chr_filter: [21]
 
 inputs:
-  HG002_Hifi_DV:
-    refset: GRCh37_test
-    train:
+  train:
+    HG002_Hifi_DV:
+      refset: GRCh37_test
       chr_prefix: ""
       url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh37/SupplementaryFiles/inputvcfsandbeds/HG002_GRCh37_1_22_PacBio_HiFi_DeepVariant.vcf.gz
       benchmark: HG002_v4.2.1
-    test:
-      HG005_Hifi_DV:
-        chr_prefix: ""
-        url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh37/SupplementaryFiles/inputvcfsandbeds/HG005_GRCh37_1_22_PacBio_HiFi_DeepVariant.vcf.gz
-        benchmark: HG005_v4.2.1
-  HG002_Illumina_DV:
-    refset: GRCh38_test
-    train:
+    HG002_Illumina_DV:
+      refset: GRCh38_test
       chr_prefix: chr
       url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG002.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
       benchmark: HG002_v4.2.1
-    test:
-      Clinvar_Illumina:
-        url: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/archive_2.0/2022/clinvar_20220812.vcf.gz
-        # isn't genomics wonderful?
-        chr_prefix: ''
-        format_fields: {}
-        benchmark: null
-        # There are some super long variants in clinvar. Filter these out
-        # because a) they would overlap with so many annotations that a new
-        # universe would spawn into existance and b) they are outside what a
-        # trained model would be good at testing anyways (until we incorporate
-        # structural variants)
-        format_fields:
-          vaf: null
-          dp: null
-          gt: null
-          gq: null
+  test:
+    HG005_Hifi_DV:
+      refset: GRCh37_test
+      chr_prefix: ""
+      url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh37/SupplementaryFiles/inputvcfsandbeds/HG005_GRCh37_1_22_PacBio_HiFi_DeepVariant.vcf.gz
+      benchmark: HG005_v4.2.1
+    Clinvar:
+      refset: GRCh38_test
+      url: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/archive_2.0/2022/clinvar_20220812.vcf.gz
+      # isn't genomics wonderful?
+      chr_prefix: ''
+      format_fields: {}
+      benchmark: null
+      # There are some super long variants in clinvar. Filter these out
+      # because a) they would overlap with so many annotations that a new
+      # universe would spawn into existance and b) they are outside what a
+      # trained model would be good at testing anyways (until we incorporate
+      # structural variants)
+      format_fields:
+        vaf: null
+        dp: null
+        gt: null
+        gq: null
 
 ebm_runs:
   small_set_v3:
     inputs:
       - HG002_Hifi_DV: [HG005_Hifi_DV]
-        HG002_Illumina_DV: [Clinvar_Illumina]
+        HG002_Illumina_DV: [Clinvar]
     filter: [SNP, INDEL]
     ebm_settings: &ebm_settings
       split_parameters:

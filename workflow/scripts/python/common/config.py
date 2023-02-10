@@ -159,11 +159,11 @@ def all_benchkeys(config: JSONDict, target: InputFiles) -> InputFiles:
     return expand(target, zip, ref_key=rs, bench_key=bs)
 
 
-class RunKeys(NamedTuple):
-    run_key: str
-    filter_key: str
-    input_keys: str
-    inputs: JSONDict
+# class RunKeys(NamedTuple):
+#     run_key: str
+#     filter_key: str
+#     input_keys: str
+#     inputs: JSONDict
 
 
 class RunKeysTrain(NamedTuple):
@@ -183,55 +183,44 @@ class RunKeysTest(NamedTuple):
     refset_key: str
 
 
+def lookup_run_sets(
+    config: JSONDict,
+    delim: str,
+) -> Tuple[List[RunKeysTrain], List[RunKeysTest]]:
+    runs = [
+        ((k, f, delim.join([i["input_key"] for i in ins])), ins)
+        for k, rs in config["ebm_runs"].items()
+        for f in rs["filter"]
+        for ins in rs["inputs"]
+    ]
+    train = [
+        RunKeysTrain(*meta, ik, inputkey_to_refsetkey(config, ik))
+        for (meta, ins) in runs
+        for ik in ins
+    ]
+    test = [
+        RunKeysTest(
+            *meta,
+            train_key,
+            test_key,
+            inputkey_to_refsetkey(config, test_key),
+        )
+        for (meta, ins) in runs
+        for train_key, test in ins.items()
+        for test_key in test
+    ]
+    return (train, test)
+
+
 def test_has_bench(config: JSONDict, runs: RunKeysTest) -> bool:
     keys = ["inputs", runs.input_key, "test", runs.test_key, "benchmark"]
     return lookup_config(config, keys) is not None
 
 
-def lookup_run_set(config: JSONDict, delim: str) -> List[RunKeys]:
-    return [
-        RunKeys(k, f, delim.join([*ns]), ns)
-        for k, rs in config["ebm_runs"].items()
-        for f in rs["filter"]
-        for ns in rs["inputs"]
-    ]
-
-
-def lookup_train_set(config: JSONDict, run_set: List[RunKeys]) -> List[RunKeysTrain]:
-    return [
-        RunKeysTrain(
-            r.run_key,
-            r.filter_key,
-            r.input_keys,
-            i,
-            inputkey_to_refsetkey(config, i),
-        )
-        for r in run_set
-        for i in r.inputs
-    ]
-
-
-def lookup_test_set(config: JSONDict, run_set: List[RunKeys]) -> List[RunKeysTest]:
-    return [
-        RunKeysTest(
-            r.run_key,
-            r.filter_key,
-            r.input_keys,
-            i,
-            t,
-            inputkey_to_refsetkey(config, i),
-        )
-        for r in run_set
-        for i, ts in r.inputs.items()
-        for t in ts
-    ]
-
-
-def lookup_test_sets(
+def partition_test_set(
     config: JSONDict,
-    run_set: List[RunKeys],
+    test_set: List[RunKeysTest],
 ) -> Tuple[List, List]:
-    test_set = lookup_test_set(config, run_set)
     unlabeled, labeled = partition(lambda t: test_has_bench(config, t), test_set)
     return list(unlabeled), list(labeled)
 
@@ -262,9 +251,8 @@ def all_input_summary_files(
             refset_key=map(lambda x: x.refset_key, key_set),
         )
 
-    run_set = lookup_run_set(config, delim)
-    train_set = lookup_train_set(config, run_set)
-    unlabeled_test_set, labeled_test_set = lookup_test_sets(config, run_set)
+    train_set, test_set = lookup_run_sets(config, delim)
+    unlabeled_test_set, labeled_test_set = partition_test_set(config, test_set)
 
     return (
         labeled_targets(labeled_target, train_set)
@@ -292,14 +280,14 @@ def all_ebm_files(
             refset_key=map(lambda x: x.refset_key, key_set),
         )
 
-    run_set = lookup_run_set(config, delim)
-    unlabeled_test_set, labeled_test_set = lookup_test_sets(config, run_set)
+    train_set, test_set = lookup_run_sets(config, delim)
+    unlabeled_test_set, labeled_test_set = partition_test_set(config, test_set)
     train = expand(
         train_target,
         zip,
-        run_key=map(lambda x: x.run_key, run_set),
-        filter_key=map(lambda x: x.filter_key, run_set),
-        input_keys=map(lambda x: x.input_keys, run_set),
+        run_key=map(lambda x: x.run_key, train_set),
+        filter_key=map(lambda x: x.filter_key, train_set),
+        input_keys=map(lambda x: x.input_keys, train_set),
     )
 
     # TODO these should eventually point to the test summary htmls
@@ -487,24 +475,11 @@ def flat_inputs(config: JSONDict) -> JSONDict:
 
 def inputkey_to_chr_prefix(config: JSONDict, input_key: str) -> str:
     return inputkey_to_input(config, ["chr_prefix"], input_key)
-    # if input_prefix is None:
-    #     return compose(
-    #         partial(refsetkey_to_chr_prefix, config),
-    #         partial(inputkey_to_refsetkey, config),
-    #     )(input_key)
-    # else:
-    #     return input_prefix
 
 
-# TODO return integers here since I will be standardizing all columns when
-# they come in
-def inputkey_to_chr_filter(config: JSONDict, input_key: str) -> List[str]:
-    # prefix = inputkey_to_chr_prefix(config, input_key)
-    return compose(
-        # partial(chr_indices_to_name, prefix),
-        partial(refsetkey_to_chr_indices, config),
-        partial(inputkey_to_refsetkey, config),
-    )(input_key)
+def inputkey_to_chr_filter(config: JSONDict, input_key: str) -> List[int]:
+    refset_key = inputkey_to_refsetkey(config, input_key)
+    return refsetkey_to_chr_indices(config, refset_key)
 
 
 def inputkey_to_bench_correction(config: JSONDict, key: str, input_key: str) -> bool:
