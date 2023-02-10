@@ -1,3 +1,7 @@
+# 7.0.0
+
+- add support for GRCh37
+
 # 6.2.0
 
 - remove tags from output dirs
