@@ -402,7 +402,10 @@ rule concat_labeled_tsvs:
     input:
         expand(rules.parse_labeled_vcf.output, label=ALL_LABELS, allow_missing=True),
     output:
-        labeled_dir / wildcard_format("{}_labeled.tsv.gz", "filter_key"),
+        ensure(
+            labeled_dir / wildcard_format("{}_labeled.tsv.gz", "filter_key"),
+            non_empty=True,
+        ),
     conda:
         envs_path("bedtools.yml")
     benchmark:
@@ -425,7 +428,7 @@ use rule parse_labeled_vcf as parse_unlabeled_vcf with:
     input:
         rules.filter_query_vcf.output,
     output:
-        unlabeled_dir / unlabeled_file("tsv.gz"),
+        ensure(unlabeled_dir / unlabeled_file("tsv.gz"), non_empty=True),
     log:
         log_dir / rel_unlabeled_dir / unlabeled_file("log"),
     resources:
