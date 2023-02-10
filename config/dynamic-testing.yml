@@ -15,7 +15,7 @@ inputs:
       benchmark: HG002_v4.2.1
     test:
       HG005_Hifi_DV:
-        chr_prefix: chr
+        chr_prefix: ""
         url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh37/SupplementaryFiles/inputvcfsandbeds/HG005_GRCh37_1_22_PacBio_HiFi_DeepVariant.vcf.gz
         benchmark: HG005_v4.2.1
   HG002_Illumina_DV:
