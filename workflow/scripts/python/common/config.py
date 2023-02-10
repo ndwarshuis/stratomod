@@ -499,9 +499,9 @@ def inputkey_to_chr_prefix(config: JSONDict, input_key: str) -> str:
 # TODO return integers here since I will be standardizing all columns when
 # they come in
 def inputkey_to_chr_filter(config: JSONDict, input_key: str) -> List[str]:
-    prefix = inputkey_to_chr_prefix(config, input_key)
+    # prefix = inputkey_to_chr_prefix(config, input_key)
     return compose(
-        partial(chr_indices_to_name, prefix),
+        # partial(chr_indices_to_name, prefix),
         partial(refsetkey_to_chr_indices, config),
         partial(inputkey_to_refsetkey, config),
     )(input_key)

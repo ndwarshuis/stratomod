@@ -10,6 +10,7 @@ logger = setup_logging(snakemake.log[0])
 def main() -> None:
     prefix = cfg.refsetkey_to_chr_prefix(
         snakemake.config,
+        ["sdf"],
         snakemake.wildcards["refset_key"],
     )
     df = read_tsv(snakemake.input[0], comment="#", header=None)

@@ -28,7 +28,9 @@ def read_segdups(
     }
     bed_mapping = cfg.bed_cols_indexed([1, 2, 3], bed_cols)
     prefix = cfg.refsetkey_to_chr_prefix(
-        snakemake.config, snakemake.wildcards["refset_key"]
+        snakemake.config,
+        ["annotations", "superdups"],
+        snakemake.wildcards["refset_key"],
     )
     return read_bed_df(
         path,

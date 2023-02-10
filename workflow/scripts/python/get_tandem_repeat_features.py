@@ -79,7 +79,11 @@ def merge_tandem_repeats(
 def main() -> None:
     i = snakemake.input
     sconf = snakemake.config
-    prefix = cfg.refsetkey_to_chr_prefix(sconf, snakemake.wildcards["refset_key"])
+    prefix = cfg.refsetkey_to_chr_prefix(
+        sconf,
+        ["annotations", "simreps"],
+        snakemake.wildcards["refset_key"],
+    )
     bed_cols = cfg.lookup_bed_cols(sconf)
     fconf = sconf["features"]["tandem_repeats"]
     repeat_df = read_tandem_repeats(i.src[0], fconf, bed_cols, sconf, prefix)

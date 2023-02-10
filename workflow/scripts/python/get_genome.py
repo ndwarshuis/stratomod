@@ -26,7 +26,7 @@ def write_output(path: str, df: pd.DataFrame) -> None:
 
 def main() -> None:
     prefix = cfg.refsetkey_to_chr_prefix(
-        snakemake.config, snakemake.wildcards["refset_key"]
+        snakemake.config, ["genome"], snakemake.wildcards["refset_key"]
     )
     df = compose(
         sort_genome,

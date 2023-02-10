@@ -29,7 +29,9 @@ fmt_feature = partial(cfg.fmt_repeat_masker_feature, snakemake.config)
 def read_rmsk_df(path: str, bed_cols: Dict[str, str]):
     bed_mapping = cfg.bed_cols_indexed([5, 6, 7], bed_cols)
     prefix = cfg.refsetkey_to_chr_prefix(
-        snakemake.config, snakemake.wildcards["refset_key"]
+        snakemake.config,
+        ["annotations", "repeat_masker"],
+        snakemake.wildcards["refset_key"],
     )
     return read_bed_df(path, bed_mapping, COLS, prefix, snakemake.params["filt"])
 

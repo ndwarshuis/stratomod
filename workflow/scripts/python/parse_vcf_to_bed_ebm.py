@@ -214,13 +214,14 @@ def get_label(wildcards):
         return wildcards.label
 
 
+# ASSUME these vcf file already have standard chromosomes
 def main() -> None:
     wildcards = snakemake.wildcards
     sconf = snakemake.config
     fconf = sconf["features"]
     iconf = cfg.inputkey_to_input(sconf, [], wildcards.input_key)
     idx = fconf["bed_index"]
-    prefix = cfg.refsetkey_to_chr_prefix(sconf, wildcards["refset_key"])
+    # prefix = cfg.refsetkey_to_chr_prefix(sconf, ["sdf"], wildcards["refset_key"])
 
     chrom = idx["chr"]
     pos = idx["start"]
@@ -254,7 +255,7 @@ def main() -> None:
         partial(write_tsv, snakemake.output[0]),
         partial(select_columns, non_field_cols, fields, fconf["label"], label),
         partial(assign_format_sample_fields, chrom, pos, fields),
-        partial(standardize_chr_column, prefix, chrom),
+        # partial(standardize_chr_column, prefix, chrom),
         partial(
             add_length_and_filter,
             cfg.fmt_vcf_feature(sconf, "len"),

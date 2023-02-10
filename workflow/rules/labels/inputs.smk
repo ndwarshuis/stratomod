@@ -77,21 +77,27 @@ rule filter_query_vcf:
     output:
         prepare_dir / "filtered.vcf",
     params:
-        # TODO use integers for filtering here
-        filt=inputkey_to_chr_filter_wc,
-        # TODO make this dynamic
-        prefix="chr",
-    conda:
-        envs_path("utils.yml")
-    shell:
-        """
-        gunzip -c {input} | \
-        sed '/^{params.prefix}//' | \
-        sed '/^X/23/' | \
-        sed '/^Y/24/' | \
-        sed -n '/^\(#\|{params.filt}\)/p' \
-        > {output}
-        """
+        unzip=True,
+    script:
+        python_path("standardize_bed.py")
+
+
+# params:
+#     # TODO use integers for filtering here
+#     filt=inputkey_to_chr_filter_wc,
+#     # TODO make this dynamic
+#     prefix="chr",
+# conda:
+#     envs_path("utils.yml")
+# shell:
+#     """
+#     gunzip -c {input} | \
+#     sed 's/^{params.prefix}//' | \
+#     sed 's/^X/23/' | \
+#     sed 's/^Y/24/' | \
+#     sed -n '/^\(#\|{params.filt}\)/p' \
+#     > {output}
+#     """
 
 
 # TODO this is (probably) just for DV VCFs
@@ -216,12 +222,27 @@ rule filter_bench_bed:
         partial(expand_benchmark_path, rules.download_bench_bed.output),
     output:
         alt_bench_dir / "filtered.bed",
+    # params:
+    #     filt=inputkey_to_chr_filter_wc,
+    #     # TODO make this dynamic
+    #     prefix="chr",
     params:
-        filt=inputkey_to_chr_filter_wc,
-    conda:
-        envs_path("utils.yml")
-    shell:
-        "sed -n '/^\(#\|{params.filt}\)/p' {input} > {output}"
+        unzip=False,
+    script:
+        python_path("standardize_bed.py")
+
+
+# conda:
+#     envs_path("utils.yml")
+# shell:
+#     """
+#     cat {input} | \
+#     sed 's/^{params.prefix}//' | \
+#     sed 's/^X/23/' | \
+#     sed 's/^Y/24/' | \
+#     sed -n '/^\(#\|{params.filt}\)/p' \
+#     > {output}
+#     """
 
 
 rule subtract_mhc_bench_bed:
