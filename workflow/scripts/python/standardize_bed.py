@@ -16,11 +16,7 @@ def filter_file(smk, fi: io.TextIOWrapper) -> None:
 
     def tolines(f: io.TextIOWrapper):
         f.writelines(
-            x
-            for x in filter(
-                lambda x: x.startswith(fs),
-                (x.removeprefix(chr_prefix) for x in fi.readlines()),
-            )
+            (y for x in fi if (y := x.removeprefix(chr_prefix)).startswith(fs)),
         )
 
     if smk.params.gzip_out is True:
