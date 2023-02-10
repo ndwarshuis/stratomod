@@ -43,6 +43,7 @@ rule build_repseq:
         "make -C {input} > {log} && mv {input}/repseq {output}"
 
 
+# ASSUME the FASTA input to this is already standardized and filtered
 rule find_simple_repeats:
     input:
         ref=partial(expand_refkey_from_refsetkey, rules.sdf_to_fasta.output),
@@ -58,26 +59,29 @@ rule find_simple_repeats:
     resources:
         mem_mb=attempt_mem_gb(4),
     shell:
-        "{input.bin} 1 4 {input.ref} > {output} 2> {log}"
+        """
+        {input.bin} 1 4 {input.ref} 2> {log} | \
+        sed '/^#/d' | \
+        sort -k 1,1n -k 2,2n -k 3,3n \
+        > {output}
+        """
 
 
-# This rule is here because I got tired of doing this step twice (once for AT
-# and once for GC)
-rule sort_and_filter_simple_repeats:
-    input:
-        rules.find_simple_repeats.output,
-    output:
-        homopolymers_results_dir / "simple_repeats_p3_sorted.bed.gz",
-    log:
-        homopolymers_log_dir / "sorted.log",
-    conda:
-        envs_path("bedtools.yml")
-    benchmark:
-        homopolymers_results_dir / "sorted.bench"
-    resources:
-        mem_mb=attempt_mem_gb(16),
-    script:
-        python_path("sort_and_filter_bed.py")
+# rule sort_simple_repeats:
+#     input:
+#         rules.find_simple_repeats.output,
+#     output:
+#         homopolymers_results_dir / "simple_repeats_p3_sorted.bed.gz",
+#     log:
+#         homopolymers_log_dir / "sorted.log",
+#     conda:
+#         envs_path("bedtools.yml")
+#     benchmark:
+#         homopolymers_results_dir / "sorted.bench"
+#     resources:
+#         mem_mb=attempt_mem_gb(16),
+#     script:
+#         python_path("sort_and_filter_bed.py")
 
 
 def homopolymer_file(ext):
@@ -86,7 +90,7 @@ def homopolymer_file(ext):
 
 rule get_homopolymers:
     input:
-        bed=rules.sort_and_filter_simple_repeats.output,
+        bed=rules.find_simple_repeats.output,
         genome=rules.get_genome.output,
     output:
         homopolymers_results_dir / homopolymer_file("tsv.gz"),

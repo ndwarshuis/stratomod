@@ -3,14 +3,14 @@ from scripts.python.common.config import attempt_mem_gb
 mappability_dir = "mappability"
 mappability_src_dir = annotations_src_dir / mappability_dir
 mappability_results_dir = annotations_tsv_dir / mappability_dir
-mappability_config_path = ["annotations", "mappability", "high"]
+mappability_config_path = ["annotations", "mappability"]
 
 
 rule download_mappability_high:
     output:
         mappability_src_dir / "high.bed.gz",
     params:
-        url=partial(refkey_to_ref_wc, [*mappability_config_path, "url"]),
+        url=partial(refkey_to_ref_wc, [*mappability_config_path, "high", "url"]),
     conda:
         envs_path("utils.yml")
     shell:
@@ -21,7 +21,7 @@ use rule download_mappability_high as download_mappability_low with:
     output:
         mappability_src_dir / "low.bed.gz",
     params:
-        url=partial(refkey_to_ref_wc, [*mappability_config_path, "url"]),
+        url=partial(refkey_to_ref_wc, [*mappability_config_path, "low", "url"]),
 
 
 rule get_mappability:

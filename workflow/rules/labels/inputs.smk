@@ -77,7 +77,8 @@ rule filter_query_vcf:
     output:
         prepare_dir / "filtered.vcf",
     params:
-        unzip=True,
+        gzip_in=True,
+        gzip_out=False,
     script:
         python_path("standardize_bed.py")
 
@@ -222,12 +223,13 @@ rule filter_bench_bed:
         partial(expand_benchmark_path, rules.download_bench_bed.output),
     output:
         alt_bench_dir / "filtered.bed",
+    params:
+        gzip_in=False,
+        gzip_out=False,
     # params:
     #     filt=inputkey_to_chr_filter_wc,
     #     # TODO make this dynamic
     #     prefix="chr",
-    params:
-        unzip=False,
     script:
         python_path("standardize_bed.py")
 
@@ -245,10 +247,22 @@ rule filter_bench_bed:
 #     """
 
 
+rule standardize_mhc_strat:
+    input:
+        partial(expand_refkey_from_refsetkey, rules.download_mhc_strat.output),
+    output:
+        alt_bench_dir / "strats" / "mhc_standardized.bed.gz",
+    params:
+        gzip_in=True,
+        gzip_out=True,
+    script:
+        python_path("standardize_bed.py")
+
+
 rule subtract_mhc_bench_bed:
     input:
         bed=rules.filter_bench_bed.output,
-        mhc=partial(expand_refkey_from_refsetkey, rules.download_mhc_strat.output),
+        mhc=partial(expand_refkey_from_refsetkey, rules.standardize_mhc_strat.output),
     output:
         alt_bench_dir / "noMHC.bed",
     output:
@@ -282,7 +296,7 @@ rule label_vcf:
         bench_vcf=rules.zip_bench_vcf.output,
         bench_bed=rules.subtract_mhc_bench_bed.output,
         bench_tbi=rules.generate_bench_tbi.output,
-        sdf=partial(expand_refkey_from_refsetkey, rules.download_ref_sdf.output),
+        sdf=partial(expand_refkey_from_refsetkey, rules.fasta_to_sdf.output),
     output:
         [rtg_dir / f"{lbl}.vcf.gz" for lbl in ALL_LABELS],
     conda:
