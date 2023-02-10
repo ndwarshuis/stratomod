@@ -2,19 +2,18 @@ from functools import partial
 from scripts.python.common.config import (
     attempt_mem_gb,
     inputkey_to_bench_correction,
+    refsetkey_to_sdf_chr_filter,
+    refsetkey_to_chr_prefix,
 )
 from scripts.python.common.functional import flip, compose
-
-
-include: "reference.smk"
-
 
 # resource dirs
 
 inputs_dir = resources_dir / "inputs"
 bench_dir = resources_dir / "bench" / all_wildcards["ref_key"]
+ref_resources_dir = resources_dir / "reference" / all_wildcards["ref_key"]
 
-# relative output dirs
+# relative output dirs (for both actual results and log files)
 
 rel_input_results_dir = (
     Path("inputs") / all_wildcards["refset_key"] / all_wildcards["input_key"]
@@ -24,6 +23,7 @@ rel_labeled_dir = rel_input_results_dir / "label"
 rel_rtg_dir = rel_labeled_dir / "rtg"
 rel_unlabeled_dir = rel_input_results_dir / "unlabeled"
 rel_alt_bench_dir = rel_input_results_dir / "bench"
+rel_refset_ref_dir = Path("reference") / all_wildcards["refset_key"]
 
 # results dirs
 
@@ -32,8 +32,7 @@ labeled_dir = results_dir / rel_labeled_dir
 unlabeled_dir = results_dir / rel_unlabeled_dir
 alt_bench_dir = results_dir / rel_alt_bench_dir
 rtg_dir = results_dir / rel_rtg_dir
-
-# log dirs
+refset_ref_dir = results_dir / rel_refset_ref_dir
 
 
 def lookup_benchmark_vcf(wildcards):
@@ -52,6 +51,91 @@ def expand_benchmark_path(path, wildcards):
         partial(flip(expand_benchkey_from_inputkey), wildcards),
         partial(flip(expand_refkey_from_refsetkey), wildcards),
     )(path)
+
+
+################################################################################
+# reference
+
+
+rule download_ref_sdf:
+    output:
+        directory(ref_resources_dir / "sdf"),
+    params:
+        url=partial(refkey_to_ref_wc, ["sdf", "url"]),
+    conda:
+        envs_path("utils.yml")
+    shell:
+        """
+        mkdir {output} && \
+        curl -Ss {params.url} | \
+        bsdtar -xf - \
+        --directory {output} \
+        --strip-components=1
+        """
+
+
+rule sdf_to_fasta:
+    input:
+        partial(expand_refkey_from_refsetkey, rules.download_ref_sdf.output),
+    output:
+        refset_ref_dir / "standardized_ref.fa",
+    params:
+        filt=lambda wildcards: " ".join(
+            refsetkey_to_sdf_chr_filter(config, wildcards.refset_key)
+        ),
+        prefix=lambda wildcards: refsetkey_to_chr_prefix(
+            config,
+            ["sdf"],
+            wildcards["refset_key"],
+        ),
+    conda:
+        envs_path("rtg.yml")
+    benchmark:
+        refset_ref_dir / "ref_standardized.bench"
+    shell:
+        """
+        rtg sdf2fasta \
+        -Z --line-length=70 -n \
+        -i {input} \
+        -o {output} {params.filt} && \
+        sed -i 's/>{params.prefix}/>/' {output} && \
+        sed -i 's/>X/>23/' {output} && \
+        sed -i 's/>Y/>24/' {output}
+        """
+
+
+rule fasta_to_sdf:
+    input:
+        rules.sdf_to_fasta.output,
+    output:
+        directory(refset_ref_dir / "standardized_sdf"),
+    conda:
+        envs_path("rtg.yml")
+    benchmark:
+        refset_ref_dir / "sdf_standardized.bench"
+    log:
+        log_dir / rel_refset_ref_dir / "sdf_standardized.log",
+    shell:
+        "rtg format -o {output} {input} 2>&1 > {log}"
+
+
+################################################################################
+# download stratifications
+
+# so far the only use for the stratifications here is to remove MHC since some
+# benchmarks don't have VAF/DP here and removing only from the benchmark would
+# produce automatic FPs
+
+
+rule download_mhc_strat:
+    output:
+        ref_resources_dir / "strats" / "mhc.bed.gz",
+    params:
+        url=partial(refkey_to_ref_wc, ["strats", "mhc", "url"]),
+    conda:
+        envs_path("utils.yml")
+    shell:
+        "curl -sS -L -o {output} {params.url}"
 
 
 ################################################################################
@@ -276,7 +360,7 @@ rule label_vcf:
     threads: 1
     shell:
         """
-        rm -rf {params.tmp_dir}
+        rm -rf {params.tmp_dir} && \
 
         rtg RTG_MEM=$(({resources.mem_mb}*80/100))M \
         vcfeval {params.extra} \
@@ -285,9 +369,9 @@ rule label_vcf:
         -e {input.bench_bed} \
         -c {input.query_vcf} \
         -o {params.tmp_dir} \
-        -t {input.sdf} > {log} 2>&1
+        -t {input.sdf} > {log} 2>&1 && \
 
-        mv {params.tmp_dir}/* {params.output_dir}
+        mv {params.tmp_dir}/* {params.output_dir} && \
 
         rm -r {params.tmp_dir}
         """
