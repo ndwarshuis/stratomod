@@ -4,14 +4,9 @@ import common.config as cfg
 
 
 def filter_file(smk, fi: io.TextIOWrapper) -> None:
-    chr_prefix = cfg.inputkey_to_chr_prefix(
-        smk.config,
-        smk.wildcards["input_key"],
-    )
-    chr_filter = cfg.inputkey_to_chr_filter(
-        smk.config,
-        smk.wildcards["input_key"],
-    )
+    input_key = smk.wildcards["input_key"]
+    chr_prefix = cfg.inputkey_to_chr_prefix(smk.config, input_key)
+    chr_filter = cfg.inputkey_to_chr_filter(smk.config, input_key)
     fs = tuple(["#", *[f"{c}\t" for c in chr_filter]])
 
     def tolines(f: io.TextIOWrapper):

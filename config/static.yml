@@ -5,6 +5,84 @@ paths:
 
 # paths/urls for files to be downloaded for processing the inputs
 references:
+  GRCh37:
+    sdf:
+      url: https://s3.amazonaws.com/rtg-datasets/references/1000g_v37_phase2.sdf.zip
+      chr_prefix: ""
+    genome:
+      url: https://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/chromInfo.txt.gz
+      chr_prefix: chr
+    strats:
+      mhc:
+        url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.1/GRCh37/OtherDifficult/GRCh37_MHC.bed.gz
+        chr_prefix: ""
+    annotations:
+      mappability:
+        low:
+          url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.0/GRCh37/mappability/GRCh37_lowmappabilityall.bed.gz
+          chr_prefix: ""
+        high:
+          url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.0/GRCh37/mappability/GRCh37_nonunique_l250_m0_e0.bed.gz
+          chr_prefix: ""
+      superdups:
+        url: https://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/genomicSuperDups.txt.gz
+        chr_prefix: chr
+      simreps:
+        url: https://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/simpleRepeat.txt.gz
+        chr_prefix: chr
+      repeat_masker:
+        url: https://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/rmsk.txt.gz
+        chr_prefix: chr
+    benchmarks:
+      HG002_v4.2.1:
+        vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh37/HG002_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
+        bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh37/HG002_GRCh37_1_22_v4.2.1_benchmark_noinconsistent.bed
+        chr_prefix: ""
+        corrections:
+          strip_IPS: false
+      HG003_v4.2.1:
+        vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG003_NA24149_father/NISTv4.2.1/GRCh37/HG003_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
+        bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG003_NA24149_father/NISTv4.2.1/GRCh37/HG003_GRCh37_1_22_v4.2.1_benchmark_noinconsistent.bed
+        chr_prefix: ""
+        corrections:
+          strip_IPS: false
+      HG004_v4.2.1:
+        vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG004_NA24143_mother/NISTv4.2.1/GRCh37/HG004_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
+        bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG004_NA24143_mother/NISTv4.2.1/GRCh37/HG004_GRCh37_1_22_v4.2.1_benchmark_noinconsistent.bed
+        chr_prefix: ""
+        corrections:
+          strip_IPS: false
+      HG005_v4.2.1:
+        vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh37/HG005_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
+        bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh37/HG005_GRCh37_1_22_v4.2.1_benchmark.bed
+        chr_prefix: ""
+        corrections:
+          strip_IPS: true
+      HG006_v4.2.1:
+        vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG006_NA24694_father/NISTv4.2.1/GRCh37/HG006_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
+        bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG006_NA24694_father/NISTv4.2.1/GRCh37/HG006_GRCh37_1_22_v4.2.1_benchmark.bed
+        chr_prefix: ""
+        corrections:
+          strip_IPS: false
+      HG007_v4.2.1:
+        vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG007_NA24695_mother/NISTv4.2.1/GRCh37/HG007_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
+        bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG007_NA24695_mother/NISTv4.2.1/GRCh37/HG007_GRCh37_1_22_v4.2.1_benchmark.bed
+        chr_prefix: ""
+        corrections:
+          strip_IPS: false
+      draft_v0.005:
+        vcf_url: null
+        bed_url: null
+        chr_prefix: ""
+        corrections:
+          strip_IPS: false
+      draft_v2.7_xy:
+        vcf_url: null
+        bed_url: null
+        chr_prefix: ""
+        corrections:
+          strip_IPS: false
+
   GRCh38:
     sdf:
       url: https://s3.amazonaws.com/rtg-datasets/references/GRCh38.sdf.zip
@@ -129,7 +207,8 @@ features:
       len: length
     classes:
       SINE: []
-      LINE: [L1, L2, CR1, RTE-X, RTE-BovB, Penelope, Dong-R4]
+      # TODO make this configurable since not all refs have the same families
+      LINE: [L1, L2, CR1, RTE-BovB, Dong-R4]
       LTR: []
       Satellite: []
 
