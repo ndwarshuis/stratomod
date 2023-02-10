@@ -35,8 +35,14 @@ rule get_mappability:
             rules.download_mappability_high.output[0],
         ),
     output:
-        high=mappability_results_dir / "mappability_high.tsv.gz",
-        low=mappability_results_dir / "mappability_low_no_high.tsv.gz",
+        high=ensure(
+            mappability_results_dir / "mappability_high.tsv.gz",
+            non_empty=True,
+        ),
+        low=ensure(
+            mappability_results_dir / "mappability_low_no_high.tsv.gz",
+            non_empty=True,
+        ),
     log:
         annotations_log_dir / mappability_dir / "mappability.log",
     conda:

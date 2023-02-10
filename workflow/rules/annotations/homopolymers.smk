@@ -75,7 +75,7 @@ rule get_homopolymers:
         bed=rules.find_simple_repeats.output,
         genome=rules.get_genome.output,
     output:
-        homopolymers_results_dir / homopolymer_file("tsv.gz"),
+        ensure(homopolymers_results_dir / homopolymer_file("tsv.gz"), non_empty=True),
     conda:
         envs_path("bedtools.yml")
     log:

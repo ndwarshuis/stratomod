@@ -24,11 +24,17 @@ rule get_repeat_masker_classes:
         partial(expand_refkey_from_refsetkey, rules.download_repeat_masker.output),
     output:
         [
-            rmsk_results_dir / (f"{rmsk_file_prefix}_{cls}.tsv.gz")
+            ensure(
+                rmsk_results_dir / (f"{rmsk_file_prefix}_{cls}.tsv.gz"),
+                non_empty=True,
+            )
             for cls in rmsk_classes
         ],
         [
-            rmsk_results_dir / (f"{rmsk_file_prefix}_{cls}_{fam}.tsv.gz")
+            ensure(
+                rmsk_results_dir / (f"{rmsk_file_prefix}_{cls}_{fam}.tsv.gz"),
+                non_empty=True,
+            )
             for cls, fams in rmsk_classes.items()
             for fam in fams
         ],

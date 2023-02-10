@@ -18,7 +18,7 @@ rule get_genome:
     input:
         partial(expand_refkey_from_refsetkey, rules.download_genome.output),
     output:
-        annotations_tsv_dir / genome_dir / "genome.txt",
+        ensure(annotations_tsv_dir / genome_dir / "genome.txt", non_empty=True),
     log:
         annotations_log_dir / genome_dir / "genome.log",
     script:

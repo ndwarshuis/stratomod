@@ -19,7 +19,7 @@ rule get_segdups:
     input:
         partial(expand_refkey_from_refsetkey, rules.download_superdups.output),
     output:
-        segdups_results_dir / "segdups.tsv.gz",
+        ensure(segdups_results_dir / "segdups.tsv.gz", non_empty=True),
     conda:
         envs_path("bedtools.yml")
     params:

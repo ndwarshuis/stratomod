@@ -25,7 +25,7 @@ rule get_tandem_repeats:
         ),
         genome=rules.get_genome.output,
     output:
-        tandem_repeats_results_dir / "tandem_repeats.tsv.gz",
+        ensure(tandem_repeats_results_dir / "tandem_repeats.tsv.gz", non_empty=True),
     conda:
         envs_path("bedtools.yml")
     params:
