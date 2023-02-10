@@ -7,7 +7,7 @@ rule download_genome:
     output:
         annotations_src_dir / genome_dir / "chromInfo.txt.gz",
     params:
-        url=config["resources"]["references"]["GRCh38"]["genome"],
+        url=partial(refkey_to_ref_wc, ["genome", "url"]),
     conda:
         envs_path("utils.yml")
     shell:
@@ -16,9 +16,9 @@ rule download_genome:
 
 rule get_genome:
     input:
-        rules.download_genome.output,
+        partial(expand_refkey_from_refsetkey, rules.download_genome.output),
     output:
-        annotations_tsv_dir / genome_dir / "genome.txt",
+        ensure(annotations_tsv_dir / genome_dir / "genome.txt", non_empty=True),
     log:
         annotations_log_dir / genome_dir / "genome.log",
     script:

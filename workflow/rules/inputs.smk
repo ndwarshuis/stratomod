@@ -1,104 +1,141 @@
 from functools import partial
 from scripts.python.common.config import (
-    lookup_config,
     attempt_mem_gb,
-    flat_inputs,
-    flat_chr_filters,
+    inputkey_to_bench_correction,
+    refsetkey_to_sdf_chr_filter,
+    refsetkey_to_chr_prefix,
 )
-
-
-include: "reference.smk"
-
+from scripts.python.common.functional import flip, compose
 
 # resource dirs
 
 inputs_dir = resources_dir / "inputs"
-bench_dir = resources_dir / "bench"
+bench_dir = resources_dir / "bench" / all_wildcards["ref_key"]
+ref_resources_dir = resources_dir / "reference" / all_wildcards["ref_key"]
 
-# relative output dirs
+# relative output dirs (for both actual results and log files)
 
-rel_input_results_dir = Path("inputs") / "{input_key}"
+rel_input_results_dir = (
+    Path("inputs") / all_wildcards["refset_key"] / all_wildcards["input_key"]
+)
 rel_prepare_dir = rel_input_results_dir / "prepare"
 rel_labeled_dir = rel_input_results_dir / "label"
 rel_rtg_dir = rel_labeled_dir / "rtg"
 rel_unlabeled_dir = rel_input_results_dir / "unlabeled"
 rel_alt_bench_dir = rel_input_results_dir / "bench"
+rel_refset_ref_dir = Path("reference") / all_wildcards["refset_key"]
 
 # results dirs
-
-# input_results_dir = results_dir / rel_input_results_dir
 
 prepare_dir = results_dir / rel_prepare_dir
 labeled_dir = results_dir / rel_labeled_dir
 unlabeled_dir = results_dir / rel_unlabeled_dir
 alt_bench_dir = results_dir / rel_alt_bench_dir
 rtg_dir = results_dir / rel_rtg_dir
-
-# log dirs
-
-LABELS = ["fp", "fn", "tp"]
-
-
-def lookup_input(wildcards, *args):
-    return lookup_config(config, "inputs", wildcards.input_key, *args)
-
-
-def lookup_train(wildcards, key):
-    ns = flat_inputs(config)
-    return ns[wildcards.input_key][key]
-
-
-def lookup_chr_filter(wildcards):
-    ref = lookup_train(wildcards, "ref")
-    prefix = lookup_train(wildcards, "chr_prefix")
-    fs = [
-        ("X" if i == 23 else ("Y" if i == 24 else str(i)))
-        for i in flat_chr_filters(config)[wildcards.input_key]
-    ]
-    # GRCh38 is like 'chr1, chr2, etc'
-    pr = prefix if prefix is not None else ("chr" if ref == "GRCh38" else "")
-    return "\\|".join([f"{pr}{f}\\b" for f in fs])
-
-
-def lookup_train_bench(path, wildcards):
-    return expand(path, bench_key=lookup_train(wildcards, "benchmark"))
-
-
-def lookup_benchmark(key, wildcards):
-    return lookup_config(
-        config,
-        "resources",
-        "benchmarks",
-        wildcards.bench_key,
-        key,
-    )
-
-
-def rule_output_suffix(rule, suffix):
-    return f"{getattr(rules, rule).output[0]}.{suffix}"
+refset_ref_dir = results_dir / rel_refset_ref_dir
 
 
 def lookup_benchmark_vcf(wildcards):
-    # TODO this isn't very scalable but at least it will fail if I change the
-    # static config rather than silently permit us to publish 'good' results
-    bk = lookup_train(wildcards, "benchmark")
-    if bk in [
-        "HG002_v4.2.1",
-        "HG003_v4.2.1",
-        "HG004_v4.2.1",
-        "HG006_v4.2.1",
-        "HG007_v4.2.1",
-    ]:
-        return rules.filter_bench_vcf.output
-    elif bk == "HG005_v4.2.1":
-        return rules.fix_HG005_bench_vcf.output
-    elif bk in [
-        "draft_v0.005",
-        "draft_v2.7_xy",
-    ]:
-        return rules.filter_bench_vcf.output
-    else:
-        assert False, f"{bk} not legal benchmark key"
+    return (
+        rules.fix_HG005_bench_vcf.output
+        if inputkey_to_bench_correction(config, "strip_IPS", wildcards.input_key)
+        else rules.filter_bench_vcf.output
+    )
+
+
+# this is necessary because benchmark output files depend on both the input key
+# and the refset key, so both need to be expanded when referring to the input
+# path (which are in terms of the ref key and bench key)
+def expand_benchmark_path(path, wildcards):
+    return compose(
+        partial(flip(expand_benchkey_from_inputkey), wildcards),
+        partial(flip(expand_refkey_from_refsetkey), wildcards),
+    )(path)
+
+
+################################################################################
+# reference
+
+
+rule download_ref_sdf:
+    output:
+        directory(ref_resources_dir / "sdf"),
+    params:
+        url=partial(refkey_to_ref_wc, ["sdf", "url"]),
+    conda:
+        envs_path("utils.yml")
+    shell:
+        """
+        mkdir {output} && \
+        curl -Ss {params.url} | \
+        bsdtar -xf - \
+        --directory {output} \
+        --strip-components=1
+        """
+
+
+rule sdf_to_fasta:
+    input:
+        partial(expand_refkey_from_refsetkey, rules.download_ref_sdf.output),
+    output:
+        refset_ref_dir / "standardized_ref.fa",
+    params:
+        filt=lambda wildcards: " ".join(
+            refsetkey_to_sdf_chr_filter(config, wildcards.refset_key)
+        ),
+        prefix=lambda wildcards: refsetkey_to_chr_prefix(
+            config,
+            ["sdf"],
+            wildcards["refset_key"],
+        ),
+    conda:
+        envs_path("rtg.yml")
+    benchmark:
+        refset_ref_dir / "ref_standardized.bench"
+    shell:
+        """
+        rtg sdf2fasta \
+        -Z --line-length=70 -n \
+        -i {input} \
+        -o {output} {params.filt} && \
+        sed -i 's/>{params.prefix}/>/' {output} && \
+        sed -i 's/>X/>23/' {output} && \
+        sed -i 's/>Y/>24/' {output}
+        """
+
+
+rule fasta_to_sdf:
+    input:
+        rules.sdf_to_fasta.output,
+    output:
+        directory(refset_ref_dir / "standardized_sdf"),
+    conda:
+        envs_path("rtg.yml")
+    benchmark:
+        refset_ref_dir / "sdf_standardized.bench"
+    log:
+        log_dir / rel_refset_ref_dir / "sdf_standardized.log",
+    shell:
+        "rtg format -o {output} {input} 2>&1 > {log}"
+
+
+################################################################################
+# download stratifications
+
+# so far the only use for the stratifications here is to remove MHC since some
+# benchmarks don't have VAF/DP here and removing only from the benchmark would
+# produce automatic FPs
+
+
+rule download_mhc_strat:
+    output:
+        ref_resources_dir / "strats" / "mhc.bed.gz",
+    params:
+        url=partial(refkey_to_ref_wc, ["strats", "mhc", "url"]),
+    conda:
+        envs_path("utils.yml")
+    shell:
+        "curl -sS -L -o {output} {params.url}"
 
 
 ################################################################################
@@ -107,9 +144,9 @@ def lookup_benchmark_vcf(wildcards):
 
 rule download_query_vcf:
     output:
-        inputs_dir / "{input_key}.vcf.gz",
+        inputs_dir / wildcard_ext("input_key", "vcf.gz"),
     params:
-        url=lambda wildcards: lookup_train(wildcards, "url"),
+        url=partial(inputkey_to_input_wc, ["url"]),
     conda:
         envs_path("utils.yml")
     shell:
@@ -122,15 +159,10 @@ rule filter_query_vcf:
     output:
         prepare_dir / "filtered.vcf",
     params:
-        filt=lookup_chr_filter,
-    conda:
-        envs_path("utils.yml")
-    shell:
-        """
-        gunzip -c {input} | \
-        sed -n '/^\(#\|{params.filt}\)/p' \
-        > {output}
-        """
+        gzip_in=True,
+        gzip_out=False,
+    script:
+        python_path("standardize_bed.py")
 
 
 # TODO this is (probably) just for DV VCFs
@@ -185,9 +217,9 @@ rule generate_query_tbi:
 
 rule download_bench_vcf:
     output:
-        bench_dir / "{bench_key}.vcf.gz",
+        bench_dir / wildcard_ext("bench_key", "vcf.gz"),
     params:
-        url=partial(lookup_benchmark, "vcf_url"),
+        url=partial(refkey_to_benchmark_wc, "vcf_url"),
     conda:
         envs_path("utils.yml")
     shell:
@@ -196,7 +228,7 @@ rule download_bench_vcf:
 
 use rule filter_query_vcf as filter_bench_vcf with:
     input:
-        partial(lookup_train_bench, rules.download_bench_vcf.output),
+        partial(expand_benchmark_path, rules.download_bench_vcf.output),
     output:
         alt_bench_dir / "filtered.vcf",
 
@@ -240,34 +272,43 @@ use rule generate_query_tbi as generate_bench_tbi with:
 
 rule download_bench_bed:
     output:
-        bench_dir / "{bench_key}.bed",
+        bench_dir / wildcard_ext("bench_key", "bed"),
     params:
-        url=partial(lookup_benchmark, "bed_url"),
+        url=partial(refkey_to_benchmark_wc, "bed_url"),
     conda:
         envs_path("utils.yml")
     shell:
         "curl -sS -L -o {output} {params.url}"
 
 
-# NOTE this is identical to the vcf version but without gunzip
 rule filter_bench_bed:
     input:
-        partial(lookup_train_bench, rules.download_bench_bed.output),
+        partial(expand_benchmark_path, rules.download_bench_bed.output),
     output:
         alt_bench_dir / "filtered.bed",
     params:
-        filt=lookup_chr_filter,
-    conda:
-        envs_path("utils.yml")
-    shell:
-        "sed -n '/^\(#\|{params.filt}\)/p' {input} > {output}"
+        gzip_in=False,
+        gzip_out=False,
+    script:
+        python_path("standardize_bed.py")
+
+
+rule standardize_mhc_strat:
+    input:
+        partial(expand_refkey_from_refsetkey, rules.download_mhc_strat.output),
+    output:
+        alt_bench_dir / "strats" / "mhc_standardized.bed.gz",
+    params:
+        gzip_in=True,
+        gzip_out=True,
+    script:
+        python_path("standardize_bed.py")
 
 
 rule subtract_mhc_bench_bed:
     input:
         bed=rules.filter_bench_bed.output,
-        # TODO change this when expanding to new references
-        mhc=expand(rules.download_mhc_strat.output, ref_key="GRCh38"),
+        mhc=partial(expand_refkey_from_refsetkey, rules.standardize_mhc_strat.output),
     output:
         alt_bench_dir / "noMHC.bed",
     output:
@@ -275,10 +316,10 @@ rule subtract_mhc_bench_bed:
     conda:
         envs_path("bedtools.yml")
     shell:
-        f"""
-        gunzip {{input.mhc}} -c | \
-        bedtools subtract -a {{input.bed}} -b - \
-        > {{output}}
+        """
+        gunzip {input.mhc} -c | \
+        bedtools subtract -a {input.bed} -b - \
+        > {output}
         """
 
 
@@ -301,12 +342,9 @@ rule label_vcf:
         bench_vcf=rules.zip_bench_vcf.output,
         bench_bed=rules.subtract_mhc_bench_bed.output,
         bench_tbi=rules.generate_bench_tbi.output,
-        sdf=lambda wildcards: expand(
-            rules.download_ref_sdf.output,
-            ref_key=lookup_train(wildcards, "ref"),
-        ),
+        sdf=partial(expand_refkey_from_refsetkey, rules.fasta_to_sdf.output),
     output:
-        [rtg_dir / f"{lbl}.vcf.gz" for lbl in LABELS],
+        [rtg_dir / f"{lbl}.vcf.gz" for lbl in ALL_LABELS],
     conda:
         envs_path("rtg.yml")
     params:
@@ -322,7 +360,7 @@ rule label_vcf:
     threads: 1
     shell:
         """
-        rm -rf {params.tmp_dir}
+        rm -rf {params.tmp_dir} && \
 
         rtg RTG_MEM=$(({resources.mem_mb}*80/100))M \
         vcfeval {params.extra} \
@@ -331,23 +369,27 @@ rule label_vcf:
         -e {input.bench_bed} \
         -c {input.query_vcf} \
         -o {params.tmp_dir} \
-        -t {input.sdf} > {log} 2>&1
+        -t {input.sdf} > {log} 2>&1 && \
 
-        mv {params.tmp_dir}/* {params.output_dir}
+        mv {params.tmp_dir}/* {params.output_dir} && \
 
         rm -r {params.tmp_dir}
         """
 
 
+def labeled_file(ext):
+    return wildcard_format_ext(f"{{}}_{{}}", ["filter_key", "label"], ext)
+
+
 rule parse_labeled_vcf:
     input:
-        rtg_dir / "{label}.vcf.gz",
+        rtg_dir / wildcard_ext("label", "vcf.gz"),
     output:
-        labeled_dir / "{filter_key}_{label}.tsv.gz",
+        labeled_dir / labeled_file("tsv.gz"),
     log:
-        log_dir / rel_labeled_dir / "{filter_key}_{label}.log",
+        log_dir / rel_labeled_dir / labeled_file("log"),
     benchmark:
-        labeled_dir / "{filter_key}_{label}.bench"
+        labeled_dir / labeled_file("bench")
     conda:
         envs_path("bedtools.yml")
     resources:
@@ -358,13 +400,16 @@ rule parse_labeled_vcf:
 
 rule concat_labeled_tsvs:
     input:
-        expand(rules.parse_labeled_vcf.output, label=LABELS, allow_missing=True),
+        expand(rules.parse_labeled_vcf.output, label=ALL_LABELS, allow_missing=True),
     output:
-        labeled_dir / "{filter_key}_labeled.tsv.gz",
+        ensure(
+            labeled_dir / wildcard_format("{}_labeled.tsv.gz", "filter_key"),
+            non_empty=True,
+        ),
     conda:
         envs_path("bedtools.yml")
     benchmark:
-        labeled_dir / "{filter_key}_concat.bench"
+        labeled_dir / wildcard_format("{}_concat.bench", "filter_key")
     resources:
         mem_mb=attempt_mem_gb(4),
     script:
@@ -375,14 +420,18 @@ rule concat_labeled_tsvs:
 # vcf -> tsv (unlabeled)
 
 
+def unlabeled_file(ext):
+    return wildcard_format_ext("{}%{}", ["input_key", "filter_key"], ext)
+
+
 use rule parse_labeled_vcf as parse_unlabeled_vcf with:
     input:
         rules.filter_query_vcf.output,
     output:
-        unlabeled_dir / "{input_key}%{filter_key}.tsv.gz",
+        ensure(unlabeled_dir / unlabeled_file("tsv.gz"), non_empty=True),
     log:
-        log_dir / rel_unlabeled_dir / "{input_key}%{filter_key}.log",
+        log_dir / rel_unlabeled_dir / unlabeled_file("log"),
     resources:
         mem_mb=attempt_mem_gb(2),
     benchmark:
-        unlabeled_dir / "{input_key}%{filter_key}.bench"
+        unlabeled_dir / unlabeled_file("bench")

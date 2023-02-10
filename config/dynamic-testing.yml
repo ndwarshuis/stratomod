@@ -1,25 +1,32 @@
+reference_sets:
+  GRCh37_test:
+    ref: GRCh37
+    chr_filter: [21]
+  GRCh38_test:
+    ref: GRCh38
+    chr_filter: [21]
+
 inputs:
   HG002_Hifi_DV:
-    chr_filter: [21]
+    refset: GRCh37_test
     train:
-      url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh38/SupplementaryFiles/inputvcfsandbeds/HG002_GRCh38_1_22_PacBio_HiFi_DeepVariant.vcf.gz
-      ref: GRCh38
+      chr_prefix: ""
+      url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh37/SupplementaryFiles/inputvcfsandbeds/HG002_GRCh37_1_22_PacBio_HiFi_DeepVariant.vcf.gz
       benchmark: HG002_v4.2.1
     test:
       HG005_Hifi_DV:
-        url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh38/SupplementaryFiles/inputvcfsandbeds/HG005_GRCh38_1_22_PacBio_HiFi_DeepVariant.vcf.gz
-        ref: GRCh38
+        chr_prefix: ""
+        url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh37/SupplementaryFiles/inputvcfsandbeds/HG005_GRCh37_1_22_PacBio_HiFi_DeepVariant.vcf.gz
         benchmark: HG005_v4.2.1
   HG002_Illumina_DV:
-    chr_filter: [21]
+    refset: GRCh38_test
     train:
+      chr_prefix: chr
       url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG002.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
-      ref: GRCh38
       benchmark: HG002_v4.2.1
     test:
       Clinvar_Illumina:
         url: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/archive_2.0/2022/clinvar_20220812.vcf.gz
-        ref: GRCh38
         # isn't genomics wonderful?
         chr_prefix: ''
         format_fields: {}

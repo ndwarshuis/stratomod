@@ -1,4 +1,4 @@
-from scripts.python.common.config import lookup_annotations, attempt_mem_gb
+from scripts.python.common.config import attempt_mem_gb
 
 homopolymers_dir = "homopolymers"
 homopolymers_src_dir = annotations_src_dir / homopolymers_dir
@@ -29,7 +29,6 @@ rule unpack_repseq:
         """
 
 
-# TODO add logging
 rule build_repseq:
     input:
         rules.unpack_repseq.output,
@@ -43,10 +42,10 @@ rule build_repseq:
         "make -C {input} > {log} && mv {input}/repseq {output}"
 
 
+# ASSUME the FASTA input to this is already standardized and filtered
 rule find_simple_repeats:
-    # TODO don't hardcode GRCh38 (when applicable)
     input:
-        ref=expand(rules.sdf_to_fasta.output, ref_key="GRCh38"),
+        ref=partial(expand_refkey_from_refsetkey, rules.sdf_to_fasta.output),
         bin=rules.build_repseq.output,
     output:
         homopolymers_results_dir / "simple_repeats_p3.bed",
@@ -59,45 +58,30 @@ rule find_simple_repeats:
     resources:
         mem_mb=attempt_mem_gb(4),
     shell:
-        "{input.bin} 1 4 {input.ref} > {output} 2> {log}"
-
-
-# This rule is here because I got tired of doing this step twice (once for AT
-# and once for GC)
-rule sort_and_filter_simple_repeats:
-    input:
-        rules.find_simple_repeats.output,
-    output:
-        homopolymers_results_dir / "simple_repeats_p3_sorted.bed.gz",
-    log:
-        homopolymers_log_dir / "sorted.log",
-    conda:
-        envs_path("bedtools.yml")
-    benchmark:
-        homopolymers_results_dir / "sorted.bench"
-    resources:
-        mem_mb=attempt_mem_gb(16),
-    shell:
-        f"""
-        cat {{input}} | \
-        python {python_path('sort_and_filter_bed.py')} -c "#" -s 0 2> {{log}} | \
-        gzip -c \
-        > {{output}}
         """
+        {input.bin} 1 4 {input.ref} 2> {log} | \
+        sed '/^#/d' | \
+        sort -k 1,1n -k 2,2n -k 3,3n \
+        > {output}
+        """
+
+
+def homopolymer_file(ext):
+    return wildcard_format_ext("homopolymers_{}", ["base"], ext)
 
 
 rule get_homopolymers:
     input:
-        bed=rules.sort_and_filter_simple_repeats.output,
+        bed=rules.find_simple_repeats.output,
         genome=rules.get_genome.output,
     output:
-        homopolymers_results_dir / "homopolymers_{base}.tsv.gz",
+        ensure(homopolymers_results_dir / homopolymer_file("tsv.gz"), non_empty=True),
     conda:
         envs_path("bedtools.yml")
     log:
-        homopolymers_log_dir / "homopolymers_{base}.log",
+        homopolymers_log_dir / homopolymer_file("log"),
     benchmark:
-        homopolymers_results_dir / "homopolymers_{base}.bench"
+        homopolymers_results_dir / homopolymer_file("bench")
     resources:
         mem_mb=attempt_mem_gb(16),
     script:

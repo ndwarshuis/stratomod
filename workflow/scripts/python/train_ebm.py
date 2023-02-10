@@ -1,26 +1,31 @@
 import random
+import pandas as pd
 import yaml
+from typing import Union, List
 from more_itertools import flatten
-from sklearn.model_selection import train_test_split
-from interpret.glassbox import ExplainableBoostingClassifier
+from sklearn.model_selection import train_test_split  # type: ignore
+from interpret.glassbox import ExplainableBoostingClassifier  # type: ignore
 from common.tsv import read_tsv, write_tsv
 from common.cli import setup_logging
 from common.ebm import write_model
-from common.config import lookup_ebm_run, lookup_all_index_cols
+import common.config as cfg
 
 logger = setup_logging(snakemake.log[0])
 
 
-def _write_tsv(key, df):
+def _write_tsv(key: str, df: pd.DataFrame) -> None:
     write_tsv(snakemake.output[key], df, header=True)
 
 
-def dump_config(config):
+def dump_config(config: cfg.JSONDict) -> None:
     with open(snakemake.output["config"], "w") as f:
         yaml.dump(config, f)
 
 
-def get_interactions(df_columns, iconfig):
+def get_interactions(
+    df_columns: List[str],
+    iconfig: Union[int, List[str], List[List[str]]],
+) -> Union[int, List[str]]:
     # ASSUME type is int | [str] | [[str]]
     def expand_interactions(i):
         if isinstance(i, str):
@@ -36,9 +41,14 @@ def get_interactions(df_columns, iconfig):
         return [*flatten(expand_interactions(i) for i in iconfig)]
 
 
-def train_ebm(sconf, rconf, label, df):
+def train_ebm(
+    sconf: cfg.JSONDict,
+    rconf: cfg.JSONDict,
+    label: str,
+    df: pd.DataFrame,
+) -> None:
     def strip_coords(df):
-        return df.drop(columns=lookup_all_index_cols(sconf))
+        return df.drop(columns=cfg.lookup_all_index_cols(sconf))
 
     features = rconf["features"]
     feature_names = [
@@ -91,9 +101,9 @@ def train_ebm(sconf, rconf, label, df):
     _write_tsv("test_y", y_test)
 
 
-def main():
+def main() -> None:
     sconf = snakemake.config
-    rconf = lookup_ebm_run(sconf, snakemake.wildcards.run_key)
+    rconf = cfg.lookup_ebm_run(sconf, snakemake.wildcards.run_key)
     df = read_tsv(snakemake.input[0])
     train_ebm(sconf, rconf, sconf["features"]["label"], df)
     dump_config(rconf)

@@ -1,8 +1,9 @@
-from pybedtools import BedTool as bt
+import pandas as pd
+from typing import Dict
+import common.config as cfg
 from common.tsv import write_tsv
 from common.bed import read_bed_df, merge_and_apply_stats
 from common.cli import setup_logging
-from common.config import lookup_bed_cols, bed_cols_indexed
 
 # This database is documented here:
 # http://genome.ucsc.edu/cgi-bin/hgTables?hgta_doSchemaDb=hg38&hgta_doSchemaTable=genomicSuperDups
@@ -15,17 +16,36 @@ from common.config import lookup_bed_cols, bed_cols_indexed
 logger = setup_logging(snakemake.log[0])
 
 
-def read_segdups(path, fconf, bed_cols):
+def read_segdups(
+    path: str,
+    fconf: cfg.JSONDict,
+    bed_cols: Dict[str, str],
+) -> pd.DataFrame:
     cols = fconf["columns"]
     feature_cols = {
         18: cols["alignL"],
         27: cols["fracMatchIndel"],
     }
-    bed_mapping = bed_cols_indexed([1, 2, 3], bed_cols)
-    return read_bed_df(path, bed_mapping, feature_cols, snakemake.params["filt"])
+    bed_mapping = cfg.bed_cols_indexed([1, 2, 3], bed_cols)
+    prefix = cfg.refsetkey_to_chr_prefix(
+        snakemake.config,
+        ["annotations", "superdups"],
+        snakemake.wildcards["refset_key"],
+    )
+    return read_bed_df(
+        path,
+        bed_mapping,
+        feature_cols,
+        prefix,
+        snakemake.params["filt"],
+    )
 
 
-def merge_segdups(df, fconf, bed_cols):
+def merge_segdups(
+    df: pd.DataFrame,
+    fconf: cfg.JSONDict,
+    bed_cols: Dict[str, str],
+) -> pd.DataFrame:
     bed, names = merge_and_apply_stats(
         fconf["operations"],
         bed_cols,
@@ -35,9 +55,9 @@ def merge_segdups(df, fconf, bed_cols):
     return bed.to_dataframe(names=names)
 
 
-def main():
+def main() -> None:
     fconf = snakemake.config["features"]["segdups"]
-    bed_cols = lookup_bed_cols(snakemake.config)
+    bed_cols = cfg.lookup_bed_cols(snakemake.config)
     repeat_df = read_segdups(snakemake.input[0], fconf, bed_cols)
     merged_df = merge_segdups(repeat_df, fconf, bed_cols)
     write_tsv(snakemake.output[0], merged_df, header=True)

@@ -3,26 +3,36 @@ import json
 import subprocess as sp
 from collections import namedtuple
 from more_itertools import flatten, partition, unzip
-from scripts.python.common.config import attempt_mem_gb
+import scripts.python.common.config as cfg
 
 labeled_dir = "labeled"
 unlabeled_dir = "unlabeled"
 
-
 INPUT_DELIM = "&"
+
+
+def expand_from_inputkeys(path, wildcards):
+    input_keys = wildcards.input_keys.split(INPUT_DELIM)
+    return expand(
+        rules.annotate_labeled_tsv.output,
+        zip,
+        allow_missing=True,
+        input_key=input_keys,
+        refset_key=[cfg.inputkey_to_refsetkey(config, k) for k in input_keys],
+    )
 
 
 ################################################################################
 # add annotations
 
 
-annotated_tsv = "{filter_key}.tsv.gz"
-annotated_log = "{filter_key}.log"
-annotated_bench = "{filter_key}.bench"
+annotated_tsv = wildcard_ext("filter_key", "tsv.gz")
+annotated_log = wildcard_ext("filter_key", "log")
+annotated_bench = wildcard_ext("filter_key", "bench")
 
-annotated_dir = Path("annotated_input")
-rel_annotated_labeled_dir = annotated_dir / labeled_dir / "{input_key}"
-rel_annotated_unlabeled_dir = annotated_dir / unlabeled_dir / "{input_key}"
+annotated_dir = Path("annotated_input") / all_wildcards["refset_key"]
+rel_annotated_labeled_dir = annotated_dir / labeled_dir / all_wildcards["input_key"]
+rel_annotated_unlabeled_dir = annotated_dir / unlabeled_dir / all_wildcards["input_key"]
 
 labeled_annotated_dir = results_dir / rel_annotated_labeled_dir
 unlabeled_annotated_dir = results_dir / rel_annotated_unlabeled_dir
@@ -39,7 +49,7 @@ def annotation_input(tsv_path):
             rules.get_segdups.output,
             expand(
                 rules.get_homopolymers.output,
-                base=config["features"]["homopolymers"]["bases"],
+                base=all_bases,
                 allow_missing=True,
             ),
         ],
@@ -58,7 +68,7 @@ rule annotate_labeled_tsv:
     benchmark:
         labeled_annotated_dir / annotated_bench
     resources:
-        mem_mb=attempt_mem_gb(32),
+        mem_mb=cfg.attempt_mem_gb(32),
     script:
         python_path("annotate.py")
 
@@ -77,8 +87,8 @@ use rule annotate_labeled_tsv as annotate_unlabeled_tsv with:
 ################################################################################
 # summarize annotated input
 
-summary_output = "{filter_key}_summary.html"
-summary_bench = "{filter_key}_summary.bench"
+summary_output = wildcard_format("{}_summary.html", "filter_key")
+summary_bench = wildcard_format("{}_summary.bench", "filter_key")
 
 
 rule summarize_labeled_input:
@@ -116,7 +126,9 @@ use rule summarize_labeled_input as summarize_unlabeled_input with:
 # pickling
 
 
-ebm_dir = Path("ebm") / "{input_keys}-{filter_key}-{run_key}"
+ebm_dir = Path("ebm") / wildcard_format(
+    "{}-{}-{}", "input_keys", "filter_key", "run_key"
+)
 
 train_results_dir = results_dir / ebm_dir
 train_log_dir = log_dir / ebm_dir
@@ -124,11 +136,7 @@ train_log_dir = log_dir / ebm_dir
 
 rule prepare_train_data:
     input:
-        lambda wildcards: expand(
-            rules.annotate_labeled_tsv.output,
-            allow_missing=True,
-            input_key=wildcards.input_keys.split(INPUT_DELIM),
-        ),
+        partial(expand_from_inputkeys, rules.annotate_labeled_tsv.output),
     output:
         df=train_results_dir / "train.tsv.gz",
         paths=train_results_dir / "input_paths.json",
@@ -215,7 +223,7 @@ prepare_log_file = "prepare.log"
 prepare_bench_file = "prepare.bench"
 
 test_dir = "test"
-test_subdir = "{test_key}@{input_key}"
+test_subdir = wildcard_format("{}@{}", "test_key", "input_key")
 
 test_results_dir = train_results_dir / test_dir
 test_log_dir = train_log_dir / test_dir
@@ -229,11 +237,7 @@ unlabeled_test_log_dir = test_log_dir / unlabeled_dir / test_subdir
 
 def test_data_input(annotated_path, wildcards):
     return {
-        "annotated": expand(
-            annotated_path,
-            allow_missing=True,
-            input_key=wildcards.test_key,
-        ),
+        "annotated": expand_from_inputkeys(annotated_path, wildcards),
         "paths": rules.prepare_train_data.output.paths,
     }
 
@@ -350,134 +354,22 @@ use rule summarize_labeled_test as summarize_unlabeled_test with:
 # global targets
 
 
-def expand_unzip(path, keys, key_set):
-    if isinstance(keys, dict):
-        lookup = keys.values()
-        keys = [*keys]
-    else:
-        lookup = keys
-    subkeys = [[getattr(s, l) for l in lookup] for s in key_set]
-    return expand(path, zip, **{k: [*s] for k, s in zip(keys, unzip(subkeys))})
-
-
-def test_has_bench(run_keys_test):
-    return (
-        lookup_config(
-            config,
-            "inputs",
-            run_keys_test.input_key,
-            "test",
-            run_keys_test.test_key,
-            "benchmark",
-        )
-        is not None
-    )
-
-
-RunKeys = namedtuple("RunKeys", ["run_key", "filter_key", "input_keys", "inputs"])
-RunKeysTrain = namedtuple(
-    "RunKeysTrain",
-    [
-        "run_key",
-        "filter_key",
-        "input_keys",
-        "input_key",
-    ],
-)
-RunKeysTest = namedtuple(
-    "RunKeysTest",
-    [
-        "run_key",
-        "filter_key",
-        "input_keys",
-        "input_key",
-        "test_key",
-    ],
-)
-
-
-run_set = [
-    RunKeys(k, f, INPUT_DELIM.join([*ns]), ns)
-    for k, rs in config["ebm_runs"].items()
-    for f in rs["filter"]
-    for ns in rs["inputs"]
-]
-
-train_set = [
-    RunKeysTrain(r.run_key, r.filter_key, r.input_keys, i)
-    for r in run_set
-    for i in r.inputs
-]
-
-test_set = [
-    RunKeysTest(r.run_key, r.filter_key, r.input_keys, i, t)
-    for r in run_set
-    for i, ts in r.inputs.items()
-    for t in ts
-]
-unlabeled_test_set, labeled_test_set = map(list, partition(test_has_bench, test_set))
-
-
-def all_input_summary_files():
-    def labeled_targets(key_set):
-        return expand_unzip(
-            rules.summarize_labeled_input.output,
-            ["run_key", "filter_key", "input_key"],
-            train_set,
-        )
-
-    train = labeled_targets(train_set)
-    # labeled_test = labeled_targets(labeled_test_set)
-    labeled_test = expand_unzip(
-        rules.summarize_labeled_input.output,
-        {
-            "run_key": "run_key",
-            "filter_key": "filter_key",
-            "input_key": "test_key",
-        },
-        labeled_test_set,
-    )
-    unlabeled_test = expand_unzip(
-        rules.summarize_unlabeled_input.output,
-        {
-            "run_key": "run_key",
-            "filter_key": "filter_key",
-            "input_key": "test_key",
-        },
-        unlabeled_test_set,
-    )
-    return train + labeled_test + unlabeled_test
-
-
-def all_ebm_files():
-    train = expand_unzip(
-        rules.summarize_model.output,
-        ["run_key", "filter_key", "input_keys"],
-        run_set,
-    )
-
-    def expand_unzip_test(path, key_set):
-        keys = ["run_key", "filter_key", "input_keys", "input_key", "test_key"]
-        return expand_unzip(path, keys, key_set)
-
-    # TODO these should eventually point to the test summary htmls
-    labeled_test = expand_unzip_test(
-        rules.summarize_labeled_test.output,
-        labeled_test_set,
-    )
-    unlabeled_test = expand_unzip_test(
-        rules.summarize_unlabeled_test.output,
-        unlabeled_test_set,
-    )
-
-    return train + labeled_test + unlabeled_test
-
-
 rule all_summary:
     input:
-        all_input_summary_files(),
+        cfg.all_input_summary_files(
+            config,
+            INPUT_DELIM,
+            rules.summarize_labeled_input.output,
+            rules.summarize_unlabeled_input.output,
+        ),
 
 
 rule all_ebm:
     input:
-        all_ebm_files(),
+        cfg.all_ebm_files(
+            config,
+            INPUT_DELIM,
+            rules.summarize_model.output,
+            rules.summarize_labeled_test.output,
+            rules.summarize_unlabeled_test.output,
+        ),

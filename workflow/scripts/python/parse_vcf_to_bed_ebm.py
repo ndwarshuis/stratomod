@@ -1,22 +1,21 @@
-from functools import partial
-from collections import namedtuple
 import numpy as np
+from typing import NamedTuple, List, Optional, Dict, Type, Type
 import pandas as pd
+import common.config as cfg
+from functools import partial
 from more_itertools import partition, unzip
 from common.tsv import write_tsv
 from common.bed import standardize_chr_column
 from common.cli import setup_logging
-from common.config import (
-    fmt_vcf_feature,
-    assert_empty,
-    lookup_train_test_input,
-    fmt_strs,
-)
 from common.functional import compose
 
 logger = setup_logging(snakemake.log[0])
 
-input_col = namedtuple("InputCol", ["dtype", "na_value"])
+
+class InputCol(NamedTuple):
+    dtype: Type
+    na_value: Optional[str]
+
 
 ID = "ID"
 REF = "REF"
@@ -25,7 +24,7 @@ FORMAT = "FORMAT"
 SAMPLE = "SAMPLE"
 
 
-def read_vcf(input_cols, path):
+def read_vcf(input_cols: Dict[str, InputCol], path: str) -> pd.DataFrame:
     # Add columns manually because pandas can't distinguish between lines
     # starting with '##' or '#'
     dtypes, na_values = unzip(
@@ -47,18 +46,23 @@ def read_vcf(input_cols, path):
     return df
 
 
-def fix_dot_alts(df):
+def fix_dot_alts(df: pd.DataFrame) -> pd.DataFrame:
     # NOTE: This step really isn't that important, but this will remove NaNs
     # from the ALT column which will make many downstream steps much easier
     df[ALT] = df[REF].where(df[ALT].isna(), df[ALT])
     return df
 
 
-def lookup_maybe(k, d):
+def lookup_maybe(k: str, d: dict):
     return d[k] if k in d else np.nan
 
 
-def assign_format_sample_fields(chrom, start, fields, df):
+def assign_format_sample_fields(
+    chrom: int,
+    start: str,
+    fields: Dict[str, Optional[str]],
+    df: pd.DataFrame,
+) -> pd.DataFrame:
     def log_split(what, xs):
         logger.info(
             "Splitting FORMAT/SAMPLE into %i %s columns.",
@@ -70,7 +74,7 @@ def assign_format_sample_fields(chrom, start, fields, df):
     # all fields are like this, our job is super easy and we don't need to
     # bother with zipping the FORMAT/SAMPLE columns
     fill_fields, nan_fields = map(
-        list,
+        lambda xs: list(xs),
         partition(
             lambda x: x[1] is None,
             fields.items(),
@@ -102,7 +106,7 @@ def assign_format_sample_fields(chrom, start, fields, df):
     present = ~format_len.isna() & ~sample_len.isna()
     eqlen = format_len == sample_len
 
-    assert_empty(
+    cfg.assert_empty(
         [
             f"{r[chrom]}@{r[start]}"
             for r in df[~eqlen & present].to_dict(orient="records")
@@ -131,7 +135,11 @@ def assign_format_sample_fields(chrom, start, fields, df):
     )
 
 
-def get_filter_mask(ref_len, alt_len, filter_key):
+def get_filter_mask(
+    ref_len: pd.Series,
+    alt_len: pd.Series,
+    filter_key: str,
+) -> pd.Series:
     assert filter_key in ["INDEL", "SNP"], f"Invalid filter key: {filter_key}"
     snps = (ref_len == 1) & (alt_len == 1)
     keep = ~snps & ~(ref_len == alt_len) if filter_key == "INDEL" else snps
@@ -141,13 +149,13 @@ def get_filter_mask(ref_len, alt_len, filter_key):
 
 # ASSUME there are no NaNs in alt at this point
 def add_length_and_filter(
-    indel_len_col,
-    start_col,
-    end_col,
-    filter_key,
-    max_ref,
-    max_alt,
-    df,
+    indel_len_col: str,
+    start_col: str,
+    end_col: str,
+    filter_key: str,
+    max_ref: pd.Series,
+    max_alt: pd.Series,
+    df: pd.DataFrame,
 ):
     def log_removed(filter_mask, other_mask, msg):
         logger.info(
@@ -186,12 +194,18 @@ def add_length_and_filter(
     return df[filter_mask & len_mask & equality_mask & multi_mask].copy()
 
 
-def select_columns(non_field_cols, fields, label_col, label, df):
+def select_columns(
+    non_field_cols: List[str],
+    fields: List[str],
+    label_col: str,
+    label: Optional[str],
+    df: pd.DataFrame,
+) -> pd.DataFrame:
     if label is not None:
         logger.info("Applying label %s to column %s", label, label_col)
         df[label_col] = label
     cols = non_field_cols + [*fields] + ([] if label is None else [label_col])
-    logger.info("Selecting columns for final TSV: %s", fmt_strs(cols))
+    logger.info("Selecting columns for final TSV: %s", cfg.fmt_strs(cols))
     return df[cols]
 
 
@@ -200,47 +214,51 @@ def get_label(wildcards):
         return wildcards.label
 
 
-def main():
+# ASSUME these vcf file already have standard chromosomes
+def main() -> None:
     wildcards = snakemake.wildcards
     sconf = snakemake.config
     fconf = sconf["features"]
-    iconf = lookup_train_test_input(sconf, wildcards.input_key)
+    iconf = cfg.inputkey_to_input(sconf, [], wildcards.input_key)
     idx = fconf["bed_index"]
+    # prefix = cfg.refsetkey_to_chr_prefix(sconf, ["sdf"], wildcards["refset_key"])
 
     chrom = idx["chr"]
     pos = idx["start"]
-    qual = fmt_vcf_feature(sconf, "qual")
-    info = fmt_vcf_feature(sconf, "info")
-    filt = fmt_vcf_feature(sconf, "filter")
+    qual = cfg.fmt_vcf_feature(sconf, "qual")
+    info = cfg.fmt_vcf_feature(sconf, "info")
+    filt = cfg.fmt_vcf_feature(sconf, "filter")
     end = idx["end"]
-    indel_length = fmt_vcf_feature(sconf, "len")
+    indel_length = cfg.fmt_vcf_feature(sconf, "len")
 
     input_cols = {
-        chrom: input_col(str, None),
-        pos: input_col(int, None),
-        ID: input_col(str, "."),
-        REF: input_col(str, None),
-        ALT: input_col(str, "."),
-        qual: input_col(float, "."),
-        filt: input_col(str, "."),
-        info: input_col(str, "."),
-        FORMAT: input_col(str, "."),
-        SAMPLE: input_col(str, "."),
+        chrom: InputCol(str, None),
+        pos: InputCol(int, None),
+        ID: InputCol(str, "."),
+        REF: InputCol(str, None),
+        ALT: InputCol(str, "."),
+        qual: InputCol(float, "."),
+        filt: InputCol(str, "."),
+        info: InputCol(str, "."),
+        FORMAT: InputCol(str, "."),
+        SAMPLE: InputCol(str, "."),
     }
 
     non_field_cols = [chrom, pos, end, indel_length, qual, filt, info]
 
-    fields = {fmt_vcf_feature(sconf, k): v for k, v in iconf["format_fields"].items()}
+    fields = {
+        cfg.fmt_vcf_feature(sconf, k): v for k, v in iconf["format_fields"].items()
+    }
     label = get_label(wildcards)
 
     return compose(
         partial(write_tsv, snakemake.output[0]),
         partial(select_columns, non_field_cols, fields, fconf["label"], label),
         partial(assign_format_sample_fields, chrom, pos, fields),
-        partial(standardize_chr_column, chrom),
+        # partial(standardize_chr_column, prefix, chrom),
         partial(
             add_length_and_filter,
-            fmt_vcf_feature(sconf, "len"),
+            cfg.fmt_vcf_feature(sconf, "len"),
             pos,
             end,
             wildcards.filter_key,

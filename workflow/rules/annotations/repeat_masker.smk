@@ -1,8 +1,4 @@
-from scripts.python.common.config import (
-    lookup_global_chr_filter,
-    lookup_annotations,
-    attempt_mem_gb,
-)
+from scripts.python.common.config import attempt_mem_gb
 
 rmsk_dir = "repeat_masker"
 rmsk_results_dir = annotations_tsv_dir / rmsk_dir
@@ -16,7 +12,7 @@ rule download_repeat_masker:
     output:
         annotations_src_dir / rmsk_dir / "repeat_masker.txt.gz",
     params:
-        url=lookup_annotations(config)["repeat_masker"],
+        url=partial(refkey_to_ref_wc, ["annotations", "repeat_masker", "url"]),
     conda:
         envs_path("utils.yml")
     shell:
@@ -25,11 +21,20 @@ rule download_repeat_masker:
 
 rule get_repeat_masker_classes:
     input:
-        rules.download_repeat_masker.output,
+        partial(expand_refkey_from_refsetkey, rules.download_repeat_masker.output),
     output:
-        [rmsk_results_dir / (f"{rmsk_file_prefix}_{cls}.tsv.gz") for cls in rmsk_classes],
         [
-            rmsk_results_dir / (f"{rmsk_file_prefix}_{cls}_{fam}.tsv.gz")
+            ensure(
+                rmsk_results_dir / (f"{rmsk_file_prefix}_{cls}.tsv.gz"),
+                non_empty=True,
+            )
+            for cls in rmsk_classes
+        ],
+        [
+            ensure(
+                rmsk_results_dir / (f"{rmsk_file_prefix}_{cls}_{fam}.tsv.gz"),
+                non_empty=True,
+            )
             for cls, fams in rmsk_classes.items()
             for fam in fams
         ],
@@ -39,7 +44,7 @@ rule get_repeat_masker_classes:
         annotations_log_dir / rmsk_dir / "rmsk.log",
     params:
         file_prefix=rmsk_file_prefix,
-        filt=lookup_global_chr_filter(config),
+        filt=refsetkey_to_chr_indices_wc,
     benchmark:
         rmsk_results_dir / "rmsk.bench"
     resources:
