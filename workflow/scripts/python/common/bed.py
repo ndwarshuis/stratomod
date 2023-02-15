@@ -11,6 +11,8 @@ from common.config import (
     fmt_merged_feature,
     bed_cols_ordered,
     fmt_strs,
+    BedMergeOp,
+    BedIndex,
 )
 
 
@@ -77,8 +79,8 @@ def read_bed_df(
 
 
 def merge_and_apply_stats(
-    merge_stats: List[str],
-    bed_cols: Dict[str, str],
+    merge_stats: List[BedMergeOp],
+    bed_cols: BedIndex,
     prefix: str,
     bed_df: pd.DataFrame,
 ):
@@ -91,7 +93,7 @@ def merge_and_apply_stats(
     stat_cols = bed_df.columns.tolist()[drop_n:]
 
     logging.info("Computing stats for columns: %s\n", ", ".join(stat_cols))
-    logging.info("Stats to compute: %s\n", ", ".join(merge_stats))
+    logging.info("Stats to compute: %s\n", ", ".join(map(str, merge_stats)))
 
     cols, opts, headers = unzip(
         (i + drop_n + 1, m, fmt_merged_feature(prefix, s, m))

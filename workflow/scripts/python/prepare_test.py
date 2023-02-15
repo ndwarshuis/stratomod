@@ -29,16 +29,16 @@ def read_input(
 def write_labeled(
     xpath: str,
     ypath: str,
-    sconf: cfg.JSONDict,
-    rconf,
+    sconf: cfg.StratoMod,
+    rconf: cfg.EBMRun,
     filter_col: str,
     df: pd.DataFrame,
 ) -> None:
-    label_col = sconf["features"]["label"]
+    label_col = sconf.feature_meta.label
     processed = process_labeled_data(
-        rconf["features"],
-        rconf["error_labels"],
-        rconf["filtered_are_candidates"],
+        rconf.features,
+        list(rconf.error_labels),
+        rconf.filtered_are_candidates,
         cfg.lookup_all_index_cols(sconf),
         filter_col,
         label_col,
@@ -50,12 +50,12 @@ def write_labeled(
 
 def write_unlabeled(
     xpath: str,
-    sconf: cfg.JSONDict,
-    rconf: cfg.JSONDict,
+    sconf: cfg.StratoMod,
+    rconf: cfg.EBMRun,
     df: pd.DataFrame,
 ) -> None:
     processed = process_unlabeled_data(
-        rconf["features"],
+        rconf.features,
         cfg.lookup_all_index_cols(sconf),
         df,
     )

@@ -4,9 +4,9 @@ import numpy as np
 from pybedtools import BedTool as bt  # type: ignore
 from common.tsv import read_tsv, write_tsv
 from common.cli import setup_logging
-from common.config import lookup_raw_index
+import common.config as cfg
 
-logger = setup_logging(snakemake.log[0])
+logger = setup_logging(snakemake.log[0])  # type: ignore
 
 
 def left_outer_intersect(left, path):
@@ -50,22 +50,22 @@ def left_outer_intersect(left, path):
     return new_df.drop(columns=new_pky)
 
 
-def intersect_tsvs(ifile: str, ofile: str, tsv_paths: List[str]):
+def intersect_tsvs(config: cfg.StratoMod, ifile: str, ofile: str, tsv_paths: List[str]):
     target_df = read_tsv(ifile)
     new_df = reduce(left_outer_intersect, tsv_paths, target_df)
     new_df.insert(
         loc=0,
-        column=lookup_raw_index(snakemake.config),
+        column=cfg.lookup_raw_index(config),
         value=new_df.index,
     )
     write_tsv(ofile, new_df)
 
 
-def main() -> None:
-    tsvs = snakemake.input.annotations
-    vcf = snakemake.input.variants[0]
+def main(smk, config: cfg.StratoMod) -> None:
+    tsvs = smk.input.annotations
+    vcf = smk.input.variants[0]
     logger.info("Adding annotations to %s\n", vcf)
-    intersect_tsvs(vcf, snakemake.output[0], tsvs)
+    intersect_tsvs(config, vcf, smk.output[0], tsvs)
 
 
-main()
+main(snakemake, snakemake.config)  # type: ignore

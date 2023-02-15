@@ -17,7 +17,7 @@ def _write_tsv(key: str, df: pd.DataFrame) -> None:
     write_tsv(snakemake.output[key], df, header=True)
 
 
-def dump_config(config: cfg.JSONDict) -> None:
+def dump_config(config: cfg.EBMRun) -> None:
     with open(snakemake.output["config"], "w") as f:
         yaml.dump(config, f)
 
@@ -42,22 +42,22 @@ def get_interactions(
 
 
 def train_ebm(
-    sconf: cfg.JSONDict,
-    rconf: cfg.JSONDict,
+    sconf: cfg.StratoMod,
+    rconf: cfg.EBMRun,
     label: str,
     df: pd.DataFrame,
 ) -> None:
     def strip_coords(df):
         return df.drop(columns=cfg.lookup_all_index_cols(sconf))
 
-    features = rconf["features"]
+    features = rconf.features
     feature_names = [
-        k if v["alt_name"] is None else v["alt_name"] for k, v in features.items()
+        k if v.alt_name is None else v.alt_name for k, v in features.items()
     ]
-    misc_params = rconf["ebm_settings"]["misc_parameters"]
+    misc_params = rconf.ebm_settings.misc_parameters
 
-    if not misc_params["downsample"] is None:
-        df = df.sample(frac=misc_params["downsample"])
+    if misc_params.downsample is not None:
+        df = df.sample(frac=misc_params.downsample)
 
     train_cols = [c for c in df.columns if c != label]
     X = df[train_cols]
@@ -66,13 +66,13 @@ def train_ebm(
     X_train, X_test, y_train, y_test = train_test_split(
         X,
         y,
-        **rconf["ebm_settings"]["split_parameters"],
+        **rconf.ebm_settings.split_parameters,
     )
 
-    ebm_config = rconf["ebm_settings"]["classifier_parameters"]
+    ebm_config = rconf.ebm_settings.classifier_parameters
 
-    if ebm_config["random_state"] is None:
-        ebm_config["random_state"] = random.randrange(0, 420420)
+    if ebm_config.random_state is None:
+        ebm_config.random_state = random.randrange(0, 420420)
 
     cores = snakemake.threads
 
@@ -87,8 +87,8 @@ def train_ebm(
         # 'F1 x F2' but it appears to work when I specify them separately via
         # the 'interactions' parameter
         feature_names=feature_names,
-        feature_types=[f["feature_type"] for f in features.values()],
-        interactions=get_interactions(feature_names, rconf["interactions"]),
+        feature_types=[f.feature_type for f in features.values()],
+        interactions=get_interactions(feature_names, rconf.interactions),
         n_jobs=cores,
         **ebm_config,
     )

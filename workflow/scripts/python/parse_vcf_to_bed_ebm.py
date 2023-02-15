@@ -215,20 +215,19 @@ def get_label(wildcards):
 
 
 # ASSUME these vcf file already have standard chromosomes
-def main() -> None:
-    wildcards = snakemake.wildcards
-    sconf = snakemake.config
-    fconf = sconf["features"]
-    iconf = cfg.inputkey_to_input(sconf, [], wildcards.input_key)
-    idx = fconf["bed_index"]
+def main(smk, sconf: cfg.StratoMod) -> None:
+    wildcards = smk.wildcards
+    fconf = sconf.feature_meta
+    iconf = cfg.inputkey_to_input(sconf, wildcards.input_key)
+    idx = fconf.bed_index
     # prefix = cfg.refsetkey_to_chr_prefix(sconf, ["sdf"], wildcards["refset_key"])
 
-    chrom = idx["chr"]
-    pos = idx["start"]
+    chrom = idx.chr
+    pos = idx.start
     qual = cfg.fmt_vcf_feature(sconf, "qual")
     info = cfg.fmt_vcf_feature(sconf, "info")
     filt = cfg.fmt_vcf_feature(sconf, "filter")
-    end = idx["end"]
+    end = idx.end
     indel_length = cfg.fmt_vcf_feature(sconf, "len")
 
     input_cols = {
@@ -247,13 +246,14 @@ def main() -> None:
     non_field_cols = [chrom, pos, end, indel_length, qual, filt, info]
 
     fields = {
-        cfg.fmt_vcf_feature(sconf, k): v for k, v in iconf["format_fields"].items()
+        cfg.fmt_vcf_feature(sconf, k): v for k, v in iconf.format_fields.dict().items()
     }
     label = get_label(wildcards)
 
+    # TODO not type safe
     return compose(
-        partial(write_tsv, snakemake.output[0]),
-        partial(select_columns, non_field_cols, fields, fconf["label"], label),
+        partial(write_tsv, smk.output[0]),
+        partial(select_columns, non_field_cols, fields, fconf.label, label),
         partial(assign_format_sample_fields, chrom, pos, fields),
         # partial(standardize_chr_column, prefix, chrom),
         partial(
@@ -262,12 +262,12 @@ def main() -> None:
             pos,
             end,
             wildcards.filter_key,
-            iconf["max_ref"],
-            iconf["max_alt"],
+            iconf.max_ref,
+            iconf.max_alt,
         ),
         fix_dot_alts,
         partial(read_vcf, input_cols),
-    )(snakemake.input[0])
+    )(smk.input[0])
 
 
 main()

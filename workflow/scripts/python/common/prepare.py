@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import common.config as cfg
-from typing import List, Set
+from typing import List, Set, Dict
 from functools import partial
 from more_itertools import duplicates_everseen
 from common.functional import compose
@@ -15,13 +15,13 @@ FN_LABEL = "fn"
 FILTERED_VAL = "RefCall"
 
 
-def process_series(opts: cfg.JSONDict, ser: pd.Series) -> pd.Series:
-    trans = opts["transform"]
+def process_series(opts: cfg.Feature, ser: pd.Series) -> pd.Series:
+    trans = opts.transform
     _ser = pd.to_numeric(ser, errors="coerce")
     if trans == "binary":
         return (~_ser.isnull()).astype(int)
     else:
-        fillval = opts["fill_na"]
+        fillval = opts.fill_na
         return (np.log10(_ser) if trans == "log" else _ser).fillna(fillval)
 
 
@@ -33,7 +33,10 @@ def process_series(opts: cfg.JSONDict, ser: pd.Series) -> pd.Series:
 #     )
 
 
-def process_columns(features: cfg.JSONDict, df: pd.DataFrame) -> pd.DataFrame:
+def process_columns(
+    features: Dict[cfg.FeatureKey, cfg.Feature],
+    df: pd.DataFrame,
+) -> pd.DataFrame:
     for col, opts in features.items():
         df[col] = process_series(opts, df[col])
     return df
@@ -56,7 +59,7 @@ def check_columns(wanted_cols: List[str], df_cols: List[str]) -> None:
 
 
 def select_columns(
-    features: cfg.JSONDict,
+    features: Dict[cfg.FeatureKey, cfg.Feature],
     idx_cols: List[str],
     label_col: str,
     df: pd.DataFrame,
@@ -67,7 +70,7 @@ def select_columns(
     # since this will work with whatever the column represented by "idx_col"
     # to make a complete index mapping back to the input variant
     all_cols = idx_cols + wanted_cols
-    to_rename = {k: n for k, v in features.items() if (n := v["alt_name"]) is not None}
+    to_rename = {k: n for k, v in features.items() if (n := v.alt_name) is not None}
     return df[all_cols].rename(columns=to_rename)
 
 
@@ -108,8 +111,8 @@ def collapse_labels(
 
 
 def process_labeled_data(
-    features: cfg.JSONDict,
-    error_labels: List[str],
+    features: Dict[cfg.FeatureKey, cfg.Feature],
+    error_labels: List[cfg.Label],
     filtered_are_candidates: bool,
     idx_cols: List[str],
     filter_col: str,

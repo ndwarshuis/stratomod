@@ -1,25 +1,349 @@
 import re
 from typing import (
     Any,
+    Sequence,
     Dict,
     List,
     Tuple,
+    Union,
     Set,
     Iterable,
     Collection,
     Callable,
     Optional,
     NamedTuple,
+    NewType,
 )
 from more_itertools import flatten, duplicates_everseen, unzip, partition
 from itertools import product
 from functools import partial
 from .functional import maybe, compose
 from snakemake.io import expand, InputFiles  # type: ignore
+from pydantic import BaseModel
+from enum import Enum
 
-# JSONVal = Union[bool, str, float, int, List["JSONVal"], "JSONDict"]
+RefKey = NewType("RefKey", str)
+RefsetKey = NewType("RefsetKey", str)
+TestKey = NewType("TestKey", str)
+InputKey = NewType("InputKey", str)
+BenchKey = NewType("BenchKey", str)
+ModelKey = NewType("ModelKey", str)
+RunKey = NewType("RunKey", str)
+FeatureKey = NewType("FeatureKey", str)
 
-JSONDict = Dict[str, Any]  # booooooooooo
+VarKey = NewType("VarKey", str)
+
+
+class Base(Enum):
+    A = "A"
+    C = "C"
+    G = "G"
+    T = "T"
+
+
+class FilterKey(Enum):
+    SNV = "SNV"
+    INDEL = "INDEL"
+
+
+class Label(Enum):
+    TP = "tp"
+    FP = "fp"
+    FN = "fn"
+
+
+class PlotType(Enum):
+    BAR = "bar"
+    STEP = "step"
+
+
+class FeatureType(Enum):
+    CONTINUOUS = "continuous"
+    CATEGORICAL = "categorical"
+
+
+class Binning(Enum):
+    UNIFORM = "uniform"
+    QUANTILE = "quantile"
+    QUANTILE_HUMANIZED = "quantile_humanized"
+
+
+class BedMergeOp(Enum):
+    MIN = "min"
+    MAX = "max"
+    MEAN = "mean"
+    MEDIAN = "median"
+
+
+class Transform(Enum):
+    LOG = "log"
+    BINARY = "binary"
+
+
+class Paths(BaseModel):
+    resources: str
+    results: str
+
+
+class RefSet(BaseModel):
+    ref: RefKey
+    chr_filter: Set[int]
+
+
+class CatVar(BaseModel):
+    levels: Set[str]
+
+
+class ContVar(BaseModel):
+    lower: Optional[float]
+    upper: Optional[float]
+
+
+class FormatFields(BaseModel):
+    vaf: Optional[str]
+    dp: Optional[str]
+    gt: Optional[str]
+    gq: Optional[str]
+
+
+class VCFInput(BaseModel):
+    refset: RefsetKey
+    chr_prefix: str
+    url: Optional[str]
+    benchmark: Optional[BenchKey]
+    variables: Dict[VarKey, str]
+    format_fields: Optional[FormatFields]
+    # TODO min = 1
+    max_ref: int = 50
+    max_alt: int = 50
+
+
+class TestDataInput(BaseModel):
+    input_key: InputKey
+    variables: Dict[VarKey, str]
+
+
+class ModelInput(BaseModel):
+    train: Set[InputKey]
+    test: Dict[TestKey, TestDataInput]
+
+
+class EBMMiscParams(BaseModel):
+    # TODO this is a fraction/ needs constraint
+    downsample: Optional[float] = None
+
+
+class EBMSplitParams(BaseModel):
+    # TODO this is a fraction/ needs constraint
+    test_size: float = 0.2
+    random_state: Optional[int] = None
+
+
+# TODO these all need constraints
+class EBMClassifierParams(BaseModel):
+    max_bins: int = 256
+    max_interaction_bins: int = 32
+    binning: Binning = Binning.QUANTILE
+    outer_bags: int = 8
+    inner_bags: int = 0
+    learning_rate: float = 0.01
+    validation_size: float = 0.15
+    early_stopping_rounds: int = 50
+    early_stopping_tolerance: float = 0.0001
+    max_rounds: int = 5000
+    min_samples_leaf: int = 2
+    max_leaves: int = 3
+    random_state: Optional[int] = None
+
+
+class EBMSettings(BaseModel):
+    misc_parameters: EBMMiscParams = EBMMiscParams()
+    split_parameters: EBMSplitParams = EBMSplitParams()
+    classifier_parameters: EBMClassifierParams = EBMClassifierParams()
+
+
+class Truncation(BaseModel):
+    lower: Optional[float]
+    upper: Optional[float]
+
+
+class Visualization(BaseModel):
+    truncate: Truncation = Truncation()
+    plot_type: PlotType = PlotType.STEP
+    split_missing: Optional[float] = None
+
+
+class Feature(BaseModel):
+    feature_type: FeatureType = FeatureType.CONTINUOUS
+    fill_na: Optional[float] = 0.0
+    alt_name: Optional[str] = None
+    visualization: Visualization = Visualization()
+    transform: Optional[Transform] = None
+
+
+class EBMRun(BaseModel):
+    inputs: Dict[RunKey, ModelInput]
+    filter: Set[FilterKey]
+    ebm_settings: EBMSettings
+    error_labels: Set[Label]
+    filtered_are_candidates: bool
+    interactions: Union[int, List[str], List[List[str]]]
+    features: Dict[FeatureKey, Feature]
+
+
+class BedFile(BaseModel):
+    url: Optional[str]
+    chr_prefix: str
+
+
+class Strats(BaseModel):
+    mhc: BedFile
+
+
+class BenchmarkCorrections(BaseModel):
+    strip_IPS: bool
+
+
+class Benchmark(BaseModel):
+    vcf_url: Optional[str]
+    bed_url: Optional[str]
+    chr_prefix: str
+    corrections: BenchmarkCorrections
+
+
+class Mappability(BaseModel):
+    low: BedFile
+    high: BedFile
+
+
+class Annotations(BaseModel):
+    mappability: Mappability
+    superdups: BedFile
+    simreps: BedFile
+    repeat_masker: BedFile
+
+
+class Reference(BaseModel):
+    sdf: BedFile
+    genome: BedFile
+    strats: Strats
+    annotations: Annotations
+    benchmarks: Dict[str, Benchmark]
+
+
+class BedIndex(BaseModel):
+    chr: str
+    start: str
+    end: str
+
+
+class VCFColumns(BaseModel):
+    input: str
+    qual: str
+    filter: str
+    info: str
+    gt: str
+    gq: str
+    dp: str
+    vaf: str
+    len: str
+
+
+class VCFMeta(BaseModel):
+    prefix: str
+    columns: VCFColumns
+
+
+class MapSuffixes(BaseModel):
+    low: str
+    high: str
+
+
+class MapMeta(BaseModel):
+    prefix: str
+    suffixes: MapSuffixes
+
+
+class HomopolySuffixes(BaseModel):
+    len: str
+    imp_frac: str
+
+
+class HomopolyMeta(BaseModel):
+    prefix: str
+    bases: List[Base]
+    suffixes: HomopolySuffixes
+
+
+class RMSKSuffixes(BaseModel):
+    len: str
+
+
+class RMSKClasses(BaseModel):
+    SINE = List[str]
+    LINE = List[str]
+    LTR = List[str]
+    Satellite = List[str]
+
+
+class RMSKMeta(BaseModel):
+    prefix: str
+    suffixes: RMSKSuffixes
+    classes: RMSKClasses
+
+
+class SegDupsColumns(BaseModel):
+    alignL: str
+    fracMatchIndel: str
+
+
+class SegDupsMeta(BaseModel):
+    prefix: str
+    columns: SegDupsColumns
+    operations: Set[BedMergeOp]
+
+
+class TandemRepeatColumns(BaseModel):
+    period: str
+    copyNum: str
+    perMatch: str
+    perIndel: str
+    score: str
+
+
+class TandemRepeatOther(BaseModel):
+    len: str
+
+
+class TandemRepeatMeta(BaseModel):
+    prefix: str
+    bases_prefix: str
+    operations: Set[BedMergeOp]
+    columns: TandemRepeatColumns
+    other: TandemRepeatOther
+
+
+class FeatureMeta(BaseModel):
+    label: str
+    raw_index: str
+    bed_index: BedIndex
+    vcf: VCFMeta
+    mappability: MapMeta
+    homopolymers: HomopolyMeta
+    repeat_masker: RMSKMeta
+    segdups: SegDupsMeta
+    tandem_repeats: TandemRepeatMeta
+
+
+class StratoMod(BaseModel):
+    reference_sets: Dict[RefsetKey, RefSet]
+    variables: Dict[VarKey, Union[ContVar, CatVar]]
+    inputs: Dict[InputKey, VCFInput]
+    ebm_runs: Dict[ModelKey, EBMRun]
+    paths: Paths
+    references: Dict[RefKey, Reference]
+    feature_meta: FeatureMeta
+
 
 # ------------------------------------------------------------------------------
 # too useful...
@@ -65,14 +389,15 @@ def assert_match(pat: str, s: str) -> str:
 #   under each 'test') are unique
 
 
-def validate_inputs(config: JSONDict) -> None:
-    train = input_train_keys(config)
-    test = input_test_keys(config)
-    assert_no_dups(train + test, "Duplicate input keys found")
+def validate_inputs(config: StratoMod) -> None:
+    inputs = config.inputs
+    # train = input_train_keys(config)
+    # test = input_test_keys(config)
+    assert_no_dups(inputs, "Duplicate input keys found")
 
 
 # TODO make unittests for these
-def validate_ebm_features(config: JSONDict) -> None:
+def validate_ebm_features(config: StratoMod) -> None:
     def assert_1(run_name, feature_list, feature):
         assert (
             feature in feature_list
@@ -86,9 +411,9 @@ def validate_ebm_features(config: JSONDict) -> None:
         return [k if v["alt_name"] is None else v["alt_name"] for k, v in fs.items()]
 
     flat = [
-        (k, ints, v["features"])
-        for k, v in config["ebm_runs"].items()
-        if "interactions" in v and isinstance(ints := v["interactions"], list)
+        (k, ints, v.features)
+        for k, v in config.ebm_runs.items()
+        if isinstance(ints := v.interactions, list)
     ]
 
     for run_name, ints, features in flat:
@@ -101,16 +426,16 @@ def validate_ebm_features(config: JSONDict) -> None:
 
         for k, v in features.items():
             # test feature alt names
-            alt = v["alt_name"]
+            alt = v.alt_name
             if alt is not None:
                 prefix = assert_match("^[^_]+", k)
                 alt_prefix = assert_match("^[^_]+", alt)
                 assert alt_prefix == prefix, f"Alt prefix must match for {k}"
 
             # test truncation values
-            truncate = v["visualization"]["truncate"]
-            tlower = truncate["lower"]
-            tupper = truncate["upper"]
+            truncate = v.visualization.truncate
+            tlower = truncate.lower
+            tupper = truncate.upper
             if tlower is not None and tupper is not None:
                 assert tlower < tupper, f"Non-positive truncation for {k}"
 
@@ -124,17 +449,18 @@ def validate_ebm_features(config: JSONDict) -> None:
             check(run_name, flat_feature_names, i)
 
 
-def validate_ebm_inputs(config: JSONDict) -> None:
-    def assert_keys_exist(what, get_input_keys, get_ebm_keys):
-        iks = get_input_keys(config)
-        eks = [*flatten(get_ebm_keys(e) for e in config["ebm_runs"].values())]
-        assert_empty(
-            set(eks) - set(iks),
-            f"EBM {what} keys not found in input keys",
-        )
+# TODO fixme
+# def validate_ebm_inputs(config: StratoMod) -> None:
+#     def assert_keys_exist(what, get_input_keys, get_ebm_keys):
+#         iks = get_input_keys(config)
+#         eks = [*flatten(get_ebm_keys(e) for e in config["ebm_runs"].values())]
+#         assert_empty(
+#             set(eks) - set(iks),
+#             f"EBM {what} keys not found in input keys",
+#         )
 
-    assert_keys_exist("train", input_train_keys, ebm_run_train_keys)
-    assert_keys_exist("test", input_test_keys, ebm_run_test_keys)
+#     assert_keys_exist("train", input_train_keys, ebm_run_train_keys)
+#     assert_keys_exist("test", input_test_keys, ebm_run_test_keys)
 
 
 # ------------------------------------------------------------------------------
@@ -150,108 +476,96 @@ def attempt_mem_gb(mem_gb: int) -> Callable[[dict, int], int]:
 # expanding targets
 
 
-def all_benchkeys(config: JSONDict, target: InputFiles) -> InputFiles:
+def all_benchkeys(config: StratoMod, target: InputFiles) -> InputFiles:
     rs, bs = unzip(
         (inputkey_to_refkey(config, k), b)
-        for k, v in flat_inputs(config).items()
-        if (b := v["benchmark"]) is not None
+        for k, v in config.inputs.items()
+        if (b := v.benchmark) is not None
     )
     return expand(target, zip, ref_key=rs, bench_key=bs)
 
 
-# class RunKeys(NamedTuple):
-#     run_key: str
-#     filter_key: str
-#     input_keys: str
-#     inputs: JSONDict
-
-
 class RunKeysTrain(NamedTuple):
-    run_key: str
-    filter_key: str
-    input_keys: str
-    input_key: str
-    refset_key: str
+    model_key: ModelKey
+    filter_key: FilterKey
+    data_key: RunKey
+    input_key: InputKey
 
 
 class RunKeysTest(NamedTuple):
-    run_key: str
-    filter_key: str
-    input_keys: str
-    input_key: str
-    test_key: str
-    refset_key: str
+    model_key: ModelKey
+    filter_key: FilterKey
+    data_key: RunKey
+    test_key: TestKey
+    input_key: InputKey
 
 
-def lookup_run_sets(
-    config: JSONDict,
-    delim: str,
-) -> Tuple[List[RunKeysTrain], List[RunKeysTest]]:
-    runs = [
-        ((k, f, delim.join([i["input_key"] for i in ins])), ins)
-        for k, rs in config["ebm_runs"].items()
-        for f in rs["filter"]
-        for ins in rs["inputs"]
+def lookup_run_sets(config: StratoMod) -> Tuple[List[RunKeysTrain], List[RunKeysTest]]:
+    models = [
+        ((model_key, filter_key, data_key), rest)
+        for model_key, model in config.ebm_runs.items()
+        for filter_key in model.filter
+        for data_key, rest in model.inputs.items()
     ]
     train = [
-        RunKeysTrain(*meta, ik, inputkey_to_refsetkey(config, ik))
-        for (meta, ins) in runs
-        for ik in ins
+        RunKeysTrain(*meta, train_key)
+        for (meta, rest) in models
+        for train_key in rest.train
     ]
     test = [
-        RunKeysTest(
-            *meta,
-            train_key,
-            test_key,
-            inputkey_to_refsetkey(config, test_key),
-        )
-        for (meta, ins) in runs
-        for train_key, test in ins.items()
-        for test_key in test
+        RunKeysTest(*meta, test_key, test.input_key)
+        for (meta, rest) in models
+        for test_key, test in rest.test.items()
     ]
     return (train, test)
 
 
-def test_has_bench(config: JSONDict, runs: RunKeysTest) -> bool:
-    keys = ["inputs", runs.input_key, "test", runs.test_key, "benchmark"]
-    return lookup_config(config, keys) is not None
+def test_has_bench(config: StratoMod, runs: RunKeysTest) -> bool:
+    return config.inputs[runs.input_key].benchmark is not None
 
 
 def partition_test_set(
-    config: JSONDict,
+    config: StratoMod,
     test_set: List[RunKeysTest],
 ) -> Tuple[List, List]:
     unlabeled, labeled = partition(lambda t: test_has_bench(config, t), test_set)
     return list(unlabeled), list(labeled)
 
 
+def all_refset_keys(
+    config: StratoMod,
+    ks: Sequence[Union[RunKeysTest, RunKeysTrain]],
+) -> List[str]:
+    return list(map(lambda x: inputkey_to_refsetkey(config, x.input_key), ks))
+
+
 def all_input_summary_files(
-    config: JSONDict,
-    delim: str,
+    config: StratoMod,
     labeled_target: InputFiles,
     unlabeled_target: InputFiles,
 ) -> InputFiles:
     def labeled_targets(target: InputFiles, key_set: List[RunKeysTrain]):
         return expand(
-            labeled_target,
+            target,
             zip,
-            run_key=map(lambda x: x.run_key, train_set),
-            filter_key=map(lambda x: x.filter_key, train_set),
-            input_key=map(lambda x: x.input_key, train_set),
-            refset_key=map(lambda x: x.refset_key, train_set),
+            model_key=map(lambda x: x.model_key, key_set),
+            filter_key=map(lambda x: x.filter_key, key_set),
+            input_key=map(lambda x: x.input_key, key_set),
+            refset_key=all_refset_keys(config, key_set),
         )
 
     def test_targets(target: InputFiles, key_set: List[RunKeysTest]) -> InputFiles:
         return expand(
             target,
             zip,
-            run_key=map(lambda x: x.run_key, key_set),
+            model_key=map(lambda x: x.model_key, key_set),
             filter_key=map(lambda x: x.filter_key, key_set),
             input_key=map(lambda x: x.test_key, key_set),
-            refset_key=map(lambda x: x.refset_key, key_set),
+            refset_key=all_refset_keys(config, key_set),
         )
 
-    train_set, test_set = lookup_run_sets(config, delim)
+    # TODO validate that all inputs in train set have benchmark defined
+    train_set, test_set = lookup_run_sets(config)
     unlabeled_test_set, labeled_test_set = partition_test_set(config, test_set)
 
     return (
@@ -262,8 +576,7 @@ def all_input_summary_files(
 
 
 def all_ebm_files(
-    config: JSONDict,
-    delim: str,
+    config: StratoMod,
     train_target: InputFiles,
     labeled_test_target: InputFiles,
     unlabeled_test_target: InputFiles,
@@ -272,22 +585,22 @@ def all_ebm_files(
         return expand(
             path,
             zip,
-            run_key=map(lambda x: x.run_key, key_set),
+            model_key=map(lambda x: x.model_key, key_set),
             filter_key=map(lambda x: x.filter_key, key_set),
-            input_keys=map(lambda x: x.input_keys, key_set),
+            data_keys=map(lambda x: x.data_key, key_set),
             input_key=map(lambda x: x.input_key, key_set),
             test_key=map(lambda x: x.test_key, key_set),
-            refset_key=map(lambda x: x.refset_key, key_set),
+            refset_key=all_refset_keys(config, train_set),
         )
 
-    train_set, test_set = lookup_run_sets(config, delim)
+    train_set, test_set = lookup_run_sets(config)
     unlabeled_test_set, labeled_test_set = partition_test_set(config, test_set)
     train = expand(
         train_target,
         zip,
-        run_key=map(lambda x: x.run_key, train_set),
+        model_key=map(lambda x: x.model_key, train_set),
         filter_key=map(lambda x: x.filter_key, train_set),
-        input_keys=map(lambda x: x.input_keys, train_set),
+        data_key=map(lambda x: x.data_key, train_set),
     )
 
     # TODO these should eventually point to the test summary htmls
@@ -307,83 +620,80 @@ def all_ebm_files(
 # global lookup
 
 
-def walk_dict(d: JSONDict, keys: List[str]) -> Any:
-    return d if len(keys) == 0 else walk_dict(d[keys[0]], keys[1:])
+# def walk_dict(d: StratoMod, keys: List[str]) -> Any:
+#     return d if len(keys) == 0 else walk_dict(d[keys[0]], keys[1:])
 
 
-def lookup_config(config: JSONDict, keys: List[str]) -> Any:
-    return walk_dict(config, keys)
+# def lookup_config(config: StratoMod, keys: List[str]) -> Any:
+#     return walk_dict(config, keys)
 
 
 def chr_index_to_str(i: int) -> str:
     return "X" if i == 23 else ("Y" if i == 24 else str(i))
 
 
-def chr_indices_to_name(prefix: str, xs: List[int]) -> List[str]:
-    return [f"{prefix}{chr_index_to_str(i)}" for i in xs]
+def chr_indices_to_name(prefix: str, xs: Set[int]) -> Set[str]:
+    return set(f"{prefix}{chr_index_to_str(i)}" for i in xs)
 
 
 # ------------------------------------------------------------------------------
 # lookup from ref_key
 
 
-def refkey_to_ref(config: JSONDict, args: List[str], ref_key: str) -> Any:
-    return lookup_config(config, ["references", ref_key, *args])
+# def refkey_to_ref(config: StratoMod, args: List[str], ref_key: str) -> Any:
+#     return config, ["references", ref_key, *args])
 
 
-def refkey_to_benchmark(
-    config: JSONDict,
-    args: List[str],
-    bench_key: str,
-    ref_key: str,
-) -> Any:
-    return refkey_to_ref(config, ["benchmarks", bench_key, *args], ref_key)
+# def refkey_to_benchmark(
+#     config: StratoMod,
+#     args: List[str],
+#     bench_key: str,
+#     ref_key: str,
+# ) -> Any:
+#     return config.references[ref_key].benchmarks[bench_key]
 
 
 # ------------------------------------------------------------------------------
 # lookup from refset_key
 
 
-def refsetkey_to_benchmark(
-    config: JSONDict,
-    args: List[str],
-    bench_key: str,
-    refset_key: str,
-) -> Any:
-    return compose(
-        partial(refkey_to_benchmark, config, args, bench_key),
-        partial(refsetkey_to_refkey, config),
-    )(refset_key)
+# def refsetkey_to_benchmark(
+#     config: StratoMod,
+#     args: List[str],
+#     bench_key: str,
+#     refset_key: str,
+# ) -> Any:
+#     return compose(
+#         partial(refkey_to_benchmark, config, args, bench_key),
+#         partial(refsetkey_to_refkey, config),
+#     )(refset_key)
 
 
-def refsetkey_to_refset(config: JSONDict, args: List[str], refset_key: str):
-    return lookup_config(config, ["reference_sets", refset_key, *args])
+def refsetkey_to_refset(config: StratoMod, args: List[str], key: RefsetKey) -> RefSet:
+    return config.reference_sets[key]
 
 
-def refsetkey_to_refkey(config, refset_key):
-    return refsetkey_to_refset(config, ["ref"], refset_key)
+def refsetkey_to_refkey(config: StratoMod, key: RefsetKey) -> RefKey:
+    return config.reference_sets[key].ref
 
 
-def refsetkey_to_ref(config: JSONDict, args: List[str], refset_key: str) -> Any:
-    return compose(
-        partial(refkey_to_ref, config, args),
-        partial(refsetkey_to_refkey, config),
-    )(refset_key)
+def refsetkey_to_ref(config: StratoMod, key: RefsetKey) -> Reference:
+    return config.references[refsetkey_to_refkey(config, key)]
 
 
-def refsetkey_to_chr_indices(config: JSONDict, refset_key: str) -> List[int]:
-    f = refsetkey_to_refset(config, ["chr_filter"], refset_key)
-    return list(range(1, 25)) if len(f) == 0 else f
+def refsetkey_to_chr_indices(config: StratoMod, key: RefsetKey) -> Set[int]:
+    f = config.reference_sets[key].chr_filter
+    return set(range(1, 25)) if len(f) == 0 else f
 
 
-def refsetkey_to_chr_prefix(config: JSONDict, args: List[str], refset_key: str) -> str:
-    ref_key = refsetkey_to_refkey(config, refset_key)
-    return refkey_to_ref(config, [*args, "chr_prefix"], ref_key)
+# def refsetkey_to_chr_prefix(config: StratoMod, args: List[str], key: RefsetKey) -> str:
+#     ref_key = refsetkey_to_refkey(config, key)
+#     return refkey_to_ref(config, [*args, "chr_prefix"], ref_key)
 
 
-def refsetkey_to_sdf_chr_filter(config: JSONDict, refset_key: str) -> List[str]:
-    indices = refsetkey_to_chr_indices(config, refset_key)
-    prefix = refsetkey_to_ref(config, ["sdf", "chr_prefix"], refset_key)
+def refsetkey_to_sdf_chr_filter(config: StratoMod, key: RefsetKey) -> Set[str]:
+    indices = refsetkey_to_chr_indices(config, key)
+    prefix = refsetkey_to_ref(config, key).sdf.chr_prefix
     return chr_indices_to_name(prefix, indices)
 
 
@@ -395,116 +705,148 @@ def refsetkey_to_sdf_chr_filter(config: JSONDict, refset_key: str) -> List[str]:
 # or test_key" (most of the time)
 
 
-def inputkey_to_input(config: JSONDict, args: List[str], input_key: str) -> Any:
-    return walk_dict(flat_inputs(config)[input_key], args)
+# def inputkey_to_input(config: StratoMod, args: List[str], input_key: str) -> VCFInput:
+def inputkey_to_input(config: StratoMod, input_key: InputKey) -> VCFInput:
+    return config.inputs[input_key]
 
 
-def inputkey_to_shared(config: JSONDict, input_key: str, shared_key: str) -> Any:
-    """
-    Given an input key, return a value indicated by 'shared_key', which is a
-    key common to all input dictionaries.
-    """
-    return dict(
-        flatten(
-            [
-                (train_key, v[shared_key]),
-                *[(test_key, v[shared_key]) for test_key in v["test"]],
-            ]
-            for train_key, v in config["inputs"].items()
-        )
-    )[input_key]
+# def inputkey_to_shared(config: StratoMod, input_key: str, shared_key: str) -> Any:
+#     """
+#     Given an input key, return a value indicated by 'shared_key', which is a
+#     key common to all input dictionaries.
+#     """
+#     return dict(
+#         flatten(
+#             [
+#                 (train_key, v[shared_key]),
+#                 *[(test_key, v[shared_key]) for test_key in v["test"]],
+#             ]
+#             for train_key, v in config.inputs.items()
+#         )
+#     )[input_key]
 
 
-def inputkey_to_refkey(config: JSONDict, input_key: str) -> str:
+def inputkey_to_refkey(config: StratoMod, input_key: str) -> str:
     return compose(
         partial(refsetkey_to_refkey, config),
         partial(inputkey_to_refsetkey, config),
     )(input_key)
 
 
-def inputkey_to_refsetkey(config: JSONDict, input_key: str) -> str:
-    return inputkey_to_shared(config, input_key, "refset")
+def inputkey_to_refsetkey(config: StratoMod, input_key: InputKey) -> RefsetKey:
+    return config.inputs[input_key].refset
 
 
-def lookup_inputs(config: JSONDict) -> JSONDict:
-    return config["inputs"]
+# def lookup_inputs(config: StratoMod) -> StratoMod:
+#     return config.inputs
 
 
-def lookup_train(config: JSONDict, train_key: str) -> JSONDict:
-    return config["inputs"][train_key]
+# def lookup_train(config: StratoMod, train_key: str) -> StratoMod:
+#     return config.inputs.train_key
 
 
-def lookup_all_train(config: JSONDict) -> List[Tuple[str, JSONDict]]:
-    return [(k, v["train"]) for k, v in lookup_inputs(config).items()]
+# def lookup_all_train(config: StratoMod) -> List[Tuple[str, StratoMod]]:
+#     return [(k, v["train"]) for k, v in lookup_inputs(config).items()]
 
 
-def lookup_all_test(config: JSONDict) -> List[Tuple[str, JSONDict]]:
-    return [ts for i in lookup_inputs(config).values() for ts in i["test"].items()]
+# def lookup_all_test(config: StratoMod) -> List[Tuple[str, StratoMod]]:
+#     return [ts for i in lookup_inputs(config).values() for ts in i["test"].items()]
 
 
-def lookup_test(config: JSONDict, test_key: str) -> JSONDict:
-    return dict(lookup_all_test(config))[test_key]
+# def lookup_test(config: StratoMod, test_key: str) -> StratoMod:
+#     return dict(lookup_all_test(config))[test_key]
 
 
-def input_train_keys(config: JSONDict):
-    return [*lookup_inputs(config)]
+# def input_train_keys(config: StratoMod):
+#     return [*lookup_inputs(config)]
 
 
-def input_test_keys(config: JSONDict):
-    return [i[0] for i in lookup_all_test(config)]
+# def input_test_keys(config: StratoMod):
+#     return [i[0] for i in lookup_all_test(config)]
 
 
-def all_refsetkeys(config: JSONDict) -> Set[str]:
-    return set(v["refset"] for v in config["inputs"].values())
+def all_refsetkeys(config: StratoMod) -> Set[RefsetKey]:
+    return set(v.refset for v in config.inputs.values())
 
 
-def all_refkeys(config: JSONDict) -> Set[str]:
+def all_refkeys(config: StratoMod) -> Set[str]:
     return set(map(partial(refsetkey_to_refkey, config), all_refsetkeys(config)))
 
 
 # TODO this isn't a well defined function in terms of types since the test
 # dictionary has several optional fields and the train does not.
-def flat_inputs(config: JSONDict) -> JSONDict:
-    """Return a dictionary of all inputs in the config."""
-    return dict(
-        flatten(
-            [(k, v["train"]), *v["test"].items()] for k, v in config["inputs"].items()
-        )
-    )
+# def flat_inputs(config: StratoMod) -> StratoMod:
+#     """Return a dictionary of all inputs in the config."""
+#     return dict(
+#         flatten(
+#             [(k, v["train"]), *v["test"].items()] for k, v in config["inputs"].items()
+#         )
+#     )
 
 
-def inputkey_to_chr_prefix(config: JSONDict, input_key: str) -> str:
-    return inputkey_to_input(config, ["chr_prefix"], input_key)
+def inputkey_to_chr_prefix(config: StratoMod, key: InputKey) -> str:
+    return inputkey_to_input(config, key).chr_prefix
 
 
-def inputkey_to_chr_filter(config: JSONDict, input_key: str) -> List[int]:
+def inputkey_to_chr_filter(config: StratoMod, input_key: InputKey) -> Set[int]:
     refset_key = inputkey_to_refsetkey(config, input_key)
     return refsetkey_to_chr_indices(config, refset_key)
 
 
-def inputkey_to_bench_correction(config: JSONDict, key: str, input_key: str) -> bool:
-    bench_key = inputkey_to_input(config, ["benchmark"], input_key)
-    return compose(
-        partial(refkey_to_benchmark, config, ["corrections", key], bench_key),
-        partial(refsetkey_to_refkey, config),
-        partial(inputkey_to_refsetkey, config),
-    )(input_key)
+def inputkey_to_bench_correction(
+    config: StratoMod,
+    key: InputKey,
+) -> Optional[BenchmarkCorrections]:
+    bkey = config.inputs[key].benchmark
+    if bkey is not None:
+        rkey = inputkey_to_refsetkey(config, key)
+        return refsetkey_to_ref(config, rkey).benchmarks[bkey].corrections
+    return None
+
+
+# ------------------------------------------------------------------------------
+# variable key lookup
+
+
+def trainkey_to_variables(config: StratoMod, key: InputKey) -> Dict[VarKey, str]:
+    return config.inputs[key].variables
+
+
+# def testkey_to_variables(config: StratoMod, key: str) -> Dict[str, str]:
+#     test = config["inputs"]["test"][key]
+#     if "variables" in test:
+#         return test["variables"]
+#     else:
+#         return {}
+
+
+def runkey_to_variables(
+    config: StratoMod,
+    mkey: ModelKey,
+    rkey: RunKey,
+    tkey: TestKey,
+) -> Dict[VarKey, str]:
+    test = config.ebm_runs[mkey].inputs[rkey].test[tkey]
+    default_vars = trainkey_to_variables(config, test.input_key)
+    return {**default_vars, **test.variables}
 
 
 # ------------------------------------------------------------------------------
 # ebm run lookup
 
 
-def lookup_ebm_run(config: JSONDict, run_key: str) -> Any:
-    return config["ebm_runs"][run_key]
+def lookup_ebm_run(config: StratoMod, run_key: ModelKey) -> Any:
+    return config.ebm_runs[run_key]
 
 
-def ebm_run_train_keys(ebm_run: JSONDict) -> List[str]:
-    return [*flatten([[*i] for i in ebm_run["inputs"]])]
+def ebm_run_train_keys(ebm_run: StratoMod) -> List[str]:
+    return [*flatten([[*i] for i in ebm_run.inputs])]
 
 
-def ebm_run_test_keys(ebm_run: JSONDict) -> List[str]:
-    return [*flatten([[*ts] for i in ebm_run["inputs"] for ts in i.values()])]
+def ebm_run_test_keys(ebm_run: EBMRun) -> List[TestKey]:
+    return [
+        *flatten([[*ts] for k, v in ebm_run.inputs.items() for ts in v.test.values()])
+    ]
 
 
 # ------------------------------------------------------------------------------
@@ -517,140 +859,141 @@ def ebm_run_test_keys(ebm_run: JSONDict) -> List[str]:
 # training step after several hours because a feature was named incorrectly.
 
 
-def lookup_raw_index(config: JSONDict) -> str:
-    return config["features"]["raw_index"]
+def lookup_raw_index(config: StratoMod) -> str:
+    return config.feature_meta.raw_index
 
 
-def lookup_bed_cols(config: JSONDict) -> Dict[str, str]:
-    return config["features"]["bed_index"]
+def lookup_bed_cols(config: StratoMod) -> BedIndex:
+    return config.feature_meta.bed_index
 
 
-def bed_cols_ordered(bed_cols: Dict[str, str]) -> List[str]:
-    return [bed_cols["chr"], bed_cols["start"], bed_cols["end"]]
+def bed_cols_ordered(bed_cols: BedIndex) -> List[str]:
+    return [bed_cols.chr, bed_cols.start, bed_cols.end]
 
 
-def bed_cols_indexed(indices: List[int], bed_cols: Dict[str, str]) -> Dict[int, str]:
+def bed_cols_indexed(indices: List[int], bed_cols: BedIndex) -> Dict[int, str]:
     return dict(zip(indices, bed_cols_ordered(bed_cols)))
 
 
-def lookup_bed_cols_ordered(config: JSONDict) -> List[str]:
+def lookup_bed_cols_ordered(config: StratoMod) -> List[str]:
     return bed_cols_ordered(lookup_bed_cols(config))
 
 
-def lookup_all_index_cols(config: JSONDict) -> List[str]:
+def lookup_all_index_cols(config: StratoMod) -> List[str]:
     return [lookup_raw_index(config), *bed_cols_ordered(lookup_bed_cols(config))]
 
 
-def fmt_feature(prefix: str, rest: str) -> str:
-    return f"{prefix}_{rest}"
+def fmt_feature(prefix: str, rest: str) -> FeatureKey:
+    return FeatureKey(f"{prefix}_{rest}")
 
 
-def fmt_vcf_feature(config: JSONDict, which: str) -> str:
-    fconf = config["features"]["vcf"]
-    return fmt_feature(fconf["prefix"], fconf["columns"][which])
+def fmt_vcf_feature(config: StratoMod, which: str) -> FeatureKey:
+    fconf = config.feature_meta.vcf
+    return fmt_feature(fconf.prefix, fconf.columns.dict()[which])
 
 
-def vcf_feature_names(config: JSONDict) -> List[str]:
+def vcf_feature_names(config: StratoMod) -> List[FeatureKey]:
     return [
         *map(
             lambda f: fmt_vcf_feature(config, f),
-            config["features"]["vcf"]["columns"],
+            config.feature_meta.vcf.columns.dict(),
         )
     ]
 
 
-def fmt_mappability_feature(config: JSONDict, which: str) -> str:
-    fconf = config["features"]["mappability"]
-    return fmt_feature(fconf["prefix"], fconf["suffixes"][which])
+def fmt_mappability_feature(config: StratoMod, which: str) -> FeatureKey:
+    fconf = config.feature_meta.mappability
+    return fmt_feature(fconf.prefix, fconf.suffixes.dict()[which])
 
 
-def mappability_feature_names(config: JSONDict):
+def mappability_feature_names(config: StratoMod) -> List[FeatureKey]:
     return [
         *map(
             lambda f: fmt_mappability_feature(config, f),
-            config["features"]["mappability"]["suffixes"],
+            config.feature_meta.mappability.suffixes.dict(),
         ),
     ]
 
 
-def fmt_homopolymer_feature(config: JSONDict, bases: List[str], which: str) -> str:
-    fconf = config["features"]["homopolymers"]
-    return fmt_feature(fconf["prefix"], f"{bases}_{fconf['suffixes'][which]}")
+def fmt_homopolymer_feature(config: StratoMod, bases: Base, which: str) -> FeatureKey:
+    fconf = config.feature_meta.homopolymers
+    return fmt_feature(fconf.prefix, f"{bases}_{fconf.suffixes.dict()[which]}")
 
 
-def homopolymer_feature_names(config: JSONDict) -> List[str]:
-    fconf = config["features"]["homopolymers"]
+def homopolymer_feature_names(config: StratoMod) -> List[FeatureKey]:
+    fconf = config.feature_meta.homopolymers
     return [
         fmt_homopolymer_feature(config, b, s)
-        for (b, s) in product(fconf["bases"], fconf["suffixes"])
+        for (b, s) in product(fconf.bases, list(fconf.suffixes.dict()))
     ]
 
 
 def fmt_repeat_masker_feature(
-    config: JSONDict,
+    config: StratoMod,
     grp: str,
     fam: Optional[str] = None,
-) -> str:
-    fconf = config["features"]["repeat_masker"]
+) -> FeatureKey:
+    fconf = config.feature_meta.repeat_masker
     rest = maybe(grp, lambda f: f"{grp}_{fam}", fam)
     # TODO this is hardcoded for now
-    suffix = fconf["suffixes"]["len"]
-    return fmt_feature(fconf["prefix"], f"{rest}_{suffix}")
+    suffix = fconf.suffixes.len
+    return fmt_feature(fconf.prefix, f"{rest}_{suffix}")
 
 
-def repeat_masker_feature_names(config: JSONDict) -> List[str]:
-    fconf = config["features"]["repeat_masker"]
+def repeat_masker_feature_names(config: StratoMod) -> List[FeatureKey]:
+    fconf = config.feature_meta.repeat_masker
     fmt = partial(fmt_repeat_masker_feature, config)
     return [
-        *[fmt(c) for c in fconf["classes"]],
-        *[fmt(c, f) for c, fs in fconf["classes"].items() for f in fs],
+        *[fmt(c) for c in fconf.classes.dict()],
+        *[fmt(c, f) for c, fs in fconf.classes.dict().items() for f in fs],
     ]
 
 
-def fmt_count_feature(prefix: str) -> str:
+def fmt_count_feature(prefix: str) -> FeatureKey:
     return fmt_feature(prefix, "count")
 
 
-def fmt_merged_feature(prefix: str, middle: str, op: str) -> str:
+def fmt_merged_feature(prefix: str, middle: str, op: BedMergeOp) -> FeatureKey:
     return fmt_feature(prefix, f"{middle}_{op}")
 
 
-def merged_feature_names(prefix: str, names: List[str], ops: str) -> List[str]:
+def merged_feature_names(
+    prefix: str, names: List[str], ops: Set[BedMergeOp]
+) -> List[FeatureKey]:
     return [
         *[fmt_merged_feature(prefix, n, o) for n, o in product(names, ops)],
         fmt_count_feature(prefix),
     ]
 
 
-def segdup_feature_names(config: JSONDict) -> List[str]:
-    fconf = config["features"]["segdups"]
-    prefix = fconf["prefix"]
+def segdup_feature_names(config: StratoMod) -> List[FeatureKey]:
+    fconf = config.feature_meta.segdups
     return merged_feature_names(
-        prefix,
-        fconf["columns"].values(),
-        fconf["operations"],
+        fconf.prefix,
+        list(fconf.columns.dict().values()),
+        fconf.operations,
     )
 
 
-def fmt_tandem_repeat_base(config: JSONDict, bases: str) -> str:
-    bs_prefix = config["features"]["tandem_repeats"]["bases_prefix"]
-    return f"{bs_prefix}_{bases}"
+def fmt_tandem_repeat_base(config: StratoMod, bases: str) -> FeatureKey:
+    bs_prefix = config.feature_meta.tandem_repeats.bases_prefix
+    return FeatureKey(f"{bs_prefix}_{bases}")
 
 
-def tandem_repeat_feature_names(config: JSONDict) -> List[str]:
-    fconf = config["features"]["tandem_repeats"]
-    prefix = fconf["prefix"]
+def tandem_repeat_feature_names(config: StratoMod) -> List[FeatureKey]:
+    fconf = config.feature_meta.tandem_repeats
+    prefix = fconf.prefix
     # TODO weirdly hardcoded in several places
     bases = ["A", "T", "G", "C", "AT", "GC"]
     bs = [fmt_tandem_repeat_base(config, b) for b in bases]
-    cs = fconf["columns"].values()
+    cs = fconf.columns.dict().values()
     return [
-        *merged_feature_names(prefix, [*cs, *bs], fconf["operations"]),
-        *[fmt_feature(prefix, o) for o in fconf["other"].values()],
+        *merged_feature_names(prefix, [*cs, *bs], fconf.operations),
+        *[fmt_feature(prefix, o) for o in fconf.other.dict().values()],
     ]
 
 
-def all_feature_names(config: JSONDict) -> List[str]:
+def all_feature_names(config: StratoMod) -> List[FeatureKey]:
     return [
         *vcf_feature_names(config),
         *mappability_feature_names(config),

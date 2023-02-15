@@ -5,6 +5,8 @@ import scripts.python.common.config as cfg
 
 ALL_LABELS = ["fp", "fn", "tp"]
 
+ALL_FILTERS = ["SNP", "INDEL"]
+
 all_bases = config["features"]["homopolymers"]["bases"]
 
 
@@ -13,15 +15,30 @@ def alternate_constraint(xs):
 
 
 _constraints = {
+    # corresponds to a genome reference
     "ref_key": "[^/]+",
+    # corresponds to a reference set (reference + chromosome filter + etc)
     "refset_key": "[^/]+",
-    "input_key": "[^/]+",
-    "input_keys": "[^/]+",
-    "bench_key": "[^/]+",
-    "filter_key": "[^/]+",
-    "run_key": "[^/]+",
+    # corresponds to a training vcf
+    "train_key": "[^/]+",
+    # corresponds to a testing vcf
     "test_key": "[^/]+",
+    # refers to either a train_key or test_key (for instances where they are to
+    # be treated the same)
+    "input_key": "[^/]+",
+    # refers to a collection of input data input to an ebm model configuration
+    # (composed of multiple train/test keys + associated data)
+    "run_key": "[^/]+",
+    # refers to a benchmark vcf (within the context of a given reference)
+    "bench_key": "[^/]+",
+    # refers to an EBM model and its parameters
+    "model_key": "[^/]+",
+    # refers to the variant type (SNP or INDEL, for now)
+    # TODO ...why "filter"? (I can't think of anything better)
+    "filter_key": alternate_constraint(ALL_FILTERS),
+    # refers to a variant benchmarking label (tp, fp, etc)
     "label": alternate_constraint(ALL_LABELS),
+    # refers to a nucleotide base
     "base": alternate_constraint(all_bases),
 }
 
@@ -30,7 +47,7 @@ wildcard_constraints:
     **_constraints,
 
 
-all_wildcards = {k: f"{{{k}}}" for k in _constraints}
+all_wildcards = {k: f"{{{k},{v}}}" for k, v in _constraints.items()}
 
 
 ################################################################################

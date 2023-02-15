@@ -2,6 +2,8 @@ from functools import partial
 from pathlib import Path
 from snakemake.utils import min_version, validate
 import scripts.python.common.config as cfg
+import scripts.python.common.model as mod
+import pydantic
 
 min_version("7.20")
 
@@ -9,7 +11,10 @@ min_version("7.20")
 configfile: "config/static.yml"
 
 
-validate(config, "schemas/config-schema.yml")
+config = mod.StratoMod.parse_obj(config)
+
+
+# validate(config, "schemas/config-schema.yml")
 cfg.validate_inputs(config)
 cfg.validate_ebm_features(config)
 cfg.validate_ebm_inputs(config)
@@ -30,6 +35,7 @@ results_dir = Path(conf_paths["results"])
 log_dir = results_dir / "log"
 log_refset_dir = log_dir / all_wildcards["refset_key"]
 scripts_root = Path("workflow/scripts")
+
 
 # TODO this shouldn't be necessary
 # this is necessary as envs/scripts are apparently resolved locally in each rule

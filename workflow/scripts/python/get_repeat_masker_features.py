@@ -1,6 +1,6 @@
 import re
 import pandas as pd
-from typing import Dict, Optional
+from typing import Optional, Any
 import common.config as cfg
 from functools import partial
 from os.path import basename
@@ -12,7 +12,7 @@ from common.bed import read_bed_df
 # The repeat masker database is documented here:
 # https://genome.ucsc.edu/cgi-bin/hgTables?db=hg38&hgta_group=rep&hgta_track=rmsk&hgta_table=rmsk&hgta_doSchema=describe+table+schema
 
-logger = setup_logging(snakemake.log[0])
+logger = setup_logging(snakemake.log[0])  # type: ignore
 
 # both of these columns are temporary and used to make processing easier
 CLASSCOL = "_repClass"
@@ -23,23 +23,25 @@ COLS = {
     12: FAMCOL,
 }
 
-fmt_feature = partial(cfg.fmt_repeat_masker_feature, snakemake.config)
 
-
-def read_rmsk_df(path: str, bed_cols: Dict[str, str]):
+def read_rmsk_df(
+    smk: Any,
+    config: cfg.StratoMod,
+    path: str,
+    bed_cols: cfg.BedIndex,
+) -> pd.DataFrame:
     bed_mapping = cfg.bed_cols_indexed([5, 6, 7], bed_cols)
-    prefix = cfg.refsetkey_to_chr_prefix(
-        snakemake.config,
-        ["annotations", "repeat_masker"],
-        snakemake.wildcards["refset_key"],
-    )
-    return read_bed_df(path, bed_mapping, COLS, prefix, snakemake.params["filt"])
+    prefix = cfg.refsetkey_to_ref(
+        config, smk.wildcards["refset_key"]
+    ).annotations.repeat_masker.chr_prefix
+    return read_bed_df(path, bed_mapping, COLS, prefix, smk.params["filt"])
 
 
 def merge_and_write_group(
+    config: cfg.StratoMod,
     df: pd.DataFrame,
     path: str,
-    bed_cols: Dict[str, str],
+    bed_cols: cfg.BedIndex,
     groupcol: str,
     clsname: str,
     famname: Optional[str] = None,
@@ -54,23 +56,24 @@ def merge_and_write_group(
     if len(merged.index) == 0:
         logger.warning("Empty dataframe for %s", path)
     else:
-        col = fmt_feature(clsname, famname)
-        merged[col] = merged[bed_cols["end"]] - merged[bed_cols["start"]]
+        col = cfg.fmt_repeat_masker_feature(config, clsname, famname)
+        merged[col] = merged[bed_cols.end] - merged[bed_cols.start]
         write_tsv(path, merged, header=True)
 
 
 def parse_output(
+    config: cfg.StratoMod,
     path: str,
     df: pd.DataFrame,
     file_prefix: str,
-    bed_cols: Dict[str, str],
+    bed_cols: cfg.BedIndex,
 ) -> None:
     res = re.match(f"{file_prefix}_(.*).tsv.gz", basename(path))
     if res is None:
         logger.error("Unable to determine class/family from path: %s", path)
     else:
         s = res[1].split("_")
-        f = partial(merge_and_write_group, df, path, bed_cols)
+        f = partial(merge_and_write_group, config, df, path, bed_cols)
         if len(s) == 1:
             cls = s[0]
             logger.info("Filtering and merging repeat masker class %s", cls)
@@ -87,11 +90,11 @@ def parse_output(
             logger.info("Invalid family/class spec in path: %s", path)
 
 
-def main() -> None:
-    bed_cols = cfg.lookup_bed_cols(snakemake.config)
-    rmsk_df = read_rmsk_df(snakemake.input[0], bed_cols)
-    for path in snakemake.output:
-        parse_output(path, rmsk_df, snakemake.params.file_prefix, bed_cols)
+def main(smk, config: cfg.StratoMod) -> None:
+    bed_cols = cfg.lookup_bed_cols(config)
+    rmsk_df = read_rmsk_df(smk, config, smk.input[0], bed_cols)
+    for path in smk.output:
+        parse_output(config, path, rmsk_df, smk.params.file_prefix, bed_cols)
 
 
-main()
+main(snakemake, snakemake.config)  # type: ignore
