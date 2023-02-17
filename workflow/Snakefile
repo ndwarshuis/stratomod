@@ -2,7 +2,6 @@ from functools import partial
 from pathlib import Path
 from snakemake.utils import min_version, validate
 import scripts.python.common.config as cfg
-import scripts.python.common.model as mod
 import pydantic
 
 min_version("7.20")
@@ -11,13 +10,13 @@ min_version("7.20")
 configfile: "config/static.yml"
 
 
-config = mod.StratoMod.parse_obj(config)
+config = cfg.StratoMod.parse_obj(config)
 
 
 # validate(config, "schemas/config-schema.yml")
-cfg.validate_inputs(config)
-cfg.validate_ebm_features(config)
-cfg.validate_ebm_inputs(config)
+# cfg.validate_inputs(config)
+# cfg.validate_ebm_features(config)
+# cfg.validate_ebm_inputs(config)
 
 ################################################################################
 # Wildcards

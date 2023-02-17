@@ -13,13 +13,25 @@ from typing import (
     Optional,
     NamedTuple,
     NewType,
+    cast,
 )
+from typing_extensions import Annotated
 from more_itertools import flatten, duplicates_everseen, unzip, partition
 from itertools import product
 from functools import partial
 from .functional import maybe, compose
 from snakemake.io import expand, InputFiles  # type: ignore
-from pydantic import BaseModel
+from pydantic import BaseModel as PydanticBaseModel
+from pydantic import (
+    validator,
+    HttpUrl,
+    PositiveFloat,
+    NonNegativeInt,
+    conint,
+    constr,
+    conset,
+    confloat,
+)
 from enum import Enum
 
 RefKey = NewType("RefKey", str)
@@ -80,23 +92,70 @@ class Transform(Enum):
     BINARY = "binary"
 
 
+class BaseModel(PydanticBaseModel):
+    class Config:
+        validate_all = True
+        extra = "forbid"
+        frozen = True
+
+
 class Paths(BaseModel):
     resources: str
     results: str
 
 
+ChrIndex = Annotated[int, conint(ge=0, le=24)]
+
+
 class RefSet(BaseModel):
     ref: RefKey
-    chr_filter: Set[int]
+    chr_filter: Set[ChrIndex]
 
 
 class CatVar(BaseModel):
-    levels: Set[str]
+    levels: Annotated[Set[str], conset(str, min_items=1)]
 
 
-class ContVar(BaseModel):
-    lower: Optional[float]
-    upper: Optional[float]
+class Truncation(BaseModel):
+    lower: Optional[float] = None
+    upper: Optional[float] = None
+
+    @validator("upper")
+    def lower_less_than_upper(cls, v: Optional[float], values) -> Optional[float]:
+        lower = values["lower"]
+        if v is not None and values["lower"] is not None:
+            assert lower <= v
+        return v
+
+    def in_range(self, x: float) -> bool:
+        lower = self.lower
+        upper = self.upper
+        return (True if lower is None else lower <= x) and (
+            True if upper is None else x <= upper
+        )
+
+
+class ContVar(Truncation):
+    lower: Optional[float] = None
+    upper: Optional[float] = None
+
+
+class Variables(BaseModel):
+    continuous: Dict[VarKey, ContVar]
+    categorical: Dict[VarKey, CatVar]
+
+    def validate_variable(self, varname: VarKey, varval: str) -> None:
+        cats = self.categorical
+        conts = self.continuous
+        if varname in cats:
+            assert (
+                varval in cats[varname].levels
+            ), f"'{varname}' has an invalid level '{varval}'"
+        elif varname in conts:
+            assert varval.isnumeric(), f"'{varname}' not a number"
+            assert conts[varname].in_range(float(varval))
+        else:
+            assert False, f"'{varname}' not a valid variable name"
 
 
 class FormatFields(BaseModel):
@@ -109,13 +168,12 @@ class FormatFields(BaseModel):
 class VCFInput(BaseModel):
     refset: RefsetKey
     chr_prefix: str
-    url: Optional[str]
+    url: Optional[HttpUrl]
     benchmark: Optional[BenchKey]
     variables: Dict[VarKey, str]
     format_fields: Optional[FormatFields]
-    # TODO min = 1
-    max_ref: int = 50
-    max_alt: int = 50
+    max_ref: Annotated[int, conint(ge=0)] = 50
+    max_alt: Annotated[int, conint(ge=0)] = 50
 
 
 class TestDataInput(BaseModel):
@@ -123,36 +181,37 @@ class TestDataInput(BaseModel):
     variables: Dict[VarKey, str]
 
 
-class ModelInput(BaseModel):
-    train: Set[InputKey]
+class ModelRun(BaseModel):
+    train: Annotated[Set[InputKey], conset(InputKey, min_items=1)]
     test: Dict[TestKey, TestDataInput]
 
 
+Fraction = Annotated[float, confloat(ge=0, le=1, allow_inf_nan=False)]
+
+
 class EBMMiscParams(BaseModel):
-    # TODO this is a fraction/ needs constraint
-    downsample: Optional[float] = None
+    downsample: Optional[Fraction] = None
 
 
 class EBMSplitParams(BaseModel):
-    # TODO this is a fraction/ needs constraint
-    test_size: float = 0.2
-    random_state: Optional[int] = None
+    test_size: Fraction = 0.2
+    random_state: Optional[Fraction] = None
 
 
 # TODO these all need constraints
 class EBMClassifierParams(BaseModel):
-    max_bins: int = 256
-    max_interaction_bins: int = 32
+    max_bins: NonNegativeInt = 256
+    max_interaction_bins: NonNegativeInt = 32
     binning: Binning = Binning.QUANTILE
-    outer_bags: int = 8
-    inner_bags: int = 0
-    learning_rate: float = 0.01
-    validation_size: float = 0.15
-    early_stopping_rounds: int = 50
-    early_stopping_tolerance: float = 0.0001
-    max_rounds: int = 5000
-    min_samples_leaf: int = 2
-    max_leaves: int = 3
+    outer_bags: NonNegativeInt = 8
+    inner_bags: NonNegativeInt = 0
+    learning_rate: PositiveFloat = 0.01
+    validation_size: PositiveFloat = 0.15
+    early_stopping_rounds: NonNegativeInt = 50
+    early_stopping_tolerance: PositiveFloat = 0.0001
+    max_rounds: NonNegativeInt = 5000
+    min_samples_leaf: NonNegativeInt = 2
+    max_leaves: NonNegativeInt = 3
     random_state: Optional[int] = None
 
 
@@ -162,37 +221,50 @@ class EBMSettings(BaseModel):
     classifier_parameters: EBMClassifierParams = EBMClassifierParams()
 
 
-class Truncation(BaseModel):
-    lower: Optional[float]
-    upper: Optional[float]
-
-
 class Visualization(BaseModel):
     truncate: Truncation = Truncation()
     plot_type: PlotType = PlotType.STEP
-    split_missing: Optional[float] = None
+    split_missing: Optional[Fraction] = None
 
 
 class Feature(BaseModel):
     feature_type: FeatureType = FeatureType.CONTINUOUS
     fill_na: Optional[float] = 0.0
-    alt_name: Optional[str] = None
+    alt_name: Optional[FeatureKey] = None
     visualization: Visualization = Visualization()
     transform: Optional[Transform] = None
 
 
-class EBMRun(BaseModel):
-    inputs: Dict[RunKey, ModelInput]
+class FeaturePair(BaseModel):
+    f1: FeatureKey
+    f2: FeatureKey
+
+
+class Model(BaseModel):
+    runs: Dict[RunKey, ModelRun]
     filter: Set[FilterKey]
     ebm_settings: EBMSettings
-    error_labels: Set[Label]
+    # TODO only allow actual error labels here
+    error_labels: Annotated[Set[Label], conset(Label, min_items=1)]
     filtered_are_candidates: bool
-    interactions: Union[int, List[str], List[List[str]]]
+    interactions: Union[NonNegativeInt, Set[Union[FeatureKey, FeaturePair]]] = 0
     features: Dict[FeatureKey, Feature]
+
+    @validator("features")
+    def model_has_matching_alt_features(
+        cls, fs: Dict[FeatureKey, Feature]
+    ) -> Dict[FeatureKey, Feature]:
+        for k, v in fs.items():
+            alt = v.alt_name
+            if alt is not None:
+                prefix = assert_match("^[^_]+", k)
+                alt_prefix = assert_match("^[^_]+", alt)
+                assert alt_prefix == prefix, f"Alt prefix must match for {k}"
+        return fs
 
 
 class BedFile(BaseModel):
-    url: Optional[str]
+    url: Optional[HttpUrl]
     chr_prefix: str
 
 
@@ -205,8 +277,8 @@ class BenchmarkCorrections(BaseModel):
 
 
 class Benchmark(BaseModel):
-    vcf_url: Optional[str]
-    bed_url: Optional[str]
+    vcf_url: Optional[HttpUrl]
+    bed_url: Optional[HttpUrl]
     chr_prefix: str
     corrections: BenchmarkCorrections
 
@@ -228,50 +300,55 @@ class Reference(BaseModel):
     genome: BedFile
     strats: Strats
     annotations: Annotations
-    benchmarks: Dict[str, Benchmark]
+    benchmarks: Dict[BenchKey, Benchmark]
+
+
+Prefix = Annotated[str, constr(regex="[A-Z]+")]
+
+NonEmptyStr = Annotated[str, constr(min_length=1)]
 
 
 class BedIndex(BaseModel):
-    chr: str
-    start: str
-    end: str
+    chr: NonEmptyStr
+    start: NonEmptyStr
+    end: NonEmptyStr
 
 
 class VCFColumns(BaseModel):
-    input: str
-    qual: str
-    filter: str
-    info: str
-    gt: str
-    gq: str
-    dp: str
-    vaf: str
-    len: str
+    input: NonEmptyStr
+    qual: NonEmptyStr
+    filter: NonEmptyStr
+    info: NonEmptyStr
+    gt: NonEmptyStr
+    gq: NonEmptyStr
+    dp: NonEmptyStr
+    vaf: NonEmptyStr
+    len: NonEmptyStr
 
 
 class VCFMeta(BaseModel):
-    prefix: str
+    prefix: Prefix
     columns: VCFColumns
 
 
 class MapSuffixes(BaseModel):
-    low: str
-    high: str
+    low: NonEmptyStr
+    high: NonEmptyStr
 
 
 class MapMeta(BaseModel):
-    prefix: str
+    prefix: Prefix
     suffixes: MapSuffixes
 
 
 class HomopolySuffixes(BaseModel):
-    len: str
-    imp_frac: str
+    len: NonEmptyStr
+    imp_frac: NonEmptyStr
 
 
 class HomopolyMeta(BaseModel):
-    prefix: str
-    bases: List[Base]
+    prefix: Prefix
+    bases: Set[Base]
     suffixes: HomopolySuffixes
 
 
@@ -280,52 +357,52 @@ class RMSKSuffixes(BaseModel):
 
 
 class RMSKClasses(BaseModel):
-    SINE = List[str]
-    LINE = List[str]
-    LTR = List[str]
-    Satellite = List[str]
+    SINE: Set[NonEmptyStr] = set()
+    LINE: Set[NonEmptyStr] = set()
+    LTR: Set[NonEmptyStr] = set()
+    Satellite: Set[NonEmptyStr] = set()
 
 
 class RMSKMeta(BaseModel):
-    prefix: str
+    prefix: Prefix
     suffixes: RMSKSuffixes
     classes: RMSKClasses
 
 
 class SegDupsColumns(BaseModel):
-    alignL: str
-    fracMatchIndel: str
+    alignL: NonEmptyStr
+    fracMatchIndel: NonEmptyStr
 
 
 class SegDupsMeta(BaseModel):
-    prefix: str
+    prefix: Prefix
     columns: SegDupsColumns
     operations: Set[BedMergeOp]
 
 
 class TandemRepeatColumns(BaseModel):
-    period: str
-    copyNum: str
-    perMatch: str
-    perIndel: str
-    score: str
+    period: NonEmptyStr
+    copyNum: NonEmptyStr
+    perMatch: NonEmptyStr
+    perIndel: NonEmptyStr
+    score: NonEmptyStr
 
 
 class TandemRepeatOther(BaseModel):
-    len: str
+    len: NonEmptyStr
 
 
 class TandemRepeatMeta(BaseModel):
-    prefix: str
-    bases_prefix: str
+    prefix: Prefix
+    bases_prefix: NonEmptyStr
     operations: Set[BedMergeOp]
     columns: TandemRepeatColumns
     other: TandemRepeatOther
 
 
 class FeatureMeta(BaseModel):
-    label: str
-    raw_index: str
+    label: NonEmptyStr
+    raw_index: NonEmptyStr
     bed_index: BedIndex
     vcf: VCFMeta
     mappability: MapMeta
@@ -335,14 +412,107 @@ class FeatureMeta(BaseModel):
     tandem_repeats: TandemRepeatMeta
 
 
+class Tools(BaseModel):
+    repseq: HttpUrl
+
+
+def flatten_features(fs: Dict[FeatureKey, Feature]) -> List[FeatureKey]:
+    return [k if v.alt_name is None else v.alt_name for k, v in fs.items()]
+
+
 class StratoMod(BaseModel):
-    reference_sets: Dict[RefsetKey, RefSet]
-    variables: Dict[VarKey, Union[ContVar, CatVar]]
-    inputs: Dict[InputKey, VCFInput]
-    ebm_runs: Dict[ModelKey, EBMRun]
     paths: Paths
-    references: Dict[RefKey, Reference]
+    tools: Tools
     feature_meta: FeatureMeta
+    variables: Variables
+    references: Dict[RefKey, Reference]
+    reference_sets: Dict[RefsetKey, RefSet]
+    inputs: Dict[InputKey, VCFInput]
+    models: Dict[ModelKey, Model]
+
+    @validator("reference_sets", each_item=True)
+    def refsets_have_valid_refkeys(cls, v: RefSet, values) -> RefSet:
+        assert (
+            v.ref in values["references"]
+        ), f"'{v.ref}' does not refer to a valid reference"
+        return v
+
+    @validator("inputs", each_item=True)
+    def inputs_have_valid_refsetkeys(cls, v: VCFInput, values) -> VCFInput:
+        assert (
+            v.refset in values["reference_sets"]
+        ), f"'{v.refset}' does not refer to a valid reference set"
+        return v
+
+    @validator("inputs", each_item=True)
+    def inputs_have_valid_benchkeys(cls, v: VCFInput, values) -> VCFInput:
+        if v.benchmark is not None:
+            ref_key = values["reference_sets"][v.refset].ref
+            ref_benchmarks = values["references"][ref_key].benchmarks
+            assert (
+                v.benchmark in ref_benchmarks
+            ), f"'{v.benchmark}' does not refer to a valid benchmark"
+        return v
+
+    @validator("inputs", each_item=True)
+    def inputs_have_valid_variables(cls, v: VCFInput, values) -> VCFInput:
+        var_root = cast(Variables, values["variables"])
+        for varname, varval in v.variables.items():
+            var_root.validate_variable(varname, varval)
+        return v
+
+    @validator("models", each_item=True)
+    def models_have_valid_features(cls, v: Model, values) -> Model:
+        features = all_feature_names(values["feature_meta"])
+        # TODO add variable names here
+        assert set(v.features) <= features
+        return v
+
+    @validator("models", each_item=True)
+    def models_have_valid_features_alt(cls, v: Model) -> Model:
+        # TODO dry?
+        # TODO need to also compare variable names
+        assert_no_dups(flatten_features(v.features), "Duplicated features")
+        return v
+
+    @validator("models", each_item=True)
+    def models_have_valid_interactions(cls, v: Model, values) -> Model:
+        if isinstance(v.interactions, set):
+            # TODO add variable names here
+            features = set(flatten_features(v.features))
+            interactions = set(
+                flatten(
+                    [i.f1, i.f2] if isinstance(i, FeaturePair) else [i]
+                    for i in v.interactions
+                )
+            )
+            assert interactions <= features
+        return v
+
+    @validator("models", each_item=True)
+    def models_have_valid_runs_train(cls, v: Model, values) -> Model:
+        assert set(flatten(r.train for r in v.runs.values())) <= set(values["inputs"])
+        return v
+
+    @validator("models", each_item=True)
+    def models_have_valid_runs_test(cls, v: Model, values) -> Model:
+        assert set(
+            flatten([t.input_key for t in r.test.values()] for r in v.runs.values())
+        ) <= set(values["inputs"])
+        return v
+
+    @validator("models", each_item=True)
+    def models_have_valid_runs_test_variables(cls, v: Model, values) -> Model:
+        var_root = cast(Variables, values["variables"])
+        varpairs = [
+            (varname, varval)
+            for r in v.runs.values()
+            for t in r.test.values()
+            for varname, varval in t.variables.items()
+        ]
+        for varname, varval in varpairs:
+            var_root.validate_variable(varname, varval)
+        return v
 
 
 # ------------------------------------------------------------------------------
@@ -397,59 +567,58 @@ def validate_inputs(config: StratoMod) -> None:
 
 
 # TODO make unittests for these
-def validate_ebm_features(config: StratoMod) -> None:
-    def assert_1(run_name, feature_list, feature):
-        assert (
-            feature in feature_list
-        ), f"Interaction {feature} not found in feature set for run {run_name}"
+# def validate_ebm_features(config: StratoMod) -> None:
+#     def assert_1(run_name, feature_list, feature):
+#         assert (
+#             feature in feature_list
+#         ), f"Interaction {feature} not found in feature set for run {run_name}"
 
-    def assert_N(run_name, feature_list, ints):
-        for i in ints:
-            assert_1(run_name, feature_list, i)
+#     def assert_N(run_name, feature_list, ints):
+#         for i in ints:
+#             assert_1(run_name, feature_list, i)
 
-    def flatten_features(fs):
-        return [k if v["alt_name"] is None else v["alt_name"] for k, v in fs.items()]
+#     def flatten_features(fs: Dict[FeatureKey, Feature]):
+#         return [k if v.alt_name is None else v.alt_name for k, v in fs.items()]
 
-    flat = [
-        (k, ints, v.features)
-        for k, v in config.ebm_runs.items()
-        if isinstance(ints := v.interactions, list)
-    ]
+#     flat = [
+#         (k, ints, v.features)
+#         for k, v in config.models.items()
+#         if isinstance(ints := v.interactions, list)
+#     ]
 
-    for run_name, ints, features in flat:
-        # test that all feature names are valid
-        valid_features = set(all_feature_names(config))
-        fs = set(list(features))
-        assert (
-            fs <= valid_features
-        ), f"Invalid features: {fmt_strs(fs - valid_features)}"
+#     for run_name, ints, features in flat:
+#         # test that all feature names are valid
+#         valid_features = set(all_feature_names(config.feature_meta))
+#         fs = set(list(features))
+#         assert (
+#             fs <= valid_features
+#         ), f"Invalid features: {fmt_strs(fs - valid_features)}"
 
-        for k, v in features.items():
-            # test feature alt names
-            alt = v.alt_name
-            if alt is not None:
-                prefix = assert_match("^[^_]+", k)
-                alt_prefix = assert_match("^[^_]+", alt)
-                assert alt_prefix == prefix, f"Alt prefix must match for {k}"
+#         for k, v in features.items():
+#             # test feature alt names
+#             alt = v.alt_name
+#             if alt is not None:
+#                 prefix = assert_match("^[^_]+", k)
+#                 alt_prefix = assert_match("^[^_]+", alt)
+#                 assert alt_prefix == prefix, f"Alt prefix must match for {k}"
 
-            # test truncation values
-            truncate = v.visualization.truncate
-            tlower = truncate.lower
-            tupper = truncate.upper
-            if tlower is not None and tupper is not None:
-                assert tlower < tupper, f"Non-positive truncation for {k}"
+#             # test truncation values
+#             truncate = v.visualization.truncate
+#             tlower = truncate.lower
+#             tupper = truncate.upper
+#             if tlower is not None and tupper is not None:
+#                 assert tlower < tupper, f"Non-positive truncation for {k}"
 
-        # test duplicate alt names
-        flat_feature_names = flatten_features(features)
-        assert_no_dups(flat_feature_names, "Duplicated features")
+#         # test duplicate alt names
+#         flat_feature_names = flatten_features(features)
+#         assert_no_dups(flat_feature_names, "Duplicated features")
 
-        # test for matching interaction terms
-        for i in ints:
-            check = assert_N if isinstance(i, list) else assert_1
-            check(run_name, flat_feature_names, i)
+#         # test for matching interaction terms
+#         for i in ints:
+#             check = assert_N if isinstance(i, list) else assert_1
+#             check(run_name, flat_feature_names, i)
 
 
-# TODO fixme
 # def validate_ebm_inputs(config: StratoMod) -> None:
 #     def assert_keys_exist(what, get_input_keys, get_ebm_keys):
 #         iks = get_input_keys(config)
@@ -500,12 +669,51 @@ class RunKeysTest(NamedTuple):
     input_key: InputKey
 
 
+def validate_input_keys(
+    config: StratoMod,
+    xs: List[InputKey],
+    validate_bench: bool,
+) -> None:
+    assert set(xs) <= set(config.inputs)
+    validate_refset_keys(config, [inputkey_to_refsetkey(config, x) for x in xs])
+    # TODO validate variables
+    if validate_bench:
+        bench_pairs = [(x, config.inputs[x].benchmark) for x in xs]
+        no_bench = [i for i, b in bench_pairs if b is None]
+        assert len(no_bench) == 0
+        validate_bench_keys(
+            config,
+            [
+                (inputkey_to_refkey(config, input_key), bench_key)
+                for input_key, bench_key in bench_pairs
+                if bench_key is not None
+            ],
+        )
+
+
+def validate_ref_keys(config: StratoMod, xs: List[RefKey]) -> None:
+    assert set(xs) <= set(config.references)
+
+
+def validate_bench_keys(config: StratoMod, xs: List[Tuple[RefKey, BenchKey]]) -> None:
+    assert set(xs) <= set(config.references)
+
+
+def validate_refset_keys(config: StratoMod, xs: List[RefsetKey]) -> None:
+    assert set(xs) <= set(config.reference_sets)
+    validate_ref_keys(config, [refsetkey_to_refkey(config, x) for x in xs])
+
+
+# def validate_ebm_test_inputs(xs: List[RunKeysTest], wants_bench: bool) -> None:
+#     pass
+
+
 def lookup_run_sets(config: StratoMod) -> Tuple[List[RunKeysTrain], List[RunKeysTest]]:
     models = [
         ((model_key, filter_key, data_key), rest)
-        for model_key, model in config.ebm_runs.items()
+        for model_key, model in config.models.items()
         for filter_key in model.filter
-        for data_key, rest in model.inputs.items()
+        for data_key, rest in model.runs.items()
     ]
     train = [
         RunKeysTrain(*meta, train_key)
@@ -602,6 +810,10 @@ def all_ebm_files(
         filter_key=map(lambda x: x.filter_key, train_set),
         data_key=map(lambda x: x.data_key, train_set),
     )
+
+    # validate_ebm_train_inputs(config, train_set)
+    # validate_ebm_test_inputs(labeled_test_set, True)
+    # validate_ebm_test_inputs(unlabeled_test_set, False)
 
     # TODO these should eventually point to the test summary htmls
     labeled_test = test_targets(
@@ -726,7 +938,7 @@ def inputkey_to_input(config: StratoMod, input_key: InputKey) -> VCFInput:
 #     )[input_key]
 
 
-def inputkey_to_refkey(config: StratoMod, input_key: str) -> str:
+def inputkey_to_refkey(config: StratoMod, input_key: InputKey) -> RefKey:
     return compose(
         partial(refsetkey_to_refkey, config),
         partial(inputkey_to_refsetkey, config),
@@ -808,8 +1020,8 @@ def inputkey_to_bench_correction(
 # variable key lookup
 
 
-def trainkey_to_variables(config: StratoMod, key: InputKey) -> Dict[VarKey, str]:
-    return config.inputs[key].variables
+# def trainkey_to_variables(config: StratoMod, key: InputKey) -> Dict[VarKey, str]:
+#     return config.inputs[key].variables
 
 
 # def testkey_to_variables(config: StratoMod, key: str) -> Dict[str, str]:
@@ -820,15 +1032,15 @@ def trainkey_to_variables(config: StratoMod, key: InputKey) -> Dict[VarKey, str]
 #         return {}
 
 
-def runkey_to_variables(
-    config: StratoMod,
-    mkey: ModelKey,
-    rkey: RunKey,
-    tkey: TestKey,
-) -> Dict[VarKey, str]:
-    test = config.ebm_runs[mkey].inputs[rkey].test[tkey]
-    default_vars = trainkey_to_variables(config, test.input_key)
-    return {**default_vars, **test.variables}
+# def runkey_to_variables(
+#     config: StratoMod,
+#     mkey: ModelKey,
+#     rkey: RunKey,
+#     tkey: TestKey,
+# ) -> Dict[VarKey, str]:
+#     test = config.ebm_runs[mkey].inputs[rkey].test[tkey]
+#     default_vars = trainkey_to_variables(config, test.input_key)
+#     return {**default_vars, **test.variables}
 
 
 # ------------------------------------------------------------------------------
@@ -836,16 +1048,16 @@ def runkey_to_variables(
 
 
 def lookup_ebm_run(config: StratoMod, run_key: ModelKey) -> Any:
-    return config.ebm_runs[run_key]
+    return config.models[run_key]
 
 
 def ebm_run_train_keys(ebm_run: StratoMod) -> List[str]:
     return [*flatten([[*i] for i in ebm_run.inputs])]
 
 
-def ebm_run_test_keys(ebm_run: EBMRun) -> List[TestKey]:
+def ebm_run_test_keys(ebm_run: Model) -> List[TestKey]:
     return [
-        *flatten([[*ts] for k, v in ebm_run.inputs.items() for ts in v.test.values()])
+        *flatten([[*ts] for k, v in ebm_run.runs.items() for ts in v.test.values()])
     ]
 
 
@@ -887,41 +1099,41 @@ def fmt_feature(prefix: str, rest: str) -> FeatureKey:
     return FeatureKey(f"{prefix}_{rest}")
 
 
-def fmt_vcf_feature(config: StratoMod, which: str) -> FeatureKey:
-    fconf = config.feature_meta.vcf
+def fmt_vcf_feature(config: FeatureMeta, which: str) -> FeatureKey:
+    fconf = config.vcf
     return fmt_feature(fconf.prefix, fconf.columns.dict()[which])
 
 
-def vcf_feature_names(config: StratoMod) -> List[FeatureKey]:
+def vcf_feature_names(config: FeatureMeta) -> List[FeatureKey]:
     return [
         *map(
             lambda f: fmt_vcf_feature(config, f),
-            config.feature_meta.vcf.columns.dict(),
+            config.vcf.columns.dict(),
         )
     ]
 
 
-def fmt_mappability_feature(config: StratoMod, which: str) -> FeatureKey:
-    fconf = config.feature_meta.mappability
+def fmt_mappability_feature(config: FeatureMeta, which: str) -> FeatureKey:
+    fconf = config.mappability
     return fmt_feature(fconf.prefix, fconf.suffixes.dict()[which])
 
 
-def mappability_feature_names(config: StratoMod) -> List[FeatureKey]:
+def mappability_feature_names(config: FeatureMeta) -> List[FeatureKey]:
     return [
         *map(
             lambda f: fmt_mappability_feature(config, f),
-            config.feature_meta.mappability.suffixes.dict(),
+            config.mappability.suffixes.dict(),
         ),
     ]
 
 
-def fmt_homopolymer_feature(config: StratoMod, bases: Base, which: str) -> FeatureKey:
-    fconf = config.feature_meta.homopolymers
-    return fmt_feature(fconf.prefix, f"{bases}_{fconf.suffixes.dict()[which]}")
+def fmt_homopolymer_feature(config: FeatureMeta, bases: Base, which: str) -> FeatureKey:
+    fconf = config.homopolymers
+    return fmt_feature(fconf.prefix, f"{bases.value}_{fconf.suffixes.dict()[which]}")
 
 
-def homopolymer_feature_names(config: StratoMod) -> List[FeatureKey]:
-    fconf = config.feature_meta.homopolymers
+def homopolymer_feature_names(config: FeatureMeta) -> List[FeatureKey]:
+    fconf = config.homopolymers
     return [
         fmt_homopolymer_feature(config, b, s)
         for (b, s) in product(fconf.bases, list(fconf.suffixes.dict()))
@@ -929,22 +1141,24 @@ def homopolymer_feature_names(config: StratoMod) -> List[FeatureKey]:
 
 
 def fmt_repeat_masker_feature(
-    config: StratoMod,
+    fconf: RMSKMeta,
     grp: str,
-    fam: Optional[str] = None,
+    fam: Optional[str],
 ) -> FeatureKey:
-    fconf = config.feature_meta.repeat_masker
     rest = maybe(grp, lambda f: f"{grp}_{fam}", fam)
     # TODO this is hardcoded for now
     suffix = fconf.suffixes.len
     return fmt_feature(fconf.prefix, f"{rest}_{suffix}")
 
 
-def repeat_masker_feature_names(config: StratoMod) -> List[FeatureKey]:
-    fconf = config.feature_meta.repeat_masker
-    fmt = partial(fmt_repeat_masker_feature, config)
+def repeat_masker_feature_names(config: FeatureMeta) -> List[FeatureKey]:
+    fconf = config.repeat_masker
+
+    def fmt(grp: str, fam: Optional[str]) -> FeatureKey:
+        return fmt_repeat_masker_feature(fconf, grp, fam)
+
     return [
-        *[fmt(c) for c in fconf.classes.dict()],
+        *[fmt(c, None) for c in fconf.classes.dict()],
         *[fmt(c, f) for c, fs in fconf.classes.dict().items() for f in fs],
     ]
 
@@ -954,7 +1168,7 @@ def fmt_count_feature(prefix: str) -> FeatureKey:
 
 
 def fmt_merged_feature(prefix: str, middle: str, op: BedMergeOp) -> FeatureKey:
-    return fmt_feature(prefix, f"{middle}_{op}")
+    return fmt_feature(prefix, f"{middle}_{op.value}")
 
 
 def merged_feature_names(
@@ -966,8 +1180,8 @@ def merged_feature_names(
     ]
 
 
-def segdup_feature_names(config: StratoMod) -> List[FeatureKey]:
-    fconf = config.feature_meta.segdups
+def segdup_feature_names(config: FeatureMeta) -> List[FeatureKey]:
+    fconf = config.segdups
     return merged_feature_names(
         fconf.prefix,
         list(fconf.columns.dict().values()),
@@ -975,13 +1189,13 @@ def segdup_feature_names(config: StratoMod) -> List[FeatureKey]:
     )
 
 
-def fmt_tandem_repeat_base(config: StratoMod, bases: str) -> FeatureKey:
-    bs_prefix = config.feature_meta.tandem_repeats.bases_prefix
+def fmt_tandem_repeat_base(config: FeatureMeta, bases: str) -> FeatureKey:
+    bs_prefix = config.tandem_repeats.bases_prefix
     return FeatureKey(f"{bs_prefix}_{bases}")
 
 
-def tandem_repeat_feature_names(config: StratoMod) -> List[FeatureKey]:
-    fconf = config.feature_meta.tandem_repeats
+def tandem_repeat_feature_names(config: FeatureMeta) -> List[FeatureKey]:
+    fconf = config.tandem_repeats
     prefix = fconf.prefix
     # TODO weirdly hardcoded in several places
     bases = ["A", "T", "G", "C", "AT", "GC"]
@@ -993,12 +1207,14 @@ def tandem_repeat_feature_names(config: StratoMod) -> List[FeatureKey]:
     ]
 
 
-def all_feature_names(config: StratoMod) -> List[FeatureKey]:
-    return [
-        *vcf_feature_names(config),
-        *mappability_feature_names(config),
-        *homopolymer_feature_names(config),
-        *repeat_masker_feature_names(config),
-        *segdup_feature_names(config),
-        *tandem_repeat_feature_names(config),
-    ]
+def all_feature_names(config: FeatureMeta) -> Set[FeatureKey]:
+    return set(
+        [
+            *vcf_feature_names(config),
+            *mappability_feature_names(config),
+            *homopolymer_feature_names(config),
+            *repeat_masker_feature_names(config),
+            *segdup_feature_names(config),
+            *tandem_repeat_feature_names(config),
+        ]
+    )

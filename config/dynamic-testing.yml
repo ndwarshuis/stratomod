@@ -7,14 +7,13 @@ reference_sets:
     chr_filter: [21]
 
 variables:
-  coverage:
-    type: continuous
-  seqtech:
-    type: categorical
-    allowed: ["PacBio HiFi", "Illumina"]
-  variant_caller:
-    type: categorical
-    allowed: ["DeepVariant"]
+  continuous:
+    coverage: {}
+  categorical:
+    seqtech:
+      levels: ["PacBio HiFi", "Illumina"]
+    variant_caller:
+      levels: ["DeepVariant"]
 
 inputs:
   HG002_Hifi_DV:
@@ -42,7 +41,7 @@ inputs:
     benchmark: HG005_v4.2.1
     variables:
       coverage: 40
-      seqtech: "PacBio Hifi"
+      seqtech: "PacBio HiFi"
       variant_caller: "DeepVariant"
   Clinvar:
     refset: GRCh38_test
@@ -63,9 +62,9 @@ inputs:
       gq: null
     variables: {}
 
-ebm_runs:
+models:
   small_set_v3:
-    inputs:
+    runs:
       test_inputs:
         train: [HG002_Hifi_DV, HG002_Illumina_DV]
         test:
@@ -87,10 +86,10 @@ ebm_runs:
     filtered_are_candidates: false
     interactions:
       - VCF_input
-      - [VCF_indel_length, HOMOPOL_A_length]
-      - [VCF_indel_length, HOMOPOL_T_length]
-      - [VCF_indel_length, HOMOPOL_G_length]
-      - [VCF_indel_length, HOMOPOL_C_length]
+      - {f1: VCF_indel_length, f2: HOMOPOL_A_length}
+      - {f1: VCF_indel_length, f2: HOMOPOL_T_length}
+      - {f1: VCF_indel_length, f2: HOMOPOL_G_length}
+      - {f1: VCF_indel_length, f2: HOMOPOL_C_length}
     features: &base_features
       VCF_input:
         feature_type: categorical
