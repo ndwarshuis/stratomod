@@ -1,5 +1,6 @@
 import re
 from typing import (
+    TypeVar,
     Any,
     Sequence,
     Dict,
@@ -465,7 +466,8 @@ class StratoMod(BaseModel):
     def models_have_valid_features(cls, v: Model, values) -> Model:
         features = all_feature_names(values["feature_meta"])
         # TODO add variable names here
-        assert set(v.features) <= features
+        assert_subset(set(v.features), features)
+        # assert set(v.features) <= features
         return v
 
     @validator("models", each_item=True)
@@ -486,19 +488,19 @@ class StratoMod(BaseModel):
                     for i in v.interactions
                 )
             )
-            assert interactions <= features
+            assert_subset(interactions, features)
         return v
 
     @validator("models", each_item=True)
     def models_have_valid_runs_train(cls, v: Model, values) -> Model:
-        assert set(flatten(r.train for r in v.runs.values())) <= set(values["inputs"])
+        train = [t for r in v.runs.values() for t in r.train]
+        assert_subset(set(train), set(values["inputs"]))
         return v
 
     @validator("models", each_item=True)
     def models_have_valid_runs_test(cls, v: Model, values) -> Model:
-        assert set(
-            flatten([t.input_key for t in r.test.values()] for r in v.runs.values())
-        ) <= set(values["inputs"])
+        tests = [t.input_key for r in v.runs.values() for t in r.test.values()]
+        assert_subset(set(tests), set(values["inputs"]))
         return v
 
     @validator("models", each_item=True)
@@ -541,95 +543,11 @@ def assert_match(pat: str, s: str) -> str:
     return res[0]
 
 
-# ------------------------------------------------------------------------------
-# Validation
-#
-# These functions are necessary to validate properties of the config file(s)
-# that are not possible using JSON schema validation.
-#
-# In particular:
-# - For each in 'ebm_runs', make sure there are no duplicated feature names
-#   (especially considering that features can be renamed on-the-fly with
-#   'alt_name' and make sure 'alt_name' features have the same prefix as
-#   their parent feature name if they exist
-# - For each in 'ebm_runs', make sure explicitly named interaction terms are
-#   also in the feature set
-# - Make sure input files in for each in 'ebm_runs' are in the 'inputs' section
-# - Ensure all keys in input section (the keys under 'inputs' and the keys
-#   under each 'test') are unique
+X = TypeVar("X")
 
 
-def validate_inputs(config: StratoMod) -> None:
-    inputs = config.inputs
-    # train = input_train_keys(config)
-    # test = input_test_keys(config)
-    assert_no_dups(inputs, "Duplicate input keys found")
-
-
-# TODO make unittests for these
-# def validate_ebm_features(config: StratoMod) -> None:
-#     def assert_1(run_name, feature_list, feature):
-#         assert (
-#             feature in feature_list
-#         ), f"Interaction {feature} not found in feature set for run {run_name}"
-
-#     def assert_N(run_name, feature_list, ints):
-#         for i in ints:
-#             assert_1(run_name, feature_list, i)
-
-#     def flatten_features(fs: Dict[FeatureKey, Feature]):
-#         return [k if v.alt_name is None else v.alt_name for k, v in fs.items()]
-
-#     flat = [
-#         (k, ints, v.features)
-#         for k, v in config.models.items()
-#         if isinstance(ints := v.interactions, list)
-#     ]
-
-#     for run_name, ints, features in flat:
-#         # test that all feature names are valid
-#         valid_features = set(all_feature_names(config.feature_meta))
-#         fs = set(list(features))
-#         assert (
-#             fs <= valid_features
-#         ), f"Invalid features: {fmt_strs(fs - valid_features)}"
-
-#         for k, v in features.items():
-#             # test feature alt names
-#             alt = v.alt_name
-#             if alt is not None:
-#                 prefix = assert_match("^[^_]+", k)
-#                 alt_prefix = assert_match("^[^_]+", alt)
-#                 assert alt_prefix == prefix, f"Alt prefix must match for {k}"
-
-#             # test truncation values
-#             truncate = v.visualization.truncate
-#             tlower = truncate.lower
-#             tupper = truncate.upper
-#             if tlower is not None and tupper is not None:
-#                 assert tlower < tupper, f"Non-positive truncation for {k}"
-
-#         # test duplicate alt names
-#         flat_feature_names = flatten_features(features)
-#         assert_no_dups(flat_feature_names, "Duplicated features")
-
-#         # test for matching interaction terms
-#         for i in ints:
-#             check = assert_N if isinstance(i, list) else assert_1
-#             check(run_name, flat_feature_names, i)
-
-
-# def validate_ebm_inputs(config: StratoMod) -> None:
-#     def assert_keys_exist(what, get_input_keys, get_ebm_keys):
-#         iks = get_input_keys(config)
-#         eks = [*flatten(get_ebm_keys(e) for e in config["ebm_runs"].values())]
-#         assert_empty(
-#             set(eks) - set(iks),
-#             f"EBM {what} keys not found in input keys",
-#         )
-
-#     assert_keys_exist("train", input_train_keys, ebm_run_train_keys)
-#     assert_keys_exist("test", input_test_keys, ebm_run_test_keys)
+def assert_subset(xs: Set[X], ys: Set[X]) -> None:
+    assert xs <= ys, f"not a subset - extra members: {xs - ys}"
 
 
 # ------------------------------------------------------------------------------
