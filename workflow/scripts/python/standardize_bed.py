@@ -1,12 +1,11 @@
 import gzip
 import io
-import common.config as cfg
 
 
 def filter_file(smk, fi: io.TextIOWrapper) -> None:
     input_key = smk.wildcards["input_key"]
-    chr_prefix = cfg.inputkey_to_chr_prefix(smk.config, input_key)
-    chr_filter = cfg.inputkey_to_chr_filter(smk.config, input_key)
+    chr_prefix = smk.config.inputkey_to_chr_prefix(input_key)
+    chr_filter = smk.config.inputkey_to_chr_filter(input_key)
     fs = tuple(["#", *[f"{c}\t" for c in chr_filter]])
 
     def tolines(f: io.TextIOWrapper):

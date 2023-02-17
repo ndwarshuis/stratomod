@@ -1,10 +1,10 @@
 import pandas as pd
 import common.config as cfg
-from functools import partial
 from pybedtools import BedTool as bt  # type: ignore
 from pybedtools import cleanup
 from common.tsv import write_tsv, read_tsv
 from common.cli import setup_logging
+
 
 logger = setup_logging(snakemake.log[0])  # type: ignore
 
@@ -17,14 +17,14 @@ SLOP = 1
 
 def read_input(path: str, bed_cols: cfg.BedIndex):
     logger.info("Reading dataframe from %s", path)
-    names = [*cfg.bed_cols_ordered(bed_cols), BASE_COL]
+    names = [*bed_cols.bed_cols_ordered(), BASE_COL]
     return read_tsv(path, header=None, comment="#", names=names)
 
 
 def merge_base(
     config: cfg.StratoMod,
     df: pd.DataFrame,
-    base: str,
+    base: cfg.Base,
     genome: str,
     bed_cols: cfg.BedIndex,
 ) -> pd.DataFrame:
@@ -43,13 +43,13 @@ def merge_base(
         bt.from_dataframe(_df)
         .merge(d=1, c=[4], o=["sum"])
         .slop(b=SLOP, g=genome)
-        .to_dataframe(names=[*cfg.bed_cols_ordered(bed_cols), PFCT_LEN_COL])
+        .to_dataframe(names=[*bed_cols.bed_cols_ordered(), PFCT_LEN_COL])
     )
     # these files are huge; now that we have a dataframe, remove all the bed
     # files from tmpfs to prevent a run on downloadmoreram.com
     cleanup()
 
-    fmt_feature = partial(cfg.fmt_homopolymer_feature, config)
+    fmt_feature = config.feature_meta.homopolymers.fmt_name
 
     length_col = fmt_feature(base, "len")
     frac_col = fmt_feature(base, "imp_frac")

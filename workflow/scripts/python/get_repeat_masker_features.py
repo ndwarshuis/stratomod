@@ -30,9 +30,9 @@ def read_rmsk_df(
     path: str,
     bed_cols: cfg.BedIndex,
 ) -> pd.DataFrame:
-    bed_mapping = cfg.bed_cols_indexed([5, 6, 7], bed_cols)
-    prefix = cfg.refsetkey_to_ref(
-        config, smk.wildcards["refset_key"]
+    bed_mapping = bed_cols.bed_cols_indexed((5, 6, 7))
+    prefix = config.refsetkey_to_ref(
+        smk.wildcards["refset_key"]
     ).annotations.repeat_masker.chr_prefix
     return read_bed_df(path, bed_mapping, COLS, prefix, smk.params["filt"])
 
@@ -51,12 +51,12 @@ def merge_and_write_group(
     merged = (
         bt.from_dataframe(dropped)
         .merge()
-        .to_dataframe(names=cfg.bed_cols_ordered(bed_cols))
+        .to_dataframe(names=bed_cols.bed_cols_ordered())
     )
     if len(merged.index) == 0:
         logger.warning("Empty dataframe for %s", path)
     else:
-        col = cfg.fmt_repeat_masker_feature(config, clsname, famname)
+        col = config.feature_meta.repeat_masker.fmt_name(clsname, famname)
         merged[col] = merged[bed_cols.end] - merged[bed_cols.start]
         write_tsv(path, merged, header=True)
 

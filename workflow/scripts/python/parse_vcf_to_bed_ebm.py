@@ -9,7 +9,7 @@ from common.bed import standardize_chr_column
 from common.cli import setup_logging
 from common.functional import compose
 
-logger = setup_logging(snakemake.log[0])
+logger = setup_logging(snakemake.log[0])  # type: ignore
 
 
 class InputCol(NamedTuple):
@@ -218,7 +218,7 @@ def get_label(wildcards):
 def main(smk, sconf: cfg.StratoMod) -> None:
     wildcards = smk.wildcards
     fconf = sconf.feature_meta
-    iconf = cfg.inputkey_to_input(sconf, wildcards.input_key)
+    iconf = sconf.inputkey_to_input(wildcards.input_key)
     idx = fconf.bed_index
     # prefix = cfg.refsetkey_to_chr_prefix(sconf, ["sdf"], wildcards["refset_key"])
 
@@ -246,7 +246,8 @@ def main(smk, sconf: cfg.StratoMod) -> None:
     non_field_cols = [chrom, pos, end, indel_length, qual, filt, info]
 
     fields = {
-        cfg.fmt_vcf_feature(sconf, k): v for k, v in iconf.format_fields.dict().items()
+        sconf.feature_meta.vcf.fmt_name(k): v
+        for k, v in iconf.format_fields.dict().items()
     }
     label = get_label(wildcards)
 
@@ -258,7 +259,7 @@ def main(smk, sconf: cfg.StratoMod) -> None:
         # partial(standardize_chr_column, prefix, chrom),
         partial(
             add_length_and_filter,
-            cfg.fmt_vcf_feature(sconf, "len"),
+            sconf.feature_meta.vcf.fmt_name("len"),
             pos,
             end,
             wildcards.filter_key,

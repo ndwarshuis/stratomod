@@ -6,21 +6,14 @@ from more_itertools import unzip
 import pandas as pd
 from common.tsv import read_tsv
 from common.functional import compose
-from common.config import (
-    fmt_count_feature,
-    fmt_merged_feature,
-    bed_cols_ordered,
-    fmt_strs,
-    BedMergeOp,
-    BedIndex,
-)
+import common.config as cfg
 
 
 def filter_chromosomes(chr_filter: List[int], df: pd.DataFrame) -> pd.DataFrame:
     if len(chr_filter) > 0:
         logging.info(
             "Pre-filtering chromosomes: %s",
-            fmt_strs(map(str, chr_filter)),
+            cfg.fmt_strs(map(str, chr_filter)),
         )
         return df[df.iloc[:, 0].isin(chr_filter)].copy()
     return df
@@ -79,8 +72,8 @@ def read_bed_df(
 
 
 def merge_and_apply_stats(
-    merge_stats: List[BedMergeOp],
-    bed_cols: BedIndex,
+    merge_stats: List[cfg.BedMergeOp],
+    bed_cols: cfg.BedIndex,
     prefix: str,
     bed_df: pd.DataFrame,
 ):
@@ -96,7 +89,7 @@ def merge_and_apply_stats(
     logging.info("Stats to compute: %s\n", ", ".join(map(str, merge_stats)))
 
     cols, opts, headers = unzip(
-        (i + drop_n + 1, m, fmt_merged_feature(prefix, s, m))
+        (i + drop_n + 1, m, cfg.fmt_merged_feature(prefix, s, m))
         for (i, s), m in product(enumerate(stat_cols), merge_stats)
     )
 
@@ -105,8 +98,8 @@ def merge_and_apply_stats(
     full_opts = ["count", *opts]
     full_cols = [drop_n + 1, *cols]
     full_headers = [
-        *bed_cols_ordered(bed_cols),
-        fmt_count_feature(prefix),
+        *bed_cols.bed_cols_ordered(),
+        cfg.fmt_count_feature(prefix),
         *headers,
     ]
 

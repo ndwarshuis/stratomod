@@ -28,9 +28,8 @@ def read_segdups(
         18: cols.alignL,
         27: cols.fracMatchIndel,
     }
-    bed_mapping = cfg.bed_cols_indexed([1, 2, 3], bed_cols)
-    prefix = cfg.refsetkey_to_ref(
-        config,
+    bed_mapping = bed_cols.bed_cols_indexed((1, 2, 3))
+    prefix = config.refsetkey_to_ref(
         smk.wildcards["refset_key"],
     ).annotations.superdups.chr_prefix
     return read_bed_df(
