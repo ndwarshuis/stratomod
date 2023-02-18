@@ -6,15 +6,6 @@ reference_sets:
     ref: GRCh38
     chr_filter: [21]
 
-variables:
-  continuous:
-    coverage: {}
-  categorical:
-    seqtech:
-      levels: ["PacBio HiFi", "Illumina"]
-    variant_caller:
-      levels: ["DeepVariant"]
-
 inputs:
   HG002_Hifi_DV:
     refset: GRCh37_test

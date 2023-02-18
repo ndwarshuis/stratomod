@@ -231,3 +231,13 @@ feature_meta:
     operations: [max, min, median]
     other:
       len: length
+
+  variables:
+    prefix: VAR
+    continuous:
+      coverage: {}
+    categorical:
+      seqtech:
+        levels: ["PacBio HiFi", "Illumina"]
+      variant_caller:
+        levels: ["DeepVariant"]

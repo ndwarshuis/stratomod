@@ -1,7 +1,7 @@
 import re
+from pathlib import Path
 from typing import (
     TypeVar,
-    Any,
     Sequence,
     Dict,
     List,
@@ -42,7 +42,6 @@ BenchKey = NewType("BenchKey", str)
 ModelKey = NewType("ModelKey", str)
 RunKey = NewType("RunKey", str)
 FeatureKey = NewType("FeatureKey", str)
-
 VarKey = NewType("VarKey", str)
 
 
@@ -100,8 +99,8 @@ class BaseModel(PydanticBaseModel):
 
 
 class Paths(BaseModel):
-    resources: str
-    results: str
+    resources: Path
+    results: Path
 
 
 ChrIndex = Annotated[int, conint(ge=0, le=24)]
@@ -128,34 +127,14 @@ class Truncation(BaseModel):
         return v
 
     def in_range(self, x: float) -> bool:
-        lower = self.lower
-        upper = self.upper
-        return (True if lower is None else lower <= x) and (
-            True if upper is None else x <= upper
+        return maybe(True, lambda y: y <= x, self.lower) and maybe(
+            True, lambda y: x <= y, self.upper
         )
 
 
 class ContVar(Truncation):
     lower: Optional[float] = None
     upper: Optional[float] = None
-
-
-class Variables(BaseModel):
-    continuous: Dict[VarKey, ContVar]
-    categorical: Dict[VarKey, CatVar]
-
-    def validate_variable(self, varname: VarKey, varval: str) -> None:
-        cats = self.categorical
-        conts = self.continuous
-        if varname in cats:
-            assert (
-                varval in cats[varname].levels
-            ), f"'{varname}' has an invalid level '{varval}'"
-        elif varname in conts:
-            assert varval.isnumeric(), f"'{varname}' not a number"
-            assert conts[varname].in_range(float(varval))
-        else:
-            assert False, f"'{varname}' not a valid variable name"
 
 
 class FormatFields(BaseModel):
@@ -198,7 +177,6 @@ class EBMSplitParams(BaseModel):
     random_state: Optional[Fraction] = None
 
 
-# TODO these all need constraints
 class EBMClassifierParams(BaseModel):
     max_bins: NonNegativeInt = 256
     max_interaction_bins: NonNegativeInt = 32
@@ -320,6 +298,13 @@ class BedIndex(BaseModel):
         return dict(zip(indices, self.bed_cols_ordered()))
 
 
+class FeatureGroup(BaseModel):
+    prefix: Prefix
+
+    def fmt_feature(self, rest: str) -> FeatureKey:
+        return FeatureKey(f"{self.prefix}_{rest}")
+
+
 class VCFColumns(BaseModel):
     input: NonEmptyStr
     qual: NonEmptyStr
@@ -332,20 +317,17 @@ class VCFColumns(BaseModel):
     len: NonEmptyStr
 
 
-class VCFMeta(BaseModel):
-    prefix: Prefix
+class VCFMeta(FeatureGroup):
     columns: VCFColumns
 
-    def fmt_name(self, which: str) -> FeatureKey:
-        return fmt_feature(self.prefix, self.columns.dict()[which])
+    @validator("columns")
+    def prefix_columns(cls, columns: VCFColumns, values) -> VCFColumns:
+        return VCFColumns(
+            **{k: f"{values['prefix']}_{v}" for k, v in columns.dict().items()}
+        )
 
     def feature_names(self) -> List[FeatureKey]:
-        return [
-            *map(
-                lambda f: self.fmt_name(f),
-                self.columns.dict(),
-            )
-        ]
+        return list(self.columns.dict().values())
 
 
 class MapSuffixes(BaseModel):
@@ -353,20 +335,19 @@ class MapSuffixes(BaseModel):
     high: NonEmptyStr
 
 
-class MapMeta(BaseModel):
-    prefix: Prefix
+class MapMeta(FeatureGroup):
     suffixes: MapSuffixes
 
-    def fmt_name(self, which: str) -> FeatureKey:
-        return fmt_feature(self.prefix, self.suffixes.dict()[which])
+    @property
+    def low(self) -> FeatureKey:
+        return self.fmt_feature(self.suffixes.low)
+
+    @property
+    def high(self) -> FeatureKey:
+        return self.fmt_feature(self.suffixes.high)
 
     def feature_names(self) -> List[FeatureKey]:
-        return [
-            *map(
-                lambda f: self.fmt_name(f),
-                self.suffixes.dict(),
-            ),
-        ]
+        return [self.low, self.high]
 
 
 class HomopolySuffixes(BaseModel):
@@ -374,13 +355,13 @@ class HomopolySuffixes(BaseModel):
     imp_frac: NonEmptyStr
 
 
-class HomopolyMeta(BaseModel):
-    prefix: Prefix
+class HomopolyMeta(FeatureGroup):
     bases: Set[Base]
     suffixes: HomopolySuffixes
 
+    # TODO weakly typed
     def fmt_name(self, bases: Base, which: str) -> FeatureKey:
-        return fmt_feature(self.prefix, f"{bases.value}_{self.suffixes.dict()[which]}")
+        return self.fmt_feature(f"{bases.value}_{self.suffixes.dict()[which]}")
 
     def feature_names(self) -> List[FeatureKey]:
         return [
@@ -400,11 +381,11 @@ class RMSKClasses(BaseModel):
     Satellite: Set[NonEmptyStr] = set()
 
 
-class RMSKMeta(BaseModel):
-    prefix: Prefix
+class RMSKMeta(FeatureGroup):
     suffixes: RMSKSuffixes
     classes: RMSKClasses
 
+    # TODO weakly typed
     def fmt_name(
         self,
         grp: str,
@@ -413,7 +394,7 @@ class RMSKMeta(BaseModel):
         rest = maybe(grp, lambda f: f"{grp}_{fam}", fam)
         # TODO this is hardcoded for now
         suffix = self.suffixes.len
-        return fmt_feature(self.prefix, f"{rest}_{suffix}")
+        return self.fmt_feature(f"{rest}_{suffix}")
 
     def feature_names(self) -> List[FeatureKey]:
         def fmt(grp: str, fam: Optional[str]) -> FeatureKey:
@@ -430,17 +411,30 @@ class SegDupsColumns(BaseModel):
     fracMatchIndel: NonEmptyStr
 
 
-class SegDupsMeta(BaseModel):
-    prefix: Prefix
-    columns: SegDupsColumns
+class MergedFeatureGroup(FeatureGroup):
     operations: Set[BedMergeOp]
 
+    def fmt_count_feature(self) -> FeatureKey:
+        return self.fmt_feature("count")
+
+    def fmt_merged_feature(self, middle: str, op: BedMergeOp) -> FeatureKey:
+        return self.fmt_feature(f"{middle}_{op.value}")
+
+    def merged_feature_names(self, names: List[str]) -> List[FeatureKey]:
+        return [
+            *[
+                self.fmt_merged_feature(n, o)
+                for n, o in product(names, self.operations)
+            ],
+            self.fmt_count_feature(),
+        ]
+
+
+class SegDupsMeta(MergedFeatureGroup):
+    columns: SegDupsColumns
+
     def feature_names(self) -> List[FeatureKey]:
-        return merged_feature_names(
-            self.prefix,
-            list(self.columns.dict().values()),
-            self.operations,
-        )
+        return self.merged_feature_names(list(self.columns.dict().values()))
 
 
 class TandemRepeatColumns(BaseModel):
@@ -455,10 +449,8 @@ class TandemRepeatOther(BaseModel):
     len: NonEmptyStr
 
 
-class TandemRepeatMeta(BaseModel):
-    prefix: Prefix
+class TandemRepeatMeta(MergedFeatureGroup):
     bases_prefix: NonEmptyStr
-    operations: Set[BedMergeOp]
     columns: TandemRepeatColumns
     other: TandemRepeatOther
 
@@ -467,15 +459,38 @@ class TandemRepeatMeta(BaseModel):
         return FeatureKey(f"{bs_prefix}_{bases}")
 
     def feature_names(self) -> List[FeatureKey]:
-        prefix = self.prefix
         # TODO weirdly hardcoded in several places
         bases = ["A", "T", "G", "C", "AT", "GC"]
         bs = [self.fmt_name_base(b) for b in bases]
         cs = self.columns.dict().values()
         return [
-            *merged_feature_names(prefix, [*cs, *bs], self.operations),
-            *[fmt_feature(prefix, o) for o in self.other.dict().values()],
+            *self.merged_feature_names([*cs, *bs]),
+            *[self.fmt_feature(o) for o in self.other.dict().values()],
         ]
+
+
+class Variables(FeatureGroup):
+    continuous: Dict[VarKey, ContVar]
+    categorical: Dict[VarKey, CatVar]
+
+    def all_keys(self) -> List[VarKey]:
+        return list(self.continuous) + list(self.categorical)
+
+    def feature_names(self) -> List[FeatureKey]:
+        return [self.fmt_feature(x) for x in self.all_keys()]
+
+    def validate_variable(self, varname: VarKey, varval: str) -> None:
+        cats = self.categorical
+        conts = self.continuous
+        if varname in cats:
+            assert (
+                varval in cats[varname].levels
+            ), f"'{varname}' has an invalid level '{varval}'"
+        elif varname in conts:
+            assert varval.isnumeric(), f"'{varname}' not a number"
+            assert conts[varname].in_range(float(varval))
+        else:
+            assert False, f"'{varname}' not a valid variable name"
 
 
 class FeatureMeta(BaseModel):
@@ -488,6 +503,7 @@ class FeatureMeta(BaseModel):
     repeat_masker: RMSKMeta
     segdups: SegDupsMeta
     tandem_repeats: TandemRepeatMeta
+    variables: Variables
 
     def all_index_cols(self) -> List[str]:
         return [self.raw_index, *self.bed_index.bed_cols_ordered()]
@@ -501,6 +517,7 @@ class FeatureMeta(BaseModel):
                 *self.repeat_masker.feature_names(),
                 *self.segdups.feature_names(),
                 *self.tandem_repeats.feature_names(),
+                *self.variables.feature_names(),
             ]
         )
 
@@ -517,7 +534,6 @@ class StratoMod(BaseModel):
     paths: Paths
     tools: Tools
     feature_meta: FeatureMeta
-    variables: Variables
     references: Dict[RefKey, Reference]
     reference_sets: Dict[RefsetKey, RefSet]
     inputs: Dict[InputKey, VCFInput]
@@ -525,21 +541,27 @@ class StratoMod(BaseModel):
 
     @validator("reference_sets", each_item=True)
     def refsets_have_valid_refkeys(cls, v: RefSet, values) -> RefSet:
-        assert (
-            v.ref in values["references"]
-        ), f"'{v.ref}' does not refer to a valid reference"
+        if "reference" in values:
+            assert (
+                v.ref in values["references"]
+            ), f"'{v.ref}' does not refer to a valid reference"
         return v
 
     @validator("inputs", each_item=True)
     def inputs_have_valid_refsetkeys(cls, v: VCFInput, values) -> VCFInput:
-        assert (
-            v.refset in values["reference_sets"]
-        ), f"'{v.refset}' does not refer to a valid reference set"
+        if "reference_sets" in values:
+            assert (
+                v.refset in values["reference_sets"]
+            ), f"'{v.refset}' does not refer to a valid reference set"
         return v
 
     @validator("inputs", each_item=True)
     def inputs_have_valid_benchkeys(cls, v: VCFInput, values) -> VCFInput:
-        if v.benchmark is not None:
+        if (
+            v.benchmark is not None
+            and "reference_sets" in values
+            and "references" in values
+        ):
             ref_key = values["reference_sets"][v.refset].ref
             ref_benchmarks = values["references"][ref_key].benchmarks
             assert (
@@ -549,30 +571,28 @@ class StratoMod(BaseModel):
 
     @validator("inputs", each_item=True)
     def inputs_have_valid_variables(cls, v: VCFInput, values) -> VCFInput:
-        var_root = cast(Variables, values["variables"])
-        for varname, varval in v.variables.items():
-            var_root.validate_variable(varname, varval)
+        if "feature_meta" in values:
+            var_root = cast(FeatureMeta, values["feature_meta"]).variables
+            for varname, varval in v.variables.items():
+                var_root.validate_variable(varname, varval)
         return v
 
     @validator("models", each_item=True)
     def models_have_valid_features(cls, v: Model, values) -> Model:
-        features = values["feature_meta"].all_feature_names()
-        # TODO add variable names here
-        assert_subset(set(v.features), features)
-        # assert set(v.features) <= features
+        if "feature_meta" in values:
+            features = values["feature_meta"].all_feature_names()
+            assert_subset(set(v.features), features)
         return v
 
     @validator("models", each_item=True)
     def models_have_valid_features_alt(cls, v: Model) -> Model:
         # TODO dry?
-        # TODO need to also compare variable names
         assert_no_dups(flatten_features(v.features), "Duplicated features")
         return v
 
     @validator("models", each_item=True)
     def models_have_valid_interactions(cls, v: Model, values) -> Model:
         if isinstance(v.interactions, set):
-            # TODO add variable names here
             features = set(flatten_features(v.features))
             interactions = set(
                 flatten(
@@ -585,28 +605,36 @@ class StratoMod(BaseModel):
 
     @validator("models", each_item=True)
     def models_have_valid_runs_train(cls, v: Model, values) -> Model:
-        train = [t for r in v.runs.values() for t in r.train]
-        assert_subset(set(train), set(values["inputs"]))
+        if "inputs" in values:
+            train = [t for r in v.runs.values() for t in r.train]
+            assert_subset(set(train), set(values["inputs"]))
         return v
 
     @validator("models", each_item=True)
     def models_have_valid_runs_test(cls, v: Model, values) -> Model:
-        tests = [t.input_key for r in v.runs.values() for t in r.test.values()]
-        assert_subset(set(tests), set(values["inputs"]))
+        if "inputs" in values:
+            tests = [t.input_key for r in v.runs.values() for t in r.test.values()]
+            assert_subset(set(tests), set(values["inputs"]))
         return v
 
     @validator("models", each_item=True)
     def models_have_valid_runs_test_variables(cls, v: Model, values) -> Model:
-        var_root = cast(Variables, values["variables"])
-        varpairs = [
-            (varname, varval)
-            for r in v.runs.values()
-            for t in r.test.values()
-            for varname, varval in t.variables.items()
-        ]
-        for varname, varval in varpairs:
-            var_root.validate_variable(varname, varval)
+        if "feature_meta" in values:
+            var_root = cast(FeatureMeta, values["feature_meta"]).variables
+            varpairs = [
+                (varname, varval)
+                for r in v.runs.values()
+                for t in r.test.values()
+                for varname, varval in t.variables.items()
+            ]
+            assert_subset(set([p[0] for p in varpairs]), set(var_root.all_keys()))
+            for varname, varval in varpairs:
+                var_root.validate_variable(varname, varval)
         return v
+
+    # TODO might be nice to alert user when they try and test a variable that's
+    # not included in the train set, since this will likely screw with things
+    # in weird ways
 
     def refsetkey_to_ref(self, key: RefsetKey) -> Reference:
         return self.references[self.refsetkey_to_refkey(key)]
@@ -649,6 +677,9 @@ class StratoMod(BaseModel):
         refset_key = self.inputkey_to_refsetkey(input_key)
         return self.refsetkey_to_chr_indices(refset_key)
 
+    def inputkey_to_variables(self, input_key: InputKey) -> Dict[VarKey, str]:
+        return self.inputkey_to_input(input_key).variables
+
     def inputkey_to_bench_correction(
         self,
         key: InputKey,
@@ -658,6 +689,15 @@ class StratoMod(BaseModel):
             rkey = self.inputkey_to_refsetkey(key)
             return self.refsetkey_to_ref(rkey).benchmarks[bkey].corrections
         return None
+
+    def testkey_to_variables(
+        self,
+        mkey: ModelKey,
+        rkey: RunKey,
+        tkey: TestKey,
+    ) -> Dict[VarKey, str]:
+        test = self.models[mkey].runs[rkey].test[tkey]
+        return {**test.variables, **self.inputkey_to_variables(test.input_key)}
 
 
 # ------------------------------------------------------------------------------
@@ -672,11 +712,14 @@ def fmt_strs(ss: Iterable[str]) -> str:
 # assertions
 
 
-def assert_empty(xs: Collection, msg: str) -> None:
-    assert len(xs) == 0, f"{msg}: {fmt_strs(xs)}"
+X = TypeVar("X")
 
 
-def assert_no_dups(xs: Collection, msg: str) -> None:
+def assert_empty(xs: Collection[X], msg: str) -> None:
+    assert len(xs) == 0, f"{msg}: {xs}"
+
+
+def assert_no_dups(xs: Collection[X], msg: str) -> None:
     assert_empty(set(duplicates_everseen(xs)), msg)
 
 
@@ -684,9 +727,6 @@ def assert_match(pat: str, s: str) -> str:
     res = re.match(pat, s)
     assert res is not None, f"match failed for pattern '{pat}' and query '{s}'"
     return res[0]
-
-
-X = TypeVar("X")
 
 
 def assert_subset(xs: Set[X], ys: Set[X]) -> None:
@@ -697,7 +737,7 @@ def assert_subset(xs: Set[X], ys: Set[X]) -> None:
 # resources
 
 
-def attempt_mem_gb(mem_gb: int) -> Callable[[dict, int], int]:
+def attempt_mem_gb(mem_gb: int) -> Callable[[Dict[str, str], int], int]:
     # double initial memory on each attempt
     return lambda wildcards, attempt: mem_gb * 1000 * 2 ** (attempt - 1)
 
@@ -757,7 +797,7 @@ def test_has_bench(config: StratoMod, runs: RunKeysTest) -> bool:
 def partition_test_set(
     config: StratoMod,
     test_set: List[RunKeysTest],
-) -> Tuple[List, List]:
+) -> Tuple[List[RunKeysTest], List[RunKeysTest]]:
     unlabeled, labeled = partition(lambda t: test_has_bench(config, t), test_set)
     return list(unlabeled), list(labeled)
 
@@ -794,7 +834,6 @@ def all_input_summary_files(
             refset_key=all_refset_keys(config, key_set),
         )
 
-    # TODO validate that all inputs in train set have benchmark defined
     train_set, test_set = lookup_run_sets(config)
     unlabeled_test_set, labeled_test_set = partition_test_set(config, test_set)
 
@@ -858,54 +897,15 @@ def chr_indices_to_name(prefix: str, xs: Set[int]) -> Set[str]:
     return set(f"{prefix}{chr_index_to_str(i)}" for i in xs)
 
 
-def lookup_ebm_run(config: StratoMod, run_key: ModelKey) -> Any:
-    return config.models[run_key]
+# def lookup_ebm_run(config: StratoMod, run_key: ModelKey) -> Any:
+#     return config.models[run_key]
 
 
-def ebm_run_train_keys(ebm_run: StratoMod) -> List[str]:
-    return [*flatten([[*i] for i in ebm_run.inputs])]
+# def ebm_run_train_keys(ebm_run: StratoMod) -> List[str]:
+#     return [*flatten([[*i] for i in ebm_run.inputs])]
 
 
-def ebm_run_test_keys(ebm_run: Model) -> List[TestKey]:
-    return [
-        *flatten([[*ts] for k, v in ebm_run.runs.items() for ts in v.test.values()])
-    ]
-
-
-# ------------------------------------------------------------------------------
-# feature naming lookup (enter if you dare)
-
-# NOTE: The reason this is so convoluted is because I wanted to have a way to
-# test if a given feature set is valid, which means we need to know a priori
-# what the total possible feature set is. If this seems unjustified, imagine
-# running a gigantic configuration on a cluster, only to have it fail at the
-# training step after several hours because a feature was named incorrectly.
-
-
-def lookup_raw_index(config: StratoMod) -> str:
-    return config.feature_meta.raw_index
-
-
-def lookup_bed_cols(config: StratoMod) -> BedIndex:
-    return config.feature_meta.bed_index
-
-
-def fmt_feature(prefix: str, rest: str) -> FeatureKey:
-    return FeatureKey(f"{prefix}_{rest}")
-
-
-def fmt_count_feature(prefix: str) -> FeatureKey:
-    return fmt_feature(prefix, "count")
-
-
-def fmt_merged_feature(prefix: str, middle: str, op: BedMergeOp) -> FeatureKey:
-    return fmt_feature(prefix, f"{middle}_{op.value}")
-
-
-def merged_feature_names(
-    prefix: str, names: List[str], ops: Set[BedMergeOp]
-) -> List[FeatureKey]:
-    return [
-        *[fmt_merged_feature(prefix, n, o) for n, o in product(names, ops)],
-        fmt_count_feature(prefix),
-    ]
+# def ebm_run_test_keys(ebm_run: Model) -> List[TestKey]:
+#     return [
+#         *flatten([[*ts] for k, v in ebm_run.runs.items() for ts in v.test.values()])
+#     ]
