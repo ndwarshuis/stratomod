@@ -49,8 +49,6 @@ rule find_simple_repeats:
         bin=rules.build_repseq.output,
     output:
         homopolymers_results_dir / "simple_repeats_p3.bed",
-    conda:
-        envs_path("find_simple_repeats.yml")
     benchmark:
         homopolymers_results_dir / "find_regions.bench"
     log:

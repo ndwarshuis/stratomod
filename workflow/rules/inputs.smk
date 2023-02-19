@@ -341,7 +341,7 @@ rule label_vcf:
             refset_key=config.querykey_to_refsetkey(wildcards.l_query_key),
         ),
     output:
-        [config.vcfeval_dir(log=False) / f"{lbl}.vcf.gz" for lbl in cfg.Label.all()],
+        [config.vcfeval_dir(log=False) / f"{lbl}.vcf.gz" for lbl in cfg.VCFLabel.all()],
     conda:
         envs_path("rtg.yml")
     params:
@@ -399,7 +399,7 @@ rule concat_labeled_tsvs:
     input:
         expand(
             rules.parse_labeled_vcf.output,
-            label=cfg.Label.all(),
+            label=cfg.VCFLabel.all(),
             allow_missing=True,
         ),
     output:

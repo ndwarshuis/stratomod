@@ -10,7 +10,9 @@ rule download_mappability_high:
     output:
         mappability_src_dir / "high.bed.gz",
     params:
-        url=partial(refkey_to_ref_wc, [*mappability_config_path, "high", "url"]),
+        url=lambda wildcards: config.refkey_to_annotations(
+            wildcards.ref_key
+        ).mappability.high.url,
     conda:
         envs_path("utils.yml")
     shell:
@@ -21,7 +23,9 @@ use rule download_mappability_high as download_mappability_low with:
     output:
         mappability_src_dir / "low.bed.gz",
     params:
-        url=partial(refkey_to_ref_wc, [*mappability_config_path, "low", "url"]),
+        url=lambda wildcards: config.refkey_to_annotations(
+            wildcards.ref_key
+        ).mappability.low.url,
 
 
 rule get_mappability:

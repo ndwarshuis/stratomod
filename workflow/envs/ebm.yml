@@ -9,6 +9,8 @@ dependencies:
   - pyyaml=6.0 # for dumping the config in the EBM script
   - numba=0.54.1 # needed for interpret packages below
   - pandas=1.5.3 # version?
+  - pydantic
+  - more-itertools
   # the conda packages for these are broken :(
   - pip:
     - interpret==0.2.7
@@ -17,4 +19,5 @@ dependencies:
   - flake8
   - mypy
   - black
-  - pandas-stubs
+  - pandas-stubs=1.5.2.230105
+  - types-PyYAML

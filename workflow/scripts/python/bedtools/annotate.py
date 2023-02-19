@@ -55,7 +55,7 @@ def intersect_tsvs(config: cfg.StratoMod, ifile: str, ofile: str, tsv_paths: Lis
     new_df = reduce(left_outer_intersect, tsv_paths, target_df)
     new_df.insert(
         loc=0,
-        column=cfg.lookup_raw_index(config),
+        column=config.feature_meta.raw_index,
         value=new_df.index,
     )
     write_tsv(ofile, new_df)

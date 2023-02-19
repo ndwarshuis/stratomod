@@ -9,7 +9,9 @@ rule download_tandem_repeats:
     output:
         annotations_src_dir / tandem_repeats_dir / "simple_repeats.txt.gz",
     params:
-        url=partial(refkey_to_ref_wc, ["annotations", "simreps", "url"]),
+        url=lambda wildcards: config.refkey_to_annotations(
+            wildcards.ref_key
+        ).simreps.url,
     conda:
         envs_path("utils.yml")
     shell:

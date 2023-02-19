@@ -49,7 +49,7 @@ def merge_segdups(
     bed, names = merge_and_apply_stats(
         list(fconf.operations),
         bed_cols,
-        fconf.prefix,
+        fconf,
         df,
     )
     return bed.to_dataframe(names=names)
@@ -57,7 +57,7 @@ def merge_segdups(
 
 def main(smk, config: cfg.StratoMod) -> None:
     fconf = config.feature_meta.segdups
-    bed_cols = cfg.lookup_bed_cols(config)
+    bed_cols = config.feature_meta.bed_index
     repeat_df = read_segdups(smk, config, smk.input[0], fconf, bed_cols)
     merged_df = merge_segdups(repeat_df, fconf, bed_cols)
     write_tsv(smk.output[0], merged_df, header=True)

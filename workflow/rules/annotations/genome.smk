@@ -7,7 +7,7 @@ rule download_genome:
     output:
         annotations_src_dir / genome_dir / "chromInfo.txt.gz",
     params:
-        url=partial(refkey_to_ref_wc, ["genome", "url"]),
+        url=lambda wildcards: config.references[wildcards.ref_key].genome.url,
     conda:
         envs_path("utils.yml")
     shell:

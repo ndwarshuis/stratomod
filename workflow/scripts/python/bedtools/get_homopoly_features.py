@@ -60,7 +60,7 @@ def merge_base(
 
 
 def main(smk, config: cfg.StratoMod) -> None:
-    bed_cols = cfg.lookup_bed_cols(config)
+    bed_cols = config.feature_meta.bed_index
     # ASSUME this file is already sorted
     simreps = read_input(smk.input["bed"][0], bed_cols)
     merged = merge_base(

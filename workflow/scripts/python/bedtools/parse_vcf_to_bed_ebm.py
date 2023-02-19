@@ -1,19 +1,17 @@
 import numpy as np
-from typing import NamedTuple, List, Optional, Dict, Type, Type
+from typing import NamedTuple, List, Optional, Dict
 import pandas as pd
 import common.config as cfg
 from functools import partial
 from more_itertools import partition, unzip
 from common.tsv import write_tsv
-from common.bed import standardize_chr_column
 from common.cli import setup_logging
-from common.functional import compose
 
 logger = setup_logging(snakemake.log[0])  # type: ignore
 
 
 class InputCol(NamedTuple):
-    dtype: Type
+    dtype: str
     na_value: Optional[str]
 
 
@@ -38,8 +36,9 @@ def read_vcf(input_cols: Dict[str, InputCol], path: str) -> pd.DataFrame:
         path,
         comment="#",
         header=None,
-        na_values=dict(na_values),
-        dtype=dict(dtypes),
+        # mypy complains if I don't filter on None, not sure why...
+        na_values={str(k): v for k, v in na_values if v is not None},
+        dtype={k: v for k, v in dtypes if v is not None},
         names=[*input_cols],
     )
     # NOTE: if FORMAT/SAMPLE don't exist these will just be NaNs
@@ -53,14 +52,14 @@ def fix_dot_alts(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def lookup_maybe(k: str, d: dict):
+def lookup_maybe(k: str, d: Dict[str, float]) -> float:
     return d[k] if k in d else np.nan
 
 
 def assign_format_sample_fields(
-    chrom: int,
+    chrom: str,
     start: str,
-    fields: Dict[str, Optional[str]],
+    fields: Dict[cfg.FeatureKey, Optional[str]],
     df: pd.DataFrame,
 ) -> pd.DataFrame:
     def log_split(what, xs):
@@ -136,10 +135,11 @@ def assign_format_sample_fields(
 
 
 def get_filter_mask(
-    ref_len: pd.Series,
-    alt_len: pd.Series,
+    ref_len: pd.Series[int],
+    alt_len: pd.Series[int],
+    # TODO use enum here
     filter_key: str,
-) -> pd.Series:
+) -> pd.Series[bool]:
     assert filter_key in ["INDEL", "SNP"], f"Invalid filter key: {filter_key}"
     snps = (ref_len == 1) & (alt_len == 1)
     keep = ~snps & ~(ref_len == alt_len) if filter_key == "INDEL" else snps
@@ -153,8 +153,8 @@ def add_length_and_filter(
     start_col: str,
     end_col: str,
     filter_key: str,
-    max_ref: pd.Series,
-    max_alt: pd.Series,
+    max_ref: int,
+    max_alt: int,
     df: pd.DataFrame,
 ):
     def log_removed(filter_mask, other_mask, msg):
@@ -204,71 +204,77 @@ def select_columns(
     if label is not None:
         logger.info("Applying label %s to column %s", label, label_col)
         df[label_col] = label
-    cols = non_field_cols + [*fields] + ([] if label is None else [label_col])
+    cols = non_field_cols + fields + ([] if label is None else [label_col])
     logger.info("Selecting columns for final TSV: %s", cfg.fmt_strs(cols))
     return df[cols]
 
 
-def get_label(wildcards):
+def get_label(wildcards) -> Optional[str]:
     if hasattr(wildcards, "label"):
         return wildcards.label
+    return None
 
 
 # ASSUME these vcf file already have standard chromosomes
 def main(smk, sconf: cfg.StratoMod) -> None:
     wildcards = smk.wildcards
     fconf = sconf.feature_meta
-    iconf = sconf.inputkey_to_input(wildcards.input_key)
+    iconf = sconf._querykey_to_input(wildcards.input_key)
     idx = fconf.bed_index
-    # prefix = cfg.refsetkey_to_chr_prefix(sconf, ["sdf"], wildcards["refset_key"])
+
+    fmt_vcf_feature = sconf.feature_meta.vcf.fmt_feature
 
     chrom = idx.chr
     pos = idx.start
-    qual = cfg.fmt_vcf_feature(sconf, "qual")
-    info = cfg.fmt_vcf_feature(sconf, "info")
-    filt = cfg.fmt_vcf_feature(sconf, "filter")
+    qual = fmt_vcf_feature("qual")
+    info = fmt_vcf_feature("info")
+    filt = fmt_vcf_feature("filter")
     end = idx.end
-    indel_length = cfg.fmt_vcf_feature(sconf, "len")
+    indel_length = fmt_vcf_feature("len")
 
     input_cols = {
-        chrom: InputCol(str, None),
-        pos: InputCol(int, None),
-        ID: InputCol(str, "."),
-        REF: InputCol(str, None),
-        ALT: InputCol(str, "."),
-        qual: InputCol(float, "."),
-        filt: InputCol(str, "."),
-        info: InputCol(str, "."),
-        FORMAT: InputCol(str, "."),
-        SAMPLE: InputCol(str, "."),
+        chrom: InputCol("str", None),
+        pos: InputCol("int", None),
+        ID: InputCol("str", "."),
+        REF: InputCol("str", None),
+        ALT: InputCol("str", "."),
+        qual: InputCol("float", "."),
+        filt: InputCol("str", "."),
+        info: InputCol("str", "."),
+        FORMAT: InputCol("str", "."),
+        SAMPLE: InputCol("str", "."),
     }
 
     non_field_cols = [chrom, pos, end, indel_length, qual, filt, info]
 
-    fields = {
-        sconf.feature_meta.vcf.fmt_name(k): v
-        for k, v in iconf.format_fields.dict().items()
-    }
+    fields = {fmt_vcf_feature(k): v for k, v in iconf.format_fields.dict().items()}
     label = get_label(wildcards)
 
-    # TODO not type safe
-    return compose(
-        partial(write_tsv, smk.output[0]),
-        partial(select_columns, non_field_cols, fields, fconf.label, label),
-        partial(assign_format_sample_fields, chrom, pos, fields),
-        # partial(standardize_chr_column, prefix, chrom),
-        partial(
-            add_length_and_filter,
-            sconf.feature_meta.vcf.fmt_name("len"),
+    df = read_vcf(input_cols, smk.input[0])
+    # no compose operator :(
+    parsed = select_columns(
+        non_field_cols,
+        list(fields),
+        fconf.label,
+        label,
+        assign_format_sample_fields(
+            chrom,
             pos,
-            end,
-            wildcards.filter_key,
-            iconf.max_ref,
-            iconf.max_alt,
+            fields,
+            add_length_and_filter(
+                indel_length,
+                pos,
+                end,
+                wildcards.filter_key,
+                iconf.max_ref,
+                iconf.max_alt,
+                fix_dot_alts(
+                    df,
+                ),
+            ),
         ),
-        fix_dot_alts,
-        partial(read_vcf, input_cols),
-    )(smk.input[0])
+    )
+    return write_tsv(smk.output[0], parsed)
 
 
-main()
+main(snakemake, snakemake.config)  # type: ignore

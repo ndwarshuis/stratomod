@@ -24,7 +24,7 @@ def write_output(path: str, df: pd.DataFrame) -> None:
 
 
 def main(smk, config: cfg.StratoMod) -> None:
-    prefix = cfg.refsetkey_to_ref(config, smk.wildcards["refset_key"]).genome.chr_prefix
+    prefix = config.refsetkey_to_ref(smk.wildcards["refset_key"]).genome.chr_prefix
     df = sort_genome(standardize_chr_column(prefix, CHR_COL, read_input(smk.input[0])))
     write_tsv(smk.output[0], df, header=None)
 

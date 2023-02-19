@@ -67,7 +67,7 @@ def merge_tandem_repeats(
     bed_cols: cfg.BedIndex,
 ) -> pd.DataFrame:
     prefix = fconf.prefix
-    bed, names = merge_and_apply_stats(list(fconf.operations), bed_cols, prefix, df)
+    bed, names = merge_and_apply_stats(list(fconf.operations), bed_cols, fconf, df)
     merged_df = bed.slop(b=SLOP, g=gfile).to_dataframe(names=names)
     len_col = f"{prefix}_{fconf.other.len}"
     merged_df[len_col] = merged_df[bed_cols.end] - merged_df[bed_cols.start] - SLOP * 2

@@ -91,7 +91,7 @@ def parse_output(
 
 
 def main(smk, config: cfg.StratoMod) -> None:
-    bed_cols = cfg.lookup_bed_cols(config)
+    bed_cols = config.feature_meta.bed_index
     rmsk_df = read_rmsk_df(smk, config, smk.input[0], bed_cols)
     for path in smk.output:
         parse_output(config, path, rmsk_df, smk.params.file_prefix, bed_cols)

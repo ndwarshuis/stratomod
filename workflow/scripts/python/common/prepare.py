@@ -6,16 +6,11 @@ from functools import partial
 from more_itertools import duplicates_everseen
 from common.functional import compose
 
-TP_LABEL = "tp"
-TN_LABEL = "tn"
-FP_LABEL = "fp"
-FN_LABEL = "fn"
-
 # TODO don't hardcode this (and also turn into a list)
 FILTERED_VAL = "RefCall"
 
 
-def process_series(opts: cfg.Feature, ser: pd.Series) -> pd.Series:
+def process_series(opts: cfg.Feature, ser: pd.Series[float]) -> pd.Series[float]:
     trans = opts.transform
     _ser = pd.to_numeric(ser, errors="coerce")
     if trans == "binary":
@@ -82,12 +77,12 @@ def mask_labels(
 ):
     # if we don't want to include filtered labels (from the perspective of
     # the truth set) they all become false negatives
-    def mask(row: dict) -> str:
+    def mask(row: Dict[str, str]) -> str:
         if row[filter_col] == FILTERED_VAL:
-            if row[label_col] == FP_LABEL:
-                return TN_LABEL
-            elif row[label_col] == TP_LABEL:
-                return FN_LABEL
+            if row[label_col] == cfg.AnyLabel.FP.value:
+                return cfg.AnyLabel.TN.value
+            elif row[label_col] == cfg.AnyLabel.TP.value:
+                return cfg.AnyLabel.FN.value
             else:
                 return row[label_col]
         else:
@@ -100,19 +95,19 @@ def mask_labels(
 
 
 def collapse_labels(
-    error_labels: List[str],
+    error_labels: Set[cfg.ErrorLabel],
     label_col: str,
     df: pd.DataFrame,
 ) -> pd.DataFrame:
-    all_labels = [*error_labels, TP_LABEL]
+    all_labels = [*[x.value for x in error_labels], cfg.AnyLabel.TP.value]
     return df[df[label_col].apply(lambda x: x in all_labels)].assign(
-        **{label_col: lambda x: (x[label_col] == TP_LABEL).astype(int)}
+        **{label_col: lambda x: (x[label_col] == cfg.AnyLabel.TP.value).astype(int)}
     )
 
 
 def process_labeled_data(
     features: Dict[cfg.FeatureKey, cfg.Feature],
-    error_labels: List[cfg.Label],
+    error_labels: Set[cfg.ErrorLabel],
     filtered_are_candidates: bool,
     idx_cols: List[str],
     filter_col: str,
@@ -121,26 +116,21 @@ def process_labeled_data(
 ):
     # select columns after transforms to avoid pandas asking me to make a
     # deep copy (which will happen on a slice of a slice)
-    return compose(
-        partial(collapse_labels, error_labels, label_col),
-        partial(select_columns, features, idx_cols, label_col),
-        partial(mask_labels, filtered_are_candidates, label_col, filter_col),
-        partial(process_columns, features),
-    )(df)
-    # for col, opts in features.items():
-    #     if col == chrom_col:
-    #         df[col] = process_chr(df[col])
-    #     else:
-    #         df[col] = process_series(opts, df[col])
-    # return collapse_labels(
-    #     error_labels,
-    #     label_col,
-    #     select_columns(
-    #         features,
-    #         label_col,
-    #         mask_labels(filtered_are_candidates, label_col, filter_col, df),
-    #     ),
-    # )
+    return collapse_labels(
+        error_labels,
+        label_col,
+        select_columns(
+            features,
+            idx_cols,
+            label_col,
+            mask_labels(
+                filtered_are_candidates,
+                label_col,
+                filter_col,
+                process_columns(features, df),
+            ),
+        ),
+    )
 
 
 def process_unlabeled_data(features, idx_cols, df):

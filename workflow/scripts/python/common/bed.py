@@ -19,7 +19,7 @@ def filter_chromosomes(chr_filter: List[int], df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def standardize_chr_series(prefix: str, ser: pd.Series) -> pd.Series:
+def standardize_chr_series(prefix: str, ser: pd.Series[str]) -> pd.Series[int]:
     _ser = ser if prefix == "" else ser.str.replace(prefix, "")
     _ser[_ser == "X"] = "23"
     _ser[_ser == "Y"] = "24"
@@ -74,7 +74,7 @@ def read_bed_df(
 def merge_and_apply_stats(
     merge_stats: List[cfg.BedMergeOp],
     bed_cols: cfg.BedIndex,
-    prefix: str,
+    fconf: cfg.MergedFeatureGroup,
     bed_df: pd.DataFrame,
 ):
     # import this here so we can import other functions in this module
@@ -89,7 +89,7 @@ def merge_and_apply_stats(
     logging.info("Stats to compute: %s\n", ", ".join(map(str, merge_stats)))
 
     cols, opts, headers = unzip(
-        (i + drop_n + 1, m, cfg.fmt_merged_feature(prefix, s, m))
+        (i + drop_n + 1, m, fconf.fmt_merged_feature(s, m))
         for (i, s), m in product(enumerate(stat_cols), merge_stats)
     )
 
@@ -99,7 +99,7 @@ def merge_and_apply_stats(
     full_cols = [drop_n + 1, *cols]
     full_headers = [
         *bed_cols.bed_cols_ordered(),
-        cfg.fmt_count_feature(prefix),
+        fconf.fmt_count_feature(),
         *headers,
     ]
 

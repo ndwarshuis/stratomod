@@ -1,4 +1,5 @@
 import re
+import random
 from pathlib import Path
 from typing import (
     TypeVar,
@@ -67,10 +68,22 @@ class FilterKey(ListEnum):
     INDEL = "INDEL"
 
 
-class Label(ListEnum):
-    TP = "tp"
+class ErrorLabel(ListEnum):
     FP = "fp"
     FN = "fn"
+
+
+class VCFLabel(ListEnum):
+    FP = "fp"
+    FN = "fn"
+    TP = "tp"
+
+
+class AnyLabel(ListEnum):
+    FP = "fp"
+    FN = "fn"
+    TP = "tp"
+    TN = "tn"
 
 
 class PlotType(Enum):
@@ -126,7 +139,7 @@ _constraints = {
     # TODO ...why "filter"? (I can't think of anything better)
     "filter_key": alternate_constraint(FilterKey.all()),
     # refers to a variant benchmarking label (tp, fp, etc)
-    "label": alternate_constraint(Label.all()),
+    "label": alternate_constraint(VCFLabel.all()),
     # refers to a nucleotide base
     "base": alternate_constraint(Base.all()),
 }
@@ -193,30 +206,6 @@ class ContVar(Truncation):
     upper: Optional[float] = None
 
 
-class FormatFields(BaseModel):
-    vaf: Optional[str]
-    dp: Optional[str]
-    gt: Optional[str]
-    gq: Optional[str]
-
-
-class UnlabeledVCFInput(BaseModel):
-    refset: RefsetKey
-    chr_prefix: str
-    url: Optional[HttpUrl]
-    variables: Dict[VarKey, str]
-    format_fields: Optional[FormatFields]
-    max_ref: Annotated[int, conint(ge=0)] = 50
-    max_alt: Annotated[int, conint(ge=0)] = 50
-
-
-class LabeledVCFInput(UnlabeledVCFInput):
-    benchmark: BenchKey
-
-
-VCFInput = Union[UnlabeledVCFInput, LabeledVCFInput]
-
-
 class TestDataInput(BaseModel):
     query_key: QueryKey
     variables: Dict[VarKey, str]
@@ -236,7 +225,7 @@ class EBMMiscParams(BaseModel):
 
 class EBMSplitParams(BaseModel):
     test_size: Fraction = 0.2
-    random_state: Optional[Fraction] = None
+    random_state: Optional[int] = random.randrange(0, 420420)
 
 
 class EBMClassifierParams(BaseModel):
@@ -285,7 +274,7 @@ class Model(BaseModel):
     filter: Set[FilterKey]
     ebm_settings: EBMSettings
     # TODO only allow actual error labels here
-    error_labels: Annotated[Set[Label], conset(Label, min_items=1)]
+    error_labels: Annotated[Set[ErrorLabel], conset(ErrorLabel, min_items=1)]
     filtered_are_candidates: bool
     interactions: Union[NonNegativeInt, Set[Union[FeatureKey, FeaturePair]]] = 0
     features: Dict[FeatureKey, Feature]
@@ -532,6 +521,30 @@ class TandemRepeatMeta(MergedFeatureGroup):
         ]
 
 
+class FormatFields(BaseModel):
+    vaf: Optional[str] = None
+    dp: Optional[str] = None
+    gt: Optional[str] = None
+    gq: Optional[str] = None
+
+
+class UnlabeledVCFInput(BaseModel):
+    refset: RefsetKey
+    chr_prefix: str
+    url: Optional[HttpUrl]
+    variables: Dict[VarKey, str]
+    format_fields: FormatFields = FormatFields()
+    max_ref: Annotated[int, conint(ge=0)] = 50
+    max_alt: Annotated[int, conint(ge=0)] = 50
+
+
+class LabeledVCFInput(UnlabeledVCFInput):
+    benchmark: BenchKey
+
+
+VCFInput = Union[UnlabeledVCFInput, LabeledVCFInput]
+
+
 class Variables(FeatureGroup):
     continuous: Dict[VarKey, ContVar]
     categorical: Dict[VarKey, CatVar]
@@ -733,6 +746,9 @@ class StratoMod(BaseModel):
         indices = self.refsetkey_to_chr_indices(key)
         prefix = self.refsetkey_to_ref(key).sdf.chr_prefix
         return chr_indices_to_name(prefix, indices)
+
+    def refkey_to_annotations(self, key: RefKey) -> Annotations:
+        return self.references[key].annotations
 
     def querykey_to_refkey(self, key: QueryKey) -> RefKey:
         rk = self.querykey_to_refsetkey(key)
@@ -1034,7 +1050,9 @@ def all_ebm_files(
             model_key=map(lambda x: x.model_key, key_set),
             filter_key=map(lambda x: x.filter_key.value, key_set),
             run_key=map(lambda x: x.run_key, key_set),
-            input_key=map(lambda x: x.input_key, key_set),
+            # TODO hack
+            l_query_key=map(lambda x: x.query_key, key_set),
+            ul_query_key=map(lambda x: x.query_key, key_set),
             test_key=map(lambda x: x.test_key, key_set),
             refset_key=all_refset_keys(config, train_set),
         )

@@ -1,7 +1,6 @@
-import random
 import pandas as pd
 import yaml
-from typing import Union, List
+from typing import Union, List, Set, cast
 from more_itertools import flatten
 from sklearn.model_selection import train_test_split  # type: ignore
 from interpret.glassbox import ExplainableBoostingClassifier  # type: ignore
@@ -10,30 +9,31 @@ from common.cli import setup_logging
 from common.ebm import write_model
 import common.config as cfg
 
-logger = setup_logging(snakemake.log[0])
+logger = setup_logging(snakemake.log[0])  # type: ignore
 
 
-def _write_tsv(key: str, df: pd.DataFrame) -> None:
-    write_tsv(snakemake.output[key], df, header=True)
+def _write_tsv(smk, key: str, df: pd.DataFrame) -> None:
+    write_tsv(smk.output[key], df, header=True)
 
 
-def dump_config(config: cfg.EBMRun) -> None:
-    with open(snakemake.output["config"], "w") as f:
+def dump_config(smk, config: cfg.Model) -> None:
+    with open(smk.output["config"], "w") as f:
         yaml.dump(config, f)
 
 
 def get_interactions(
-    df_columns: List[str],
-    iconfig: Union[int, List[str], List[List[str]]],
-) -> Union[int, List[str]]:
-    # ASSUME type is int | [str] | [[str]]
+    df_columns: List[cfg.FeatureKey],
+    iconfig: Union[int, Set[Union[cfg.FeatureKey, cfg.FeaturePair]]],
+) -> Union[int, List[cfg.FeatureKey]]:
     def expand_interactions(i):
         if isinstance(i, str):
             return [
-                [df_columns.index(i), c] for c, f in enumerate(df_columns) if f != i
+                [df_columns.index(cast(cfg.FeatureKey, i)), c]
+                for c, f in enumerate(df_columns)
+                if f != i
             ]
         else:
-            return [[df_columns.index(feature) for feature in i]]
+            return [[df_columns.index(i.f1), df_columns.index(i.f2)]]
 
     if isinstance(iconfig, int):
         return iconfig
@@ -42,13 +42,15 @@ def get_interactions(
 
 
 def train_ebm(
+    smk,
     sconf: cfg.StratoMod,
-    rconf: cfg.EBMRun,
-    label: str,
+    rconf: cfg.Model,
     df: pd.DataFrame,
 ) -> None:
+    label = (sconf.feature_meta.label,)
+
     def strip_coords(df):
-        return df.drop(columns=cfg.lookup_all_index_cols(sconf))
+        return df.drop(columns=sconf.feature_meta.all_index_cols())
 
     features = rconf.features
     feature_names = [
@@ -71,10 +73,7 @@ def train_ebm(
 
     ebm_config = rconf.ebm_settings.classifier_parameters
 
-    if ebm_config.random_state is None:
-        ebm_config.random_state = random.randrange(0, 420420)
-
-    cores = snakemake.threads
+    cores = smk.threads
 
     logger.info(
         "Training EBM with %d features and %d cores",
@@ -94,19 +93,18 @@ def train_ebm(
     )
     ebm.fit(strip_coords(X_train), y_train)
 
-    write_model(snakemake.output["model"], ebm)
-    _write_tsv("train_x", X_train)
-    _write_tsv("train_y", y_train)
-    _write_tsv("test_x", X_test)
-    _write_tsv("test_y", y_test)
+    write_model(smk.output["model"], ebm)
+    _write_tsv(smk, "train_x", X_train)
+    _write_tsv(smk, "train_y", y_train)
+    _write_tsv(smk, "test_x", X_test)
+    _write_tsv(smk, "test_y", y_test)
 
 
-def main() -> None:
-    sconf = snakemake.config
-    rconf = cfg.lookup_ebm_run(sconf, snakemake.wildcards.run_key)
-    df = read_tsv(snakemake.input[0])
-    train_ebm(sconf, rconf, sconf["features"]["label"], df)
-    dump_config(rconf)
+def main(smk, sconf: cfg.StratoMod) -> None:
+    rconf = sconf.models[smk.wildcards.model_key]
+    df = read_tsv(smk.input[0])
+    train_ebm(smk, sconf, rconf, df)
+    dump_config(smk, rconf)
 
 
-main()
+main(snakemake, snakemake.config)  # type: ignore
