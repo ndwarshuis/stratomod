@@ -6,7 +6,7 @@ reference_sets:
     ref: GRCh38
     chr_filter: [21]
 
-inputs:
+labeled_queries:
   HG002_Hifi_DV:
     refset: GRCh37_test
     chr_prefix: ""
@@ -34,13 +34,14 @@ inputs:
       coverage: 40
       seqtech: "PacBio HiFi"
       variant_caller: "DeepVariant"
+
+unlabeled_queries:
   Clinvar:
     refset: GRCh38_test
     url: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/archive_2.0/2022/clinvar_20220812.vcf.gz
     # isn't genomics wonderful?
     chr_prefix: ''
     format_fields: {}
-    benchmark: null
     # There are some super long variants in clinvar. Filter these out
     # because a) they would overlap with so many annotations that a new
     # universe would spawn into existance and b) they are outside what a
@@ -60,11 +61,11 @@ models:
         train: [HG002_Hifi_DV, HG002_Illumina_DV]
         test:
           HG005_Hifi_DV:
-            input_key: HG005_Hifi_DV
+            query_key: HG005_Hifi_DV
             # TODO default this out
             variables: {}
           Clinvar_Illumina:
-            input_key: Clinvar
+            query_key: Clinvar
             variables:
               coverage: 40
               seqtech: "Illumina"

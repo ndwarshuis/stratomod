@@ -5,7 +5,7 @@ rmsk_results_dir = annotations_tsv_dir / rmsk_dir
 
 rmsk_file_prefix = "repeat_masker"
 
-rmsk_classes = config["features"]["repeat_masker"]["classes"]
+rmsk_classes = config.feature_meta.repeat_masker.classes
 
 
 rule download_repeat_masker:
@@ -28,14 +28,14 @@ rule get_repeat_masker_classes:
                 rmsk_results_dir / (f"{rmsk_file_prefix}_{cls}.tsv.gz"),
                 non_empty=True,
             )
-            for cls in rmsk_classes
+            for cls in rmsk_classes.dict()
         ],
         [
             ensure(
                 rmsk_results_dir / (f"{rmsk_file_prefix}_{cls}_{fam}.tsv.gz"),
                 non_empty=True,
             )
-            for cls, fams in rmsk_classes.items()
+            for cls, fams in rmsk_classes.dict().items()
             for fam in fams
         ],
     conda:

@@ -2,7 +2,6 @@ from functools import partial
 from pathlib import Path
 from snakemake.utils import min_version, validate
 import scripts.python.common.config as cfg
-import pydantic
 
 min_version("7.20")
 
@@ -28,11 +27,11 @@ include: "rules/wildcards.smk"
 ################################################################################
 # Paths
 
-conf_paths = config["paths"]
-resources_dir = Path(conf_paths["resources"])
-results_dir = Path(conf_paths["results"])
+conf_paths = config.paths
+resources_dir = conf_paths.resources
+results_dir = conf_paths.results
 log_dir = results_dir / "log"
-log_refset_dir = log_dir / all_wildcards["refset_key"]
+log_refset_dir = log_dir / cfg.all_wildcards["refset_key"]
 scripts_root = Path("workflow/scripts")
 
 
@@ -74,7 +73,14 @@ rule all:
 rule all_resources:
     input:
         # query vcfs
-        expand(rules.download_query_vcf.output, input_key=[*config["inputs"]]),
+        expand(
+            rules.download_labeled_query_vcf.output,
+            l_query_key=[*config.labeled_queries],
+        ),
+        expand(
+            rules.download_unlabeled_query_vcf.output,
+            ul_query_key=[*config.unlabeled_queries],
+        ),
         # benchmark vcfs/beds
         cfg.all_benchkeys(
             config,
@@ -94,5 +100,5 @@ rule all_resources:
                 *rules.download_superdups.output,
                 *rules.download_tandem_repeats.output,
             ],
-            ref_key=cfg.all_refkeys(config),
+            ref_key=config.all_refkeys(),
         ),

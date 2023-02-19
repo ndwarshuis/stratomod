@@ -37,27 +37,37 @@ from enum import Enum
 RefKey = NewType("RefKey", str)
 RefsetKey = NewType("RefsetKey", str)
 TestKey = NewType("TestKey", str)
-InputKey = NewType("InputKey", str)
+# Querykey = NewType("Querykey", str)
+UnlabeledQueryKey = NewType("UnlabeledQueryKey", str)
+LabeledQueryKey = NewType("LabeledQueryKey", str)
 BenchKey = NewType("BenchKey", str)
 ModelKey = NewType("ModelKey", str)
 RunKey = NewType("RunKey", str)
 FeatureKey = NewType("FeatureKey", str)
 VarKey = NewType("VarKey", str)
 
+QueryKey = Union[UnlabeledQueryKey, LabeledQueryKey]
 
-class Base(Enum):
+
+class ListEnum(Enum):
+    @classmethod
+    def all(cls):
+        return [x.value for x in cls]
+
+
+class Base(ListEnum):
     A = "A"
     C = "C"
     G = "G"
     T = "T"
 
 
-class FilterKey(Enum):
+class FilterKey(ListEnum):
     SNV = "SNV"
     INDEL = "INDEL"
 
 
-class Label(Enum):
+class Label(ListEnum):
     TP = "tp"
     FP = "fp"
     FN = "fn"
@@ -91,6 +101,51 @@ class Transform(Enum):
     BINARY = "binary"
 
 
+def alternate_constraint(xs: List[str]) -> str:
+    return f"({'|'.join(xs)})"
+
+
+_constraints = {
+    # corresponds to a genome reference
+    "ref_key": "[^/]+",
+    # corresponds to a reference set (reference + chromosome filter + etc)
+    "refset_key": "[^/]+",
+    # corresponds to a testing vcf
+    "test_key": "[^/]+",
+    "query_key": "[^/]+",
+    "ul_query_key": "[^/]+",
+    "l_query_key": "[^/]+",
+    # refers to a collection of input data input to an ebm model configuration
+    # (composed of multiple train/test keys + associated data)
+    "run_key": "[^/]+",
+    # refers to a benchmark vcf (within the context of a given reference)
+    "bench_key": "[^/]+",
+    # refers to an EBM model and its parameters
+    "model_key": "[^/]+",
+    # refers to the variant type (SNP or INDEL, for now)
+    # TODO ...why "filter"? (I can't think of anything better)
+    "filter_key": alternate_constraint(FilterKey.all()),
+    # refers to a variant benchmarking label (tp, fp, etc)
+    "label": alternate_constraint(Label.all()),
+    # refers to a nucleotide base
+    "base": alternate_constraint(Base.all()),
+}
+
+all_wildcards = {k: f"{{{k},{v}}}" for k, v in _constraints.items()}
+
+
+def wildcard_ext(key, ext):
+    return f"{all_wildcards[key]}.{ext}"
+
+
+def wildcard_format(format_str, *keys):
+    return format_str.format(*[all_wildcards[k] for k in keys])
+
+
+def wildcard_format_ext(format_str, keys, ext):
+    return wildcard_format(f"{format_str}.{ext}", *keys)
+
+
 class BaseModel(PydanticBaseModel):
     class Config:
         validate_all = True
@@ -101,6 +156,7 @@ class BaseModel(PydanticBaseModel):
 class Paths(BaseModel):
     resources: Path
     results: Path
+    log: Path
 
 
 ChrIndex = Annotated[int, conint(ge=0, le=24)]
@@ -144,24 +200,30 @@ class FormatFields(BaseModel):
     gq: Optional[str]
 
 
-class VCFInput(BaseModel):
+class UnlabeledVCFInput(BaseModel):
     refset: RefsetKey
     chr_prefix: str
     url: Optional[HttpUrl]
-    benchmark: Optional[BenchKey]
     variables: Dict[VarKey, str]
     format_fields: Optional[FormatFields]
     max_ref: Annotated[int, conint(ge=0)] = 50
     max_alt: Annotated[int, conint(ge=0)] = 50
 
 
+class LabeledVCFInput(UnlabeledVCFInput):
+    benchmark: BenchKey
+
+
+VCFInput = Union[UnlabeledVCFInput, LabeledVCFInput]
+
+
 class TestDataInput(BaseModel):
-    input_key: InputKey
+    query_key: QueryKey
     variables: Dict[VarKey, str]
 
 
 class ModelRun(BaseModel):
-    train: Annotated[Set[InputKey], conset(InputKey, min_items=1)]
+    train: Annotated[Set[LabeledQueryKey], conset(LabeledQueryKey, min_items=1)]
     test: Dict[TestKey, TestDataInput]
 
 
@@ -454,6 +516,7 @@ class TandemRepeatMeta(MergedFeatureGroup):
     columns: TandemRepeatColumns
     other: TandemRepeatOther
 
+    # TODO weakly typed
     def fmt_name_base(self, bases: str) -> FeatureKey:
         bs_prefix = self.bases_prefix
         return FeatureKey(f"{bs_prefix}_{bases}")
@@ -530,13 +593,18 @@ def flatten_features(fs: Dict[FeatureKey, Feature]) -> List[FeatureKey]:
     return [k if v.alt_name is None else v.alt_name for k, v in fs.items()]
 
 
+LabeledQueries = Dict[LabeledQueryKey, LabeledVCFInput]
+UnlabeledQueries = Dict[UnlabeledQueryKey, UnlabeledVCFInput]
+
+
 class StratoMod(BaseModel):
     paths: Paths
     tools: Tools
     feature_meta: FeatureMeta
     references: Dict[RefKey, Reference]
     reference_sets: Dict[RefsetKey, RefSet]
-    inputs: Dict[InputKey, VCFInput]
+    labeled_queries: LabeledQueries
+    unlabeled_queries: UnlabeledQueries
     models: Dict[ModelKey, Model]
 
     @validator("reference_sets", each_item=True)
@@ -547,7 +615,7 @@ class StratoMod(BaseModel):
             ), f"'{v.ref}' does not refer to a valid reference"
         return v
 
-    @validator("inputs", each_item=True)
+    @validator("labeled_queries", "unlabeled_queries", each_item=True)
     def inputs_have_valid_refsetkeys(cls, v: VCFInput, values) -> VCFInput:
         if "reference_sets" in values:
             assert (
@@ -555,13 +623,17 @@ class StratoMod(BaseModel):
             ), f"'{v.refset}' does not refer to a valid reference set"
         return v
 
-    @validator("inputs", each_item=True)
-    def inputs_have_valid_benchkeys(cls, v: VCFInput, values) -> VCFInput:
-        if (
-            v.benchmark is not None
-            and "reference_sets" in values
-            and "references" in values
-        ):
+    @validator("labeled_queries", "unlabeled_queries", each_item=True)
+    def inputs_have_valid_variables(cls, v: VCFInput, values) -> VCFInput:
+        if "feature_meta" in values:
+            var_root = cast(FeatureMeta, values["feature_meta"]).variables
+            for varname, varval in v.variables.items():
+                var_root.validate_variable(varname, varval)
+        return v
+
+    @validator("labeled_queries", each_item=True)
+    def inputs_have_valid_benchkeys(cls, v: LabeledVCFInput, values) -> LabeledVCFInput:
+        if "reference_sets" in values and "references" in values:
             ref_key = values["reference_sets"][v.refset].ref
             ref_benchmarks = values["references"][ref_key].benchmarks
             assert (
@@ -569,12 +641,14 @@ class StratoMod(BaseModel):
             ), f"'{v.benchmark}' does not refer to a valid benchmark"
         return v
 
-    @validator("inputs", each_item=True)
-    def inputs_have_valid_variables(cls, v: VCFInput, values) -> VCFInput:
-        if "feature_meta" in values:
-            var_root = cast(FeatureMeta, values["feature_meta"]).variables
-            for varname, varval in v.variables.items():
-                var_root.validate_variable(varname, varval)
+    @validator("unlabeled_queries")
+    def input_keys_unique(cls, v: UnlabeledQueries, values) -> UnlabeledQueries:
+        try:
+            assert set(v).isdisjoint(
+                set(values["labeled_queries"])
+            ), "labeled and unlabeled query keys overlap overlap"
+        except KeyError:
+            pass
         return v
 
     @validator("models", each_item=True)
@@ -613,7 +687,7 @@ class StratoMod(BaseModel):
     @validator("models", each_item=True)
     def models_have_valid_runs_test(cls, v: Model, values) -> Model:
         if "inputs" in values:
-            tests = [t.input_key for r in v.runs.values() for t in r.test.values()]
+            tests = [t.query_key for r in v.runs.values() for t in r.test.values()]
             assert_subset(set(tests), set(values["inputs"]))
         return v
 
@@ -642,8 +716,11 @@ class StratoMod(BaseModel):
     def refsetkey_to_refset(self, key: RefsetKey) -> RefSet:
         return self.reference_sets[key]
 
-    def inputkey_to_input(self, input_key: InputKey) -> VCFInput:
-        return self.inputs[input_key]
+    def _querykey_to_input(self, key: QueryKey) -> VCFInput:
+        try:
+            return self.labeled_queries[cast(LabeledQueryKey, key)]
+        except KeyError:
+            return self.unlabeled_queries[cast(UnlabeledQueryKey, key)]
 
     def refsetkey_to_refkey(self, key: RefsetKey) -> RefKey:
         return self.refsetkey_to_refset(key).ref
@@ -657,38 +734,43 @@ class StratoMod(BaseModel):
         prefix = self.refsetkey_to_ref(key).sdf.chr_prefix
         return chr_indices_to_name(prefix, indices)
 
-    def inputkey_to_refkey(self, key: InputKey) -> RefKey:
-        rk = self.inputkey_to_refsetkey(key)
+    def querykey_to_refkey(self, key: QueryKey) -> RefKey:
+        rk = self.querykey_to_refsetkey(key)
         return self.refsetkey_to_refkey(rk)
 
-    def inputkey_to_refsetkey(self, key: InputKey) -> RefsetKey:
-        return self.inputkey_to_input(key).refset
+    def querykey_to_refsetkey(self, key: QueryKey) -> RefsetKey:
+        return self._querykey_to_input(key).refset
+
+    def querykey_to_benchkey(self, key: LabeledQueryKey) -> BenchKey:
+        return self.labeled_queries[key].benchmark
 
     def all_refsetkeys(self) -> Set[RefsetKey]:
-        return set(v.refset for v in self.inputs.values())
+        return set(
+            v.refset
+            for v in list(self.labeled_queries.values())
+            + list(self.unlabeled_queries.values())
+        )
 
     def all_refkeys(self) -> Set[str]:
         return set(map(self.refsetkey_to_refkey, self.all_refsetkeys()))
 
-    def inputkey_to_chr_prefix(self, key: InputKey) -> str:
-        return self.inputkey_to_input(key).chr_prefix
+    def querykey_to_chr_prefix(self, key: QueryKey) -> str:
+        return self._querykey_to_input(key).chr_prefix
 
-    def inputkey_to_chr_filter(self, input_key: InputKey) -> Set[int]:
-        refset_key = self.inputkey_to_refsetkey(input_key)
+    def querykey_to_chr_filter(self, input_key: QueryKey) -> Set[int]:
+        refset_key = self.querykey_to_refsetkey(input_key)
         return self.refsetkey_to_chr_indices(refset_key)
 
-    def inputkey_to_variables(self, input_key: InputKey) -> Dict[VarKey, str]:
-        return self.inputkey_to_input(input_key).variables
+    def querykey_to_variables(self, input_key: QueryKey) -> Dict[VarKey, str]:
+        return self._querykey_to_input(input_key).variables
 
-    def inputkey_to_bench_correction(
+    def querykey_to_bench_correction(
         self,
-        key: InputKey,
-    ) -> Optional[BenchmarkCorrections]:
-        bkey = self.inputkey_to_input(key).benchmark
-        if bkey is not None:
-            rkey = self.inputkey_to_refsetkey(key)
-            return self.refsetkey_to_ref(rkey).benchmarks[bkey].corrections
-        return None
+        key: LabeledQueryKey,
+    ) -> BenchmarkCorrections:
+        bkey = self.labeled_queries[key].benchmark
+        rkey = self.querykey_to_refsetkey(key)
+        return self.refsetkey_to_ref(rkey).benchmarks[bkey].corrections
 
     def testkey_to_variables(
         self,
@@ -697,7 +779,96 @@ class StratoMod(BaseModel):
         tkey: TestKey,
     ) -> Dict[VarKey, str]:
         test = self.models[mkey].runs[rkey].test[tkey]
-        return {**test.variables, **self.inputkey_to_variables(test.input_key)}
+        return {**test.variables, **self.querykey_to_variables(test.query_key)}
+
+    def runkey_to_train_querykeys(
+        self,
+        mkey: ModelKey,
+        rkey: RunKey,
+    ) -> List[LabeledQueryKey]:
+        return [t for t in self.models[mkey].runs[rkey].train]
+
+    def runkey_to_test_querykeys(self, mkey: ModelKey, rkey: RunKey) -> List[QueryKey]:
+        return [t.query_key for t in self.models[mkey].runs[rkey].test.values()]
+
+    def testkey_to_querykey(
+        self,
+        mkey: ModelKey,
+        rkey: RunKey,
+        tkey: TestKey,
+    ) -> QueryKey:
+        return self.models[mkey].runs[rkey].test[tkey].query_key
+
+    @property
+    def labeled_query_resource_dir(self) -> Path:
+        return self.paths.resources / "labeled_queries"
+
+    @property
+    def unlabeled_query_resource_dir(self) -> Path:
+        return self.paths.resources / "unlabeled_queries"
+
+    @property
+    def ref_resource_dir(self) -> Path:
+        return self.paths.resources / "reference" / all_wildcards["ref_key"]
+
+    @property
+    def bench_resource_dir(self) -> Path:
+        return self.ref_resource_dir / "bench"
+
+    @property
+    def annotations_resource_dir(self) -> Path:
+        return self.paths.resources / "annotations" / all_wildcards["ref_key"]
+
+    def _result_or_log_dir(self, log: bool) -> Path:
+        return self.paths.results / self.paths.log if log else self.paths.results
+
+    def bench_dir(self, log: bool = False) -> Path:
+        return (
+            self._result_or_log_dir(log)
+            / "bench"
+            / all_wildcards["refset_key"]
+            / all_wildcards["bench_key"]
+        )
+
+    def _labeled_dir(self, labeled: bool) -> Path:
+        return (
+            Path("labeled") / all_wildcards["l_query_key"]
+            if labeled
+            else Path("unlabeled") / all_wildcards["ul_query_key"]
+        )
+
+    def _query_dir(self, labeled: bool, log: bool) -> Path:
+        return self._result_or_log_dir(log) / "query" / self._labeled_dir(labeled)
+
+    def query_prepare_dir(self, labeled: bool, log: bool) -> Path:
+        return self._query_dir(labeled, log) / "prepare"
+
+    def query_parsed_dir(self, labeled: bool, log: bool) -> Path:
+        return self._query_dir(labeled, log) / "parsed"
+
+    def vcfeval_dir(self, log: bool) -> Path:
+        return self._query_dir(True, log) / "prepare"
+
+    def refset_dir(self, log: bool) -> Path:
+        return self._result_or_log_dir(log) / "references" / all_wildcards["refset_key"]
+
+    def annotated_dir(self, labeled: bool, log: bool) -> Path:
+        return self._result_or_log_dir(log) / "annotated" / self._labeled_dir(labeled)
+
+    def model_train_dir(self, log: bool) -> Path:
+        return (
+            self._result_or_log_dir(log)
+            / "model"
+            / wildcard_format("{}-{}-{}", "model_key", "filter_key", "run_key")
+        )
+
+    def model_test_dir(self, labeled: bool, log: bool) -> Path:
+        return (
+            self.model_train_dir(log)
+            / "test"
+            / ("labeled" if labeled else "unlabeled")
+            / all_wildcards["test_key"]
+        )
 
 
 # ------------------------------------------------------------------------------
@@ -748,9 +919,8 @@ def attempt_mem_gb(mem_gb: int) -> Callable[[Dict[str, str], int], int]:
 
 def all_benchkeys(config: StratoMod, target: InputFiles) -> InputFiles:
     rs, bs = unzip(
-        (config.inputkey_to_refkey(k), b)
-        for k, v in config.inputs.items()
-        if (b := v.benchmark) is not None
+        (config.querykey_to_refkey(k), v.benchmark)
+        for k, v in config.labeled_queries.items()
     )
     return expand(target, zip, ref_key=rs, bench_key=bs)
 
@@ -758,24 +928,24 @@ def all_benchkeys(config: StratoMod, target: InputFiles) -> InputFiles:
 class RunKeysTrain(NamedTuple):
     model_key: ModelKey
     filter_key: FilterKey
-    data_key: RunKey
-    input_key: InputKey
+    run_key: RunKey
+    labeled_query_key: LabeledQueryKey
 
 
 class RunKeysTest(NamedTuple):
     model_key: ModelKey
     filter_key: FilterKey
-    data_key: RunKey
+    run_key: RunKey
     test_key: TestKey
-    input_key: InputKey
+    query_key: QueryKey
 
 
 def lookup_run_sets(config: StratoMod) -> Tuple[List[RunKeysTrain], List[RunKeysTest]]:
     models = [
-        ((model_key, filter_key, data_key), rest)
+        ((model_key, filter_key, run_key), rest)
         for model_key, model in config.models.items()
         for filter_key in model.filter
-        for data_key, rest in model.runs.items()
+        for run_key, rest in model.runs.items()
     ]
     train = [
         RunKeysTrain(*meta, train_key)
@@ -783,7 +953,7 @@ def lookup_run_sets(config: StratoMod) -> Tuple[List[RunKeysTrain], List[RunKeys
         for train_key in rest.train
     ]
     test = [
-        RunKeysTest(*meta, test_key, test.input_key)
+        RunKeysTest(*meta, test_key, test.query_key)
         for (meta, rest) in models
         for test_key, test in rest.test.items()
     ]
@@ -791,7 +961,7 @@ def lookup_run_sets(config: StratoMod) -> Tuple[List[RunKeysTrain], List[RunKeys
 
 
 def test_has_bench(config: StratoMod, runs: RunKeysTest) -> bool:
-    return config.inputs[runs.input_key].benchmark is not None
+    return runs.query_key in config.labeled_queries
 
 
 def partition_test_set(
@@ -805,8 +975,15 @@ def partition_test_set(
 def all_refset_keys(
     config: StratoMod,
     ks: Sequence[Union[RunKeysTest, RunKeysTrain]],
-) -> List[str]:
-    return list(map(lambda x: config.inputkey_to_refsetkey(x.input_key), ks))
+) -> List[RefsetKey]:
+    return list(
+        map(
+            lambda x: config.querykey_to_refsetkey(
+                x.query_key if isinstance(x, RunKeysTest) else x.labeled_query_key
+            ),
+            ks,
+        )
+    )
 
 
 def all_input_summary_files(
@@ -819,9 +996,8 @@ def all_input_summary_files(
             target,
             zip,
             model_key=map(lambda x: x.model_key, key_set),
-            filter_key=map(lambda x: x.filter_key, key_set),
-            input_key=map(lambda x: x.input_key, key_set),
-            refset_key=all_refset_keys(config, key_set),
+            filter_key=map(lambda x: x.filter_key.value, key_set),
+            l_query_key=map(lambda x: x.labeled_query_key, key_set),
         )
 
     def test_targets(target: InputFiles, key_set: List[RunKeysTest]) -> InputFiles:
@@ -829,9 +1005,10 @@ def all_input_summary_files(
             target,
             zip,
             model_key=map(lambda x: x.model_key, key_set),
-            filter_key=map(lambda x: x.filter_key, key_set),
-            input_key=map(lambda x: x.test_key, key_set),
-            refset_key=all_refset_keys(config, key_set),
+            filter_key=map(lambda x: x.filter_key.value, key_set),
+            # TODO dirty hack
+            l_query_key=map(lambda x: x.query_key, key_set),
+            ul_query_key=map(lambda x: x.query_key, key_set),
         )
 
     train_set, test_set = lookup_run_sets(config)
@@ -855,8 +1032,8 @@ def all_ebm_files(
             path,
             zip,
             model_key=map(lambda x: x.model_key, key_set),
-            filter_key=map(lambda x: x.filter_key, key_set),
-            data_keys=map(lambda x: x.data_key, key_set),
+            filter_key=map(lambda x: x.filter_key.value, key_set),
+            run_key=map(lambda x: x.run_key, key_set),
             input_key=map(lambda x: x.input_key, key_set),
             test_key=map(lambda x: x.test_key, key_set),
             refset_key=all_refset_keys(config, train_set),
@@ -868,8 +1045,8 @@ def all_ebm_files(
         train_target,
         zip,
         model_key=map(lambda x: x.model_key, train_set),
-        filter_key=map(lambda x: x.filter_key, train_set),
-        data_key=map(lambda x: x.data_key, train_set),
+        filter_key=map(lambda x: x.filter_key.value, train_set),
+        run_key=map(lambda x: x.run_key, train_set),
     )
 
     # TODO these should eventually point to the test summary htmls

@@ -2,6 +2,7 @@
 paths:
   resources: "resources"
   results: "results"
+  log: "log"
 
 # paths/urls for files to be downloaded for processing the inputs
 references:
