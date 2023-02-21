@@ -29,7 +29,7 @@ def merge_base(
     bed_cols: cfg.BedIndex,
 ) -> pd.DataFrame:
     logger.info("Filtering bed file for %ss", base)
-    _df = df[df[BASE_COL] == f"unit={base}"].drop(columns=[BASE_COL])
+    _df = df[df[BASE_COL] == f"unit={base.value}"].drop(columns=[BASE_COL])
     ldf = len(_df)
     assert ldf > 0, f"Filtered bed file for {base} has no rows"
     logger.info("Merging %s rows for %ss", ldf, base)
@@ -49,10 +49,10 @@ def merge_base(
     # files from tmpfs to prevent a run on downloadmoreram.com
     cleanup()
 
-    fmt_feature = config.feature_meta.homopolymers.fmt_name
+    hgroup = config.feature_meta.homopolymers
 
-    length_col = fmt_feature(base, "len")
-    frac_col = fmt_feature(base, "imp_frac")
+    length_col = hgroup.fmt_name_len(base)
+    frac_col = hgroup.fmt_name_imp_frac(base)
 
     merged[length_col] = merged[bed_end] - merged[bed_start] - SLOP * 2
     merged[frac_col] = 1 - (merged[PFCT_LEN_COL] / merged[length_col])
@@ -66,7 +66,7 @@ def main(smk, config: cfg.StratoMod) -> None:
     merged = merge_base(
         config,
         simreps,
-        smk.wildcards["base"],
+        cfg.Base(smk.wildcards["base"]),
         smk.input["genome"][0],
         bed_cols,
     )

@@ -16,25 +16,31 @@ annotated_bench = wildcard_ext("filter_key", "bench")
 
 
 def annotation_input(tsv_path, query_key):
-    annotation_paths = [
-        *rules.get_repeat_masker_classes.output,
-        *rules.get_tandem_repeats.output,
-        rules.get_mappability.output.high,
-        rules.get_mappability.output.low,
-        *rules.get_segdups.output,
-        *expand(
-            rules.get_homopolymers.output,
-            base=cfg.Base.all(),
-            allow_missing=True,
-        ),
-    ]
     return {
-        "variants": tsv_path,
-        "annotations": expand(
-            annotation_paths,
+        "variants": expand(
+            tsv_path,
             allow_missing=True,
             refset_key=config.querykey_to_refsetkey(query_key),
         ),
+        "annotations": [
+            *expand(
+                [
+                    *rules.get_repeat_masker_classes.output,
+                    *rules.get_tandem_repeats.output,
+                    rules.get_mappability.output.high,
+                    rules.get_mappability.output.low,
+                    *rules.get_segdups.output,
+                ],
+                allow_missing=True,
+                refset_key=config.querykey_to_refsetkey(query_key),
+            ),
+            *expand(
+                rules.get_homopolymers.output,
+                allow_missing=True,
+                base=cfg.Base.all(),
+                refset_key=config.querykey_to_refsetkey(query_key),
+            ),
+        ],
     }
 
 
@@ -48,7 +54,7 @@ rule annotate_labeled_tsv:
     output:
         config.annotated_dir(labeled=True, log=False) / annotated_tsv,
     conda:
-        envs_path("bedtools.yml")
+        config.env_file("bedtools")
     log:
         config.annotated_dir(labeled=True, log=True) / annotated_log,
     benchmark:
@@ -56,7 +62,7 @@ rule annotate_labeled_tsv:
     resources:
         mem_mb=cfg.attempt_mem_gb(32),
     script:
-        python_path("annotate.py")
+        config.python_script("bedtools/annotate.py")
 
 
 use rule annotate_labeled_tsv as annotate_unlabeled_tsv with:
@@ -87,7 +93,7 @@ rule summarize_labeled_input:
     output:
         config.annotated_dir(labeled=True, log=False) / summary_output,
     conda:
-        envs_path("rmarkdown.yml")
+        config.env_file("rmarkdown")
     benchmark:
         config.annotated_dir(labeled=True, log=False) / summary_bench
     resources:
@@ -95,7 +101,7 @@ rule summarize_labeled_input:
     params:
         has_label=True,
     script:
-        rmd_path("input_summary.Rmd")
+        config.rmd_script("input_summary.Rmd")
 
 
 use rule summarize_labeled_input as summarize_unlabeled_input with:
@@ -136,7 +142,7 @@ rule prepare_train_data:
     resources:
         mem_mb=cfg.attempt_mem_gb(8),
     script:
-        python_path("prepare_train.py")
+        config.python_script("bedtools/prepare_train.py")
 
 
 rule train_model:
@@ -155,7 +161,7 @@ rule train_model:
         model=config.model_train_dir(log=False) / "model.pickle",
         config=config.model_train_dir(log=False) / "config.yml",
     conda:
-        envs_path("ebm.yml")
+        config.env_file("ebm")
     log:
         config.model_train_dir(log=True) / "model.log",
     threads: 1
@@ -166,7 +172,7 @@ rule train_model:
     benchmark:
         config.model_train_dir(log=True) / "model.bench"
     script:
-        python_path("train_ebm.py")
+        config.python_script("ebm/train_ebm.py")
 
 
 rule decompose_model:
@@ -177,13 +183,13 @@ rule decompose_model:
         predictions=config.model_train_dir(log=False) / "predictions.tsv.gz",
         train_predictions=config.model_train_dir(log=False) / "train_predictions.tsv.gz",
     conda:
-        envs_path("ebm.yml")
+        config.env_file("ebm")
     log:
         config.model_train_dir(log=True) / "decompose.log",
     resources:
         mem_mb=cfg.attempt_mem_gb(2),
     script:
-        python_path("decompose_model.py")
+        config.python_script("ebm/decompose_model.py")
 
 
 rule summarize_model:
@@ -195,13 +201,13 @@ rule summarize_model:
     output:
         config.model_train_dir(log=True) / "summary.html",
     conda:
-        envs_path("rmarkdown.yml")
+        config.env_file("rmarkdown")
     benchmark:
         config.model_train_dir(log=False) / "summary.bench"
     resources:
         mem_mb=cfg.attempt_mem_gb(8),
     script:
-        rmd_path("train_summary.Rmd")
+        config.rmd_script("train_summary.Rmd")
 
 
 ################################################################################
@@ -250,7 +256,7 @@ rule prepare_labeled_test_data:
     resources:
         mem_mb=cfg.attempt_mem_gb(8),
     script:
-        python_path("prepare_test.py")
+        config.python_script("bedtools/prepare_test.py")
 
 
 use rule prepare_labeled_test_data as prepare_unlabeled_test_data with:
@@ -295,7 +301,7 @@ rule test_labeled_ebm:
     output:
         **test_ebm_output(config.model_test_dir(labeled=True, log=False)),
     conda:
-        envs_path("ebm.yml")
+        config.env_file("ebm")
     log:
         config.model_test_dir(labeled=True, log=True) / test_log_file,
     resources:
@@ -303,7 +309,7 @@ rule test_labeled_ebm:
     benchmark:
         config.model_test_dir(labeled=True, log=True) / test_bench_file
     script:
-        python_path("test_ebm.py")
+        config.python_script("ebm/test_ebm.py")
 
 
 use rule test_labeled_ebm as test_unlabeled_ebm with:
@@ -331,13 +337,13 @@ rule summarize_labeled_test:
     output:
         config.model_test_dir(labeled=True, log=False) / test_summary_file,
     conda:
-        envs_path("rmarkdown.yml")
+        config.env_file("rmarkdown")
     benchmark:
         config.model_test_dir(labeled=True, log=True) / test_summary_bench
     resources:
         mem_mb=cfg.attempt_mem_gb(8),
     script:
-        rmd_path("test_summary.Rmd")
+        config.rmd_script("test_summary.Rmd")
 
 
 use rule summarize_labeled_test as summarize_unlabeled_test with:

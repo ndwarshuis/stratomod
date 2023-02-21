@@ -2,7 +2,6 @@ import re
 import pandas as pd
 from typing import Optional, Any
 import common.config as cfg
-from functools import partial
 from os.path import basename
 from pybedtools import BedTool as bt  # type: ignore
 from common.tsv import write_tsv
@@ -24,28 +23,25 @@ COLS = {
 }
 
 
-def read_rmsk_df(
-    smk: Any,
-    config: cfg.StratoMod,
-    path: str,
-    bed_cols: cfg.BedIndex,
-) -> pd.DataFrame:
+def read_rmsk_df(smk: Any, config: cfg.StratoMod, path: str) -> pd.DataFrame:
+    bed_cols = config.feature_meta.bed_index
     bed_mapping = bed_cols.bed_cols_indexed((5, 6, 7))
-    prefix = config.refsetkey_to_ref(
-        smk.wildcards["refset_key"]
-    ).annotations.repeat_masker.chr_prefix
-    return read_bed_df(path, bed_mapping, COLS, prefix, smk.params["filt"])
+    chr_filter = config.refsetkey_to_chr_filter(
+        lambda r: r.annotations.superdups.chr_prefix,
+        smk.wildcards["refset_key"],
+    )
+    return read_bed_df(path, bed_mapping, COLS, chr_filter)
 
 
 def merge_and_write_group(
     config: cfg.StratoMod,
     df: pd.DataFrame,
     path: str,
-    bed_cols: cfg.BedIndex,
     groupcol: str,
     clsname: str,
     famname: Optional[str] = None,
 ) -> None:
+    bed_cols = config.feature_meta.bed_index
     groupname = clsname if famname is None else famname
     dropped = df[df[groupcol] == groupname].drop(columns=[groupcol])
     merged = (
@@ -61,23 +57,16 @@ def merge_and_write_group(
         write_tsv(path, merged, header=True)
 
 
-def parse_output(
-    config: cfg.StratoMod,
-    path: str,
-    df: pd.DataFrame,
-    file_prefix: str,
-    bed_cols: cfg.BedIndex,
-) -> None:
-    res = re.match(f"{file_prefix}_(.*).tsv.gz", basename(path))
+def parse_output(config: cfg.StratoMod, path: str, df: pd.DataFrame) -> None:
+    res = re.match("(.*).tsv.gz", basename(path))
     if res is None:
         logger.error("Unable to determine class/family from path: %s", path)
     else:
         s = res[1].split("_")
-        f = partial(merge_and_write_group, config, df, path, bed_cols)
         if len(s) == 1:
             cls = s[0]
             logger.info("Filtering and merging repeat masker class %s", cls)
-            f(CLASSCOL, cls)
+            merge_and_write_group(config, df, path, CLASSCOL, cls)
         elif len(s) == 2:
             cls, fam = s
             logger.info(
@@ -85,16 +74,15 @@ def parse_output(
                 fam,
                 cls,
             )
-            f(FAMCOL, cls, fam)
+            merge_and_write_group(config, df, path, FAMCOL, cls, fam)
         else:
             logger.info("Invalid family/class spec in path: %s", path)
 
 
 def main(smk, config: cfg.StratoMod) -> None:
-    bed_cols = config.feature_meta.bed_index
-    rmsk_df = read_rmsk_df(smk, config, smk.input[0], bed_cols)
+    rmsk_df = read_rmsk_df(smk, config, smk.input[0])
     for path in smk.output:
-        parse_output(config, path, rmsk_df, smk.params.file_prefix, bed_cols)
+        parse_output(config, path, rmsk_df)
 
 
 main(snakemake, snakemake.config)  # type: ignore

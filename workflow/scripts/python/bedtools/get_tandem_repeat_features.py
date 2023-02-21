@@ -28,7 +28,6 @@ def read_tandem_repeats(
     fconf: cfg.TandemRepeatMeta,
     bed_cols: cfg.BedIndex,
     sconf: cfg.StratoMod,
-    prefix: str,
 ) -> pd.DataFrame:
     fmt_base = fconf.fmt_name_base
     cols = fconf.columns
@@ -48,7 +47,11 @@ def read_tandem_repeats(
         14: perc_t_col,
     }
     bed_mapping = bed_cols.bed_cols_indexed((1, 2, 3))
-    df = read_bed_df(path, bed_mapping, feature_cols, prefix, smk.params["filt"])
+    chr_filter = sconf.refsetkey_to_chr_filter(
+        lambda r: r.annotations.simreps.chr_prefix,
+        smk.wildcards["refset_key"],
+    )
+    df = read_bed_df(path, bed_mapping, feature_cols, chr_filter)
     df[fmt_base("AT")] = df[perc_a_col] + df[perc_t_col]
     df[fmt_base("GC")] = df[perc_g_col] + df[perc_c_col]
     # Filter out all TRs that have period == 1, since those by definition are
@@ -67,7 +70,7 @@ def merge_tandem_repeats(
     bed_cols: cfg.BedIndex,
 ) -> pd.DataFrame:
     prefix = fconf.prefix
-    bed, names = merge_and_apply_stats(list(fconf.operations), bed_cols, fconf, df)
+    bed, names = merge_and_apply_stats(bed_cols, fconf, df)
     merged_df = bed.slop(b=SLOP, g=gfile).to_dataframe(names=names)
     len_col = f"{prefix}_{fconf.other.len}"
     merged_df[len_col] = merged_df[bed_cols.end] - merged_df[bed_cols.start] - SLOP * 2
@@ -76,12 +79,9 @@ def merge_tandem_repeats(
 
 def main(smk, sconf: cfg.StratoMod) -> None:
     i = smk.input
-    prefix = sconf.refsetkey_to_ref(
-        smk.wildcards["refset_key"],
-    ).annotations.simreps.chr_prefix
     bed_cols = sconf.feature_meta.bed_index
     fconf = sconf.feature_meta.tandem_repeats
-    repeat_df = read_tandem_repeats(smk, i.src[0], fconf, bed_cols, sconf, prefix)
+    repeat_df = read_tandem_repeats(smk, i.src[0], fconf, bed_cols, sconf)
     merged_df = merge_tandem_repeats(i.genome[0], repeat_df, fconf, bed_cols)
     write_tsv(smk.output[0], merged_df, header=True)
 

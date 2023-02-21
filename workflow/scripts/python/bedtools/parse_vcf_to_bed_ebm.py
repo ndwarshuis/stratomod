@@ -27,17 +27,17 @@ def read_vcf(input_cols: Dict[str, InputCol], path: str) -> pd.DataFrame:
     # starting with '##' or '#'
     dtypes, na_values = unzip(
         (
-            (i, c.dtype),
-            (i, c.na_value),
+            (n, c.dtype),
+            (n, c.na_value),
         )
-        for i, c in enumerate(input_cols.values())
+        for n, c in input_cols.items()
     )
     df = pd.read_table(
         path,
         comment="#",
         header=None,
         # mypy complains if I don't filter on None, not sure why...
-        na_values={str(k): v for k, v in na_values if v is not None},
+        na_values={k: v for k, v in na_values if v is not None},
         dtype={k: v for k, v in dtypes if v is not None},
         names=[*input_cols],
     )
@@ -135,14 +135,12 @@ def assign_format_sample_fields(
 
 
 def get_filter_mask(
-    ref_len: pd.Series[int],
-    alt_len: pd.Series[int],
-    # TODO use enum here
-    filter_key: str,
-) -> pd.Series[bool]:
-    assert filter_key in ["INDEL", "SNP"], f"Invalid filter key: {filter_key}"
+    ref_len: "pd.Series[int]",
+    alt_len: "pd.Series[int]",
+    filter_key: cfg.FilterKey,
+) -> "pd.Series[bool]":
     snps = (ref_len == 1) & (alt_len == 1)
-    keep = ~snps & ~(ref_len == alt_len) if filter_key == "INDEL" else snps
+    keep = ~snps & ~(ref_len == alt_len) if filter_key == cfg.FilterKey.INDEL else snps
     logger.info("Number of %ss: %i", filter_key, keep.sum())
     return keep
 
@@ -152,7 +150,7 @@ def add_length_and_filter(
     indel_len_col: str,
     start_col: str,
     end_col: str,
-    filter_key: str,
+    filter_key: cfg.FilterKey,
     max_ref: int,
     max_alt: int,
     df: pd.DataFrame,
@@ -219,7 +217,7 @@ def get_label(wildcards) -> Optional[str]:
 def main(smk, sconf: cfg.StratoMod) -> None:
     wildcards = smk.wildcards
     fconf = sconf.feature_meta
-    iconf = sconf._querykey_to_input(wildcards.input_key)
+    iconf = sconf._querykey_to_input(smk.params.query_key)
     idx = fconf.bed_index
 
     fmt_vcf_feature = sconf.feature_meta.vcf.fmt_feature
@@ -265,7 +263,7 @@ def main(smk, sconf: cfg.StratoMod) -> None:
                 indel_length,
                 pos,
                 end,
-                wildcards.filter_key,
+                cfg.FilterKey(wildcards.filter_key),
                 iconf.max_ref,
                 iconf.max_alt,
                 fix_dot_alts(

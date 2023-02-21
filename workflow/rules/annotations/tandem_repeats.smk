@@ -1,19 +1,18 @@
 from scripts.python.common.config import attempt_mem_gb
 
-tandem_repeats_dir = "tandem_repeats"
-tandem_repeats_results_dir = annotations_tsv_dir / tandem_repeats_dir
+tr_dir = "tandem_repeats"
 
 
 # download this entire table as-is, we will select the right columns in a script
 rule download_tandem_repeats:
     output:
-        annotations_src_dir / tandem_repeats_dir / "simple_repeats.txt.gz",
+        config.annotation_resource_dir(tr_dir) / "simple_repeats.txt.gz",
     params:
         url=lambda wildcards: config.refkey_to_annotations(
             wildcards.ref_key
         ).simreps.url,
     conda:
-        envs_path("utils.yml")
+        config.env_file("utils")
     shell:
         "curl -sS -L -o {output} {params.url}"
 
@@ -27,16 +26,19 @@ rule get_tandem_repeats:
         ),
         genome=rules.get_genome.output,
     output:
-        ensure(tandem_repeats_results_dir / "tandem_repeats.tsv.gz", non_empty=True),
+        ensure(
+            config.annotation_dir(tr_dir, log=False) / "tandem_repeats.tsv.gz",
+            non_empty=True,
+        ),
     conda:
-        envs_path("bedtools.yml")
+        config.env_file("bedtools")
     params:
         filt=refsetkey_to_chr_indices_wc,
     log:
-        annotations_log_dir / tandem_repeats_dir / "tandem_repeats.log",
+        config.annotation_dir(tr_dir, log=True) / tr_dir / "tandem_repeats.log",
     benchmark:
-        tandem_repeats_results_dir / "tandem_repeats.bench"
+        config.annotation_dir(tr_dir, log=True) / "tandem_repeats.bench"
     resources:
         mem_mb=attempt_mem_gb(1),
     script:
-        python_path("get_tandem_repeat_features.py")
+        config.python_script("bedtools/get_tandem_repeat_features.py")

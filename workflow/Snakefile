@@ -3,19 +3,15 @@ from pathlib import Path
 from snakemake.utils import min_version, validate
 import scripts.python.common.config as cfg
 
+
 min_version("7.20")
 
 
 configfile: "config/static.yml"
 
-
-config = cfg.StratoMod.parse_obj(config)
-
-
-# validate(config, "schemas/config-schema.yml")
-# cfg.validate_inputs(config)
-# cfg.validate_ebm_features(config)
-# cfg.validate_ebm_inputs(config)
+sys.path.extend(["/mnt/data/Dvl/pro/nist/ebm/giab-ai-ebm/workflow/scripts/python"])
+from common.config import StratoMod
+config = StratoMod.parse_obj(config)
 
 ################################################################################
 # Wildcards
@@ -27,24 +23,24 @@ include: "rules/wildcards.smk"
 ################################################################################
 # Paths
 
-conf_paths = config.paths
-resources_dir = conf_paths.resources
-results_dir = conf_paths.results
-log_dir = results_dir / "log"
-log_refset_dir = log_dir / cfg.all_wildcards["refset_key"]
-scripts_root = Path("workflow/scripts")
+# conf_paths = config.paths
+# resources_dir = conf_paths.resources
+# results_dir = conf_paths.results
+# log_dir = results_dir / "log"
+# log_refset_dir = log_dir / cfg.all_wildcards["refset_key"]
+# scripts_root = Path("workflow/scripts")
 
 
-# TODO this shouldn't be necessary
-# this is necessary as envs/scripts are apparently resolved locally in each rule
-# file
-def build_abs_path(relpath, basename):
-    return str(relpath.resolve() / basename)
+# # TODO this shouldn't be necessary
+# # this is necessary as envs/scripts are apparently resolved locally in each rule
+# # file
+# def build_abs_path(relpath, basename):
+#     return str(relpath.resolve() / basename)
 
 
-envs_path = partial(build_abs_path, Path("workflow/envs"))
-python_path = partial(build_abs_path, scripts_root / "python")
-rmd_path = partial(build_abs_path, scripts_root / "rmarkdown")
+# envs_path = partial(build_abs_path, Path("workflow/envs"))
+# python_path = partial(build_abs_path, scripts_root / "python")
+# rmd_path = partial(build_abs_path, scripts_root / "rmarkdown")
 
 
 ################################################################################

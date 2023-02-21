@@ -30,7 +30,7 @@ rule download_ref_sdf:
     params:
         url=lambda wildcards: config.references[wildcards.ref_key].sdf.url,
     conda:
-        envs_path("utils.yml")
+        config.env_file("utils")
     shell:
         """
         mkdir {output} && \
@@ -54,7 +54,7 @@ rule sdf_to_fasta:
             wildcards["refset_key"]
         ).sdf.chr_prefix,
     conda:
-        envs_path("rtg.yml")
+        config.env_file("rtg")
     benchmark:
         config.refset_dir(log=True) / "ref_standardized.bench"
     shell:
@@ -75,7 +75,7 @@ rule fasta_to_sdf:
     output:
         directory(config.refset_dir(log=False) / "standardized_sdf"),
     conda:
-        envs_path("rtg.yml")
+        config.env_file("rtg")
     benchmark:
         config.refset_dir(log=True) / "sdf_standardized.bench"
     log:
@@ -98,7 +98,7 @@ rule download_mhc_strat:
     params:
         url=lambda wildcards: config.references[wildcards.ref_key].strats.mhc.url,
     conda:
-        envs_path("utils.yml")
+        config.env_file("utils")
     shell:
         "curl -sS -L -o {output} {params.url}"
 
@@ -113,7 +113,7 @@ rule download_labeled_query_vcf:
     params:
         url=lambda wildcards: config.labeled_queries[wildcards.l_query_key].url,
     conda:
-        envs_path("utils.yml")
+        config.env_file("utils")
     shell:
         "curl -sS -L -o {output} {params.url}"
 
@@ -131,10 +131,13 @@ rule filter_labeled_query_vcf:
     output:
         config.query_prepare_dir(log=False, labeled=True) / "filtered.vcf",
     params:
-        gzip_in=True,
-        gzip_out=False,
+        chr_prefix=lambda wildcards: config.querykey_to_chr_prefix(
+            wildcards.l_query_key
+        ),
+    conda:
+        config.env_file("bedtools")
     script:
-        python_path("standardize_bed.py")
+        config.python_script("bedtools/standardize_bed.py")
 
 
 use rule filter_labeled_query_vcf as filter_unlabeled_query_vcf with:
@@ -142,6 +145,10 @@ use rule filter_labeled_query_vcf as filter_unlabeled_query_vcf with:
         rules.download_unlabeled_query_vcf.output,
     output:
         config.query_prepare_dir(log=False, labeled=False) / "filtered.vcf",
+    params:
+        chr_prefix=lambda wildcards: config.querykey_to_chr_prefix(
+            wildcards.ul_query_key
+        ),
 
 
 # TODO this is (probably) just for DV VCFs
@@ -151,7 +158,7 @@ rule fix_refcall_query_vcf:
     output:
         config.query_prepare_dir(log=False, labeled=True) / "fixed_refcall.vcf",
     conda:
-        envs_path("utils.yml")
+        config.env_file("utils")
     shell:
         f"""
         cat {{input}} | \
@@ -174,7 +181,7 @@ rule zip_labeled_query_vcf:
     output:
         rule_output_suffix("fix_refcall_query_vcf", "gz"),
     conda:
-        envs_path("utils.yml")
+        config.env_file("utils")
     shell:
         "bgzip -c {input} > {output}"
 
@@ -185,7 +192,7 @@ rule generate_query_tbi:
     output:
         rule_output_suffix("zip_labeled_query_vcf", "tbi"),
     conda:
-        envs_path("utils.yml")
+        config.env_file("utils")
     shell:
         "tabix -p vcf {input}"
 
@@ -202,7 +209,7 @@ rule download_bench_vcf:
         .benchmarks[wildcards.bench_key]
         .vcf_url,
     conda:
-        envs_path("utils.yml")
+        config.env_file("utils")
     shell:
         "curl -sS -L -o {output} {params.url}"
 
@@ -212,6 +219,8 @@ use rule filter_labeled_query_vcf as filter_bench_vcf with:
         partial(expand_benchmark_path, rules.download_bench_vcf.output),
     output:
         config.bench_dir(log=False) / "filtered.vcf",
+    params:
+        chr_prefix=lambda wildcards: config.benchkey_to_chr_prefix(wildcards.refset_key, wildcards.bench_key)
 
 
 # NOTE: this avoids an error caused by vcfeval where it will strip out any
@@ -223,7 +232,7 @@ rule fix_HG005_bench_vcf:
     output:
         config.bench_dir(log=False) / "HG005_fixed.vcf",
     conda:
-        envs_path("utils.yml")
+        config.env_file("utils")
     shell:
         """
         cat {input} | \
@@ -259,7 +268,7 @@ rule download_bench_bed:
         .benchmarks[wildcards.bench_key]
         .bed_url,
     conda:
-        envs_path("utils.yml")
+        config.env_file("utils")
     shell:
         "curl -sS -L -o {output} {params.url}"
 
@@ -270,10 +279,11 @@ rule filter_bench_bed:
     output:
         config.bench_dir(log=False) / "filtered.bed",
     params:
-        gzip_in=False,
-        gzip_out=False,
+        chr_prefix=lambda wildcards: config.benchkey_to_chr_prefix(wildcards.refset_key, wildcards.bench_key)
+    conda:
+        config.env_file("bedtools")
     script:
-        python_path("standardize_bed.py")
+        config.python_script("bedtools/standardize_bed.py")
 
 
 rule standardize_mhc_strat:
@@ -282,10 +292,11 @@ rule standardize_mhc_strat:
     output:
         config.bench_dir(log=False) / "strats" / "mhc_standardized.bed.gz",
     params:
-        gzip_in=True,
-        gzip_out=True,
+        chr_prefix=lambda wildcards: config.benchkey_to_chr_prefix(wildcards.refset_key, wildcards.bench_key)
+    conda:
+        config.env_file("bedtools")
     script:
-        python_path("standardize_bed.py")
+        config.python_script("bedtools/standardize_bed.py")
 
 
 rule subtract_mhc_bench_bed:
@@ -295,7 +306,7 @@ rule subtract_mhc_bench_bed:
     output:
         config.bench_dir(log=False) / "noMHC.bed",
     conda:
-        envs_path("bedtools.yml")
+        config.env_file("bedtools")
     shell:
         """
         gunzip {input.mhc} -c | \
@@ -343,7 +354,7 @@ rule label_vcf:
     output:
         [config.vcfeval_dir(log=False) / f"{lbl}.vcf.gz" for lbl in cfg.VCFLabel.all()],
     conda:
-        envs_path("rtg.yml")
+        config.env_file("rtg")
     params:
         extra="--ref-overlap --all-records",
         tmp_dir=lambda wildcards: f"/tmp/vcfeval_{wildcards.l_query_key}",
@@ -388,11 +399,13 @@ rule parse_labeled_vcf:
     benchmark:
         config.query_parsed_dir(labeled=True, log=True) / labeled_file("bench")
     conda:
-        envs_path("bedtools.yml")
+        config.env_file("bedtools")
+    params:
+        query_key = lambda wildcards: wildcards.l_query_key
     resources:
         mem_mb=cfg.attempt_mem_gb(2),
     script:
-        python_path("parse_vcf_to_bed_ebm.py")
+        config.python_script("bedtools/parse_vcf_to_bed_ebm.py")
 
 
 rule concat_labeled_tsvs:
@@ -409,7 +422,7 @@ rule concat_labeled_tsvs:
             non_empty=True,
         ),
     conda:
-        envs_path("bedtools.yml")
+        config.env_file("bedtools")
     benchmark:
         config.query_parsed_dir(labeled=True, log=True) / wildcard_format(
             "{}_concat.bench", "filter_key"
@@ -417,7 +430,7 @@ rule concat_labeled_tsvs:
     resources:
         mem_mb=cfg.attempt_mem_gb(4),
     script:
-        python_path("concat_tsv.py")
+        config.python_script("bedtools/concat_tsv.py")
 
 
 ################################################################################
@@ -439,6 +452,8 @@ use rule parse_labeled_vcf as parse_unlabeled_vcf with:
         ),
     log:
         config.query_parsed_dir(labeled=False, log=True) / unlabeled_file("log"),
+    params:
+        query_key = lambda wildcards: wildcards.ul_query_key
     resources:
         mem_mb=cfg.attempt_mem_gb(2),
     benchmark:

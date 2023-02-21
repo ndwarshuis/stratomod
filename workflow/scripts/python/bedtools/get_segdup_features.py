@@ -29,16 +29,11 @@ def read_segdups(
         27: cols.fracMatchIndel,
     }
     bed_mapping = bed_cols.bed_cols_indexed((1, 2, 3))
-    prefix = config.refsetkey_to_ref(
+    chr_filter = config.refsetkey_to_chr_filter(
+        lambda r: r.annotations.superdups.chr_prefix,
         smk.wildcards["refset_key"],
-    ).annotations.superdups.chr_prefix
-    return read_bed_df(
-        path,
-        bed_mapping,
-        feature_cols,
-        prefix,
-        smk.params["filt"],
     )
+    return read_bed_df(path, bed_mapping, feature_cols, chr_filter)
 
 
 def merge_segdups(
@@ -46,12 +41,7 @@ def merge_segdups(
     fconf: cfg.SegDupsMeta,
     bed_cols: cfg.BedIndex,
 ) -> pd.DataFrame:
-    bed, names = merge_and_apply_stats(
-        list(fconf.operations),
-        bed_cols,
-        fconf,
-        df,
-    )
+    bed, names = merge_and_apply_stats(bed_cols, fconf, df)
     return bed.to_dataframe(names=names)
 
 

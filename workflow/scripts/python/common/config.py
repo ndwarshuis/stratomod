@@ -33,12 +33,11 @@ from pydantic import (
     conset,
     confloat,
 )
-from enum import Enum
+from enum import Enum, auto
 
 RefKey = NewType("RefKey", str)
 RefsetKey = NewType("RefsetKey", str)
 TestKey = NewType("TestKey", str)
-# Querykey = NewType("Querykey", str)
 UnlabeledQueryKey = NewType("UnlabeledQueryKey", str)
 LabeledQueryKey = NewType("LabeledQueryKey", str)
 BenchKey = NewType("BenchKey", str)
@@ -46,8 +45,12 @@ ModelKey = NewType("ModelKey", str)
 RunKey = NewType("RunKey", str)
 FeatureKey = NewType("FeatureKey", str)
 VarKey = NewType("VarKey", str)
+ChrPrefix = NewType("ChrPrefix", str)
 
 QueryKey = Union[UnlabeledQueryKey, LabeledQueryKey]
+
+
+Fraction = Annotated[float, confloat(ge=0, le=1, allow_inf_nan=False)]
 
 
 class ListEnum(Enum):
@@ -61,6 +64,49 @@ class Base(ListEnum):
     C = "C"
     G = "G"
     T = "T"
+
+
+class ChrIndex(ListEnum):
+    CHR1 = auto()
+    CHR2 = auto()
+    CHR3 = auto()
+    CHR4 = auto()
+    CHR5 = auto()
+    CHR6 = auto()
+    CHR7 = auto()
+    CHR8 = auto()
+    CHR9 = auto()
+    CHR10 = auto()
+    CHR11 = auto()
+    CHR12 = auto()
+    CHR13 = auto()
+    CHR14 = auto()
+    CHR15 = auto()
+    CHR16 = auto()
+    CHR17 = auto()
+    CHR18 = auto()
+    CHR19 = auto()
+    CHR20 = auto()
+    CHR21 = auto()
+    CHR22 = auto()
+    CHRX = auto()
+    CHRY = auto()
+
+    @property
+    def chr_name(self) -> str:
+        if self.value == self.CHRY:
+            return "Y"
+        elif self.value == self.CHRX:
+            return "X"
+        return str(self.value)
+
+    def chr_name_full(self, prefix: ChrPrefix) -> str:
+        return f"{prefix}{self.chr_name}"
+
+
+class ChrFilter(NamedTuple):
+    prefix: ChrPrefix
+    indices: Set[ChrIndex]
 
 
 class FilterKey(ListEnum):
@@ -118,47 +164,6 @@ def alternate_constraint(xs: List[str]) -> str:
     return f"({'|'.join(xs)})"
 
 
-_constraints = {
-    # corresponds to a genome reference
-    "ref_key": "[^/]+",
-    # corresponds to a reference set (reference + chromosome filter + etc)
-    "refset_key": "[^/]+",
-    # corresponds to a testing vcf
-    "test_key": "[^/]+",
-    "query_key": "[^/]+",
-    "ul_query_key": "[^/]+",
-    "l_query_key": "[^/]+",
-    # refers to a collection of input data input to an ebm model configuration
-    # (composed of multiple train/test keys + associated data)
-    "run_key": "[^/]+",
-    # refers to a benchmark vcf (within the context of a given reference)
-    "bench_key": "[^/]+",
-    # refers to an EBM model and its parameters
-    "model_key": "[^/]+",
-    # refers to the variant type (SNP or INDEL, for now)
-    # TODO ...why "filter"? (I can't think of anything better)
-    "filter_key": alternate_constraint(FilterKey.all()),
-    # refers to a variant benchmarking label (tp, fp, etc)
-    "label": alternate_constraint(VCFLabel.all()),
-    # refers to a nucleotide base
-    "base": alternate_constraint(Base.all()),
-}
-
-all_wildcards = {k: f"{{{k},{v}}}" for k, v in _constraints.items()}
-
-
-def wildcard_ext(key, ext):
-    return f"{all_wildcards[key]}.{ext}"
-
-
-def wildcard_format(format_str, *keys):
-    return format_str.format(*[all_wildcards[k] for k in keys])
-
-
-def wildcard_format_ext(format_str, keys, ext):
-    return wildcard_format(f"{format_str}.{ext}", *keys)
-
-
 class BaseModel(PydanticBaseModel):
     class Config:
         validate_all = True
@@ -170,9 +175,6 @@ class Paths(BaseModel):
     resources: Path
     results: Path
     log: Path
-
-
-ChrIndex = Annotated[int, conint(ge=0, le=24)]
 
 
 class RefSet(BaseModel):
@@ -214,9 +216,6 @@ class TestDataInput(BaseModel):
 class ModelRun(BaseModel):
     train: Annotated[Set[LabeledQueryKey], conset(LabeledQueryKey, min_items=1)]
     test: Dict[TestKey, TestDataInput]
-
-
-Fraction = Annotated[float, confloat(ge=0, le=1, allow_inf_nan=False)]
 
 
 class EBMMiscParams(BaseModel):
@@ -294,7 +293,7 @@ class Model(BaseModel):
 
 class BedFile(BaseModel):
     url: Optional[HttpUrl]
-    chr_prefix: str
+    chr_prefix: ChrPrefix
 
 
 class Strats(BaseModel):
@@ -308,7 +307,7 @@ class BenchmarkCorrections(BaseModel):
 class Benchmark(BaseModel):
     vcf_url: Optional[HttpUrl]
     bed_url: Optional[HttpUrl]
-    chr_prefix: str
+    chr_prefix: ChrPrefix
     corrections: BenchmarkCorrections
 
 
@@ -410,14 +409,18 @@ class HomopolyMeta(FeatureGroup):
     bases: Set[Base]
     suffixes: HomopolySuffixes
 
-    # TODO weakly typed
-    def fmt_name(self, bases: Base, which: str) -> FeatureKey:
-        return self.fmt_feature(f"{bases.value}_{self.suffixes.dict()[which]}")
+    def _fmt_name(self, bases: Base, which: str) -> FeatureKey:
+        return self.fmt_feature(f"{bases.value}_{which}")
+
+    def fmt_name_len(self, base: Base) -> FeatureKey:
+        return self._fmt_name(base, self.suffixes.len)
+
+    def fmt_name_imp_frac(self, base: Base) -> FeatureKey:
+        return self._fmt_name(base, self.suffixes.imp_frac)
 
     def feature_names(self) -> List[FeatureKey]:
-        return [
-            self.fmt_name(b, s)
-            for (b, s) in product(self.bases, list(self.suffixes.dict()))
+        return [self.fmt_name_len(b) for b in self.bases] + [
+            self.fmt_name_imp_frac(b) for b in self.bases
         ]
 
 
@@ -530,7 +533,7 @@ class FormatFields(BaseModel):
 
 class UnlabeledVCFInput(BaseModel):
     refset: RefsetKey
-    chr_prefix: str
+    chr_prefix: ChrPrefix
     url: Optional[HttpUrl]
     variables: Dict[VarKey, str]
     format_fields: FormatFields = FormatFields()
@@ -738,14 +741,25 @@ class StratoMod(BaseModel):
     def refsetkey_to_refkey(self, key: RefsetKey) -> RefKey:
         return self.refsetkey_to_refset(key).ref
 
-    def refsetkey_to_chr_indices(self, key: RefsetKey) -> Set[int]:
+    def refsetkey_to_chr_indices(self, key: RefsetKey) -> Set[ChrIndex]:
         f = self.refsetkey_to_refset(key).chr_filter
-        return set(range(1, 25)) if len(f) == 0 else f
+        return set(x for x in ChrIndex) if len(f) == 0 else f
+
+    def refsetkey_to_chr_filter(
+        self,
+        get_prefix: Callable[[Reference], ChrPrefix],
+        key: RefsetKey,
+    ) -> ChrFilter:
+        indices = self.refsetkey_to_chr_indices(key)
+        prefix = get_prefix(self.refsetkey_to_ref(key))
+        return ChrFilter(prefix, indices)
 
     def refsetkey_to_sdf_chr_filter(self, key: RefsetKey) -> Set[str]:
-        indices = self.refsetkey_to_chr_indices(key)
-        prefix = self.refsetkey_to_ref(key).sdf.chr_prefix
-        return chr_indices_to_name(prefix, indices)
+        prefix, indices = self.refsetkey_to_chr_filter(lambda r: r.sdf.chr_prefix, key)
+        return set(i.chr_name_full(prefix) for i in indices)
+
+    def benchkey_to_chr_prefix(self, rkey: RefsetKey, bkey: BenchKey) -> str:
+        return self.refsetkey_to_ref(rkey).benchmarks[bkey].chr_prefix
 
     def refkey_to_annotations(self, key: RefKey) -> Annotations:
         return self.references[key].annotations
@@ -773,9 +787,9 @@ class StratoMod(BaseModel):
     def querykey_to_chr_prefix(self, key: QueryKey) -> str:
         return self._querykey_to_input(key).chr_prefix
 
-    def querykey_to_chr_filter(self, input_key: QueryKey) -> Set[int]:
-        refset_key = self.querykey_to_refsetkey(input_key)
-        return self.refsetkey_to_chr_indices(refset_key)
+    # def querykey_to_chr_filter(self, input_key: QueryKey) -> Set[ChrIndex]:
+    #     refset_key = self.querykey_to_refsetkey(input_key)
+    #     return self.refsetkey_to_chr_indices(refset_key)
 
     def querykey_to_variables(self, input_key: QueryKey) -> Dict[VarKey, str]:
         return self._querykey_to_input(input_key).variables
@@ -815,6 +829,23 @@ class StratoMod(BaseModel):
     ) -> QueryKey:
         return self.models[mkey].runs[rkey].test[tkey].query_key
 
+    def _workflow_path(self, components: List[str]) -> Path:
+        p = Path(*components).resolve()
+        assert p.exists(), f"{p} does not exist"
+        return p
+
+    def env_file(self, envname: str) -> Path:
+        return self._workflow_path(["workflow/envs", f"{envname}.yml"])
+
+    def _scripts_dir(self, rest: List[str]) -> Path:
+        return self._workflow_path(["workflow/scripts", *rest])
+
+    def python_script(self, basename: str) -> Path:
+        return self._scripts_dir(["python", basename])
+
+    def rmd_script(self, basename: str) -> Path:
+        return self._scripts_dir(["rmarkdown", basename])
+
     @property
     def labeled_query_resource_dir(self) -> Path:
         return self.paths.resources / "labeled_queries"
@@ -831,19 +862,33 @@ class StratoMod(BaseModel):
     def bench_resource_dir(self) -> Path:
         return self.ref_resource_dir / "bench"
 
+    def annotation_resource_dir(self, which: str) -> Path:
+        return self.paths.resources / "annotations" / all_wildcards["ref_key"] / which
+
     @property
-    def annotations_resource_dir(self) -> Path:
-        return self.paths.resources / "annotations" / all_wildcards["ref_key"]
+    def tool_resource_dir(self) -> Path:
+        return self.paths.resources / "tools"
+
+    def tool_dir(self, log: bool) -> Path:
+        return self._result_or_log_dir(log) / "tools"
 
     def _result_or_log_dir(self, log: bool) -> Path:
         return self.paths.results / self.paths.log if log else self.paths.results
 
-    def bench_dir(self, log: bool = False) -> Path:
+    def bench_dir(self, log: bool) -> Path:
         return (
             self._result_or_log_dir(log)
             / "bench"
             / all_wildcards["refset_key"]
             / all_wildcards["bench_key"]
+        )
+
+    def annotation_dir(self, which: str, log: bool) -> Path:
+        return (
+            self._result_or_log_dir(log)
+            / "annotations"
+            / all_wildcards["refset_key"]
+            / which
         )
 
     def _labeled_dir(self, labeled: bool) -> Path:
@@ -854,7 +899,12 @@ class StratoMod(BaseModel):
         )
 
     def _query_dir(self, labeled: bool, log: bool) -> Path:
-        return self._result_or_log_dir(log) / "query" / self._labeled_dir(labeled)
+        return (
+            self._result_or_log_dir(log)
+            / "query"
+            / all_wildcards["refset_key"]
+            / self._labeled_dir(labeled)
+        )
 
     def query_prepare_dir(self, labeled: bool, log: bool) -> Path:
         return self._query_dir(labeled, log) / "prepare"
@@ -863,7 +913,7 @@ class StratoMod(BaseModel):
         return self._query_dir(labeled, log) / "parsed"
 
     def vcfeval_dir(self, log: bool) -> Path:
-        return self._query_dir(True, log) / "prepare"
+        return self._query_dir(True, log) / "vcfeval"
 
     def refset_dir(self, log: bool) -> Path:
         return self._result_or_log_dir(log) / "references" / all_wildcards["refset_key"]
@@ -885,6 +935,9 @@ class StratoMod(BaseModel):
             / ("labeled" if labeled else "unlabeled")
             / all_wildcards["test_key"]
         )
+
+    # def items(self):
+    #     return self.dict().items()
 
 
 # ------------------------------------------------------------------------------
@@ -1080,27 +1133,42 @@ def all_ebm_files(
     return train + labeled_test + unlabeled_test
 
 
-# ------------------------------------------------------------------------------
-# global lookup
+_constraints = {
+    # corresponds to a genome reference
+    "ref_key": "[^/]+",
+    # corresponds to a reference set (reference + chromosome filter + etc)
+    "refset_key": "[^/]+",
+    # corresponds to a testing vcf
+    "test_key": "[^/]+",
+    "query_key": "[^/]+",
+    "ul_query_key": "[^/]+",
+    "l_query_key": "[^/]+",
+    # refers to a collection of input data input to an ebm model configuration
+    # (composed of multiple train/test keys + associated data)
+    "run_key": "[^/]+",
+    # refers to a benchmark vcf (within the context of a given reference)
+    "bench_key": "[^/]+",
+    # refers to an EBM model and its parameters
+    "model_key": "[^/]+",
+    # refers to the variant type (SNP or INDEL, for now)
+    # TODO ...why "filter"? (I can't think of anything better)
+    "filter_key": alternate_constraint(FilterKey.all()),
+    # refers to a variant benchmarking label (tp, fp, etc)
+    "label": alternate_constraint(VCFLabel.all()),
+    # refers to a nucleotide base
+    "base": alternate_constraint(Base.all()),
+}
+
+all_wildcards = {k: f"{{{k},{v}}}" for k, v in _constraints.items()}
 
 
-def chr_index_to_str(i: ChrIndex) -> str:
-    return "X" if i == 23 else ("Y" if i == 24 else str(i))
+def wildcard_ext(key, ext):
+    return f"{all_wildcards[key]}.{ext}"
 
 
-def chr_indices_to_name(prefix: str, xs: Set[int]) -> Set[str]:
-    return set(f"{prefix}{chr_index_to_str(i)}" for i in xs)
+def wildcard_format(format_str, *keys):
+    return format_str.format(*[all_wildcards[k] for k in keys])
 
 
-# def lookup_ebm_run(config: StratoMod, run_key: ModelKey) -> Any:
-#     return config.models[run_key]
-
-
-# def ebm_run_train_keys(ebm_run: StratoMod) -> List[str]:
-#     return [*flatten([[*i] for i in ebm_run.inputs])]
-
-
-# def ebm_run_test_keys(ebm_run: Model) -> List[TestKey]:
-#     return [
-#         *flatten([[*ts] for k, v in ebm_run.runs.items() for ts in v.test.values()])
-#     ]
+def wildcard_format_ext(format_str, keys, ext):
+    return wildcard_format(f"{format_str}.{ext}", *keys)
