@@ -15,6 +15,7 @@ from typing import (
     Optional,
     NamedTuple,
     NewType,
+    Any,
     cast,
 )
 from typing_extensions import Annotated
@@ -32,6 +33,7 @@ from pydantic import (
     constr,
     conset,
     confloat,
+    conlist,
 )
 from enum import Enum, auto
 
@@ -254,6 +256,11 @@ class Visualization(BaseModel):
     plot_type: PlotType = PlotType.STEP
     split_missing: Optional[Fraction] = None
 
+    # convert to R-friendly dict for use in rmarkdown scripts
+    @property
+    def r_dict(self) -> Dict[Any, Any]:
+        return {**self.dict(), **{"plot_type": self.plot_type.value}}
+
 
 class Feature(BaseModel):
     feature_type: FeatureType = FeatureType.CONTINUOUS
@@ -262,10 +269,30 @@ class Feature(BaseModel):
     visualization: Visualization = Visualization()
     transform: Optional[Transform] = None
 
+    # convert to R-friendly dict for use in rmarkdown scripts
+    @property
+    def r_dict(self) -> Dict[Any, Any]:
+        return {
+            **self.dict(),
+            **{
+                "feature_type": self.feature_type.value,
+                "visualization": self.visualization.r_dict,
+            },
+        }
+
 
 class FeaturePair(BaseModel):
     f1: FeatureKey
     f2: FeatureKey
+
+
+# NOTE need to use conlist vs set here since this will contain another
+# pydantic model class, which will prevent the overall model from being
+# converted to a dict (see https://github.com/pydantic/pydantic/issues/1090)
+InteractionSpec_ = Union[FeatureKey, FeaturePair]
+InteractionSpec = Annotated[
+    List[InteractionSpec_], conlist(InteractionSpec_, unique_items=True)
+]
 
 
 class Model(BaseModel):
@@ -275,7 +302,7 @@ class Model(BaseModel):
     # TODO only allow actual error labels here
     error_labels: Annotated[Set[ErrorLabel], conset(ErrorLabel, min_items=1)]
     filtered_are_candidates: bool
-    interactions: Union[NonNegativeInt, Set[Union[FeatureKey, FeaturePair]]] = 0
+    interactions: Union[NonNegativeInt, InteractionSpec] = 0
     features: Dict[FeatureKey, Feature]
 
     @validator("features")
@@ -375,6 +402,10 @@ class VCFMeta(FeatureGroup):
         return VCFColumns(
             **{k: f"{values['prefix']}_{v}" for k, v in columns.dict().items()}
         )
+
+    def str_feature_names(self) -> List[FeatureKey]:
+        cs = self.columns
+        return [FeatureKey(x) for x in [cs.filter, cs.info, cs.gt, cs.gq]]
 
     def feature_names(self) -> List[FeatureKey]:
         return list(self.columns.dict().values())
@@ -599,6 +630,13 @@ class FeatureMeta(BaseModel):
                 *self.variables.feature_names(),
             ]
         )
+
+    @property
+    def non_summary_cols(self) -> List[FeatureKey]:
+        return [
+            FeatureKey(x)
+            for x in (self.all_index_cols() + self.vcf.str_feature_names())
+        ]
 
 
 class Tools(BaseModel):
@@ -936,8 +974,12 @@ class StratoMod(BaseModel):
             / all_wildcards["test_key"]
         )
 
-    # def items(self):
-    #     return self.dict().items()
+    # NOTE: dirty hack to get this to work with rmarkdown; since I don't use
+    # the config in rmarkdown, just return a blank dict. Returning a real dict
+    # will work assuming all the types in the underlying structure are hashable
+    # but not all will convert to R types (eg enum, which is silly)
+    def items(self):
+        return {}.items()
 
 
 # ------------------------------------------------------------------------------

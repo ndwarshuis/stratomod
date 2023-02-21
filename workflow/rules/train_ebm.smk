@@ -99,7 +99,8 @@ rule summarize_labeled_input:
     resources:
         mem_mb=cfg.attempt_mem_gb(16),
     params:
-        has_label=True,
+        label_col=config.feature_meta.label,
+        columns=config.feature_meta.non_summary_cols,
     script:
         config.rmd_script("input_summary.Rmd")
 
@@ -112,7 +113,8 @@ use rule summarize_labeled_input as summarize_unlabeled_input with:
     benchmark:
         config.annotated_dir(labeled=False, log=True) / summary_bench
     params:
-        has_label=False,
+        label_col=None,
+        columns=config.feature_meta.non_summary_cols,
 
 
 ################################################################################
@@ -206,6 +208,14 @@ rule summarize_model:
         config.model_train_dir(log=False) / "summary.bench"
     resources:
         mem_mb=cfg.attempt_mem_gb(8),
+    params:
+        # TODO this is because we can't convert enums yet
+        features=lambda wildcards: {
+            k: v.r_dict for k, v in config.models[wildcards.model_key].features.items()
+        },
+        error_labels=lambda wildcards: [
+            x.value for x in config.models[wildcards.model_key].error_labels
+        ],
     script:
         config.rmd_script("train_summary.Rmd")
 
