@@ -62,7 +62,7 @@ def get_univariate_df(
     feature_data: Any,
     stdev: List[float],
 ) -> UnivariateDF:
-    def proc_scores(scores):
+    def proc_scores(scores: Any) -> Any:
         if vartype == "continuous":
             return array_to_list(scores, True)
         elif vartype == "categorical":
@@ -109,7 +109,7 @@ def get_bivariate_df(
     left_index = pd.Index(feature_data["left_names"], name="left_value")
     right_index = pd.Index(feature_data["right_names"], name="right_value")
 
-    def stack_array(arr, name):
+    def stack_array(arr: Any, name: Any) -> pd.DataFrame:
         return (
             pd.DataFrame(
                 build_scores_array(arr, left_type, right_type),
@@ -189,12 +189,12 @@ def get_model(ebm: ExplainableBoostingClassifier) -> ModelData:
     )
 
 
-def write_model_json(path, ebm: ExplainableBoostingClassifier) -> None:
+def write_model_json(path: str, ebm: ExplainableBoostingClassifier) -> None:
     with open(path, "w") as f:
         json.dump(get_model(ebm), f)
 
 
-def main(smk, sconf: cfg.StratoMod) -> None:
+def main(smk: Any, sconf: cfg.StratoMod) -> None:
     sin = smk.input
     sout = smk.output
 
@@ -204,7 +204,7 @@ def main(smk, sconf: cfg.StratoMod) -> None:
     label = sconf.feature_meta.label
     bed_cols = sconf.feature_meta.all_index_cols()
 
-    def write_predictions(xpath, ypath, out_path):
+    def write_predictions(xpath: str, ypath: str, out_path: str) -> None:
         X = read_tsv(xpath).drop(columns=bed_cols)
         y = read_tsv(ypath)
         y_pred = pd.DataFrame(

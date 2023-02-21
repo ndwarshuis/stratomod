@@ -1,5 +1,6 @@
 import json
 import pandas as pd
+from typing import Any
 from os.path import dirname, basename
 from common.tsv import read_tsv, write_tsv
 from common.cli import setup_logging
@@ -9,6 +10,7 @@ from common.prepare import process_labeled_data, process_unlabeled_data
 logger = setup_logging(snakemake.log[0])  # type: ignore
 
 
+# TODO get rid of this since I don't use vcf input anymore
 def read_vcf_input(path: str, input_key: str) -> pd.DataFrame:
     with open(path, "r") as f:
         mapping = {basename(dirname(k)): v for k, v in json.load(f).items()}
@@ -30,10 +32,10 @@ def write_labeled(
     ypath: str,
     sconf: cfg.StratoMod,
     rconf: cfg.Model,
-    filter_col: str,
+    filter_col: cfg.FeatureKey,
     df: pd.DataFrame,
 ) -> None:
-    label_col = sconf.feature_meta.label
+    label_col = sconf.feature_meta.label_name
     processed = process_labeled_data(
         rconf.features,
         rconf.error_labels,
@@ -44,7 +46,7 @@ def write_labeled(
         df,
     )
     write_tsv(xpath, processed.drop([label_col], axis=1))
-    write_tsv(ypath, processed[label_col])
+    write_tsv(ypath, processed[label_col].to_frame())
 
 
 def write_unlabeled(
@@ -61,25 +63,24 @@ def write_unlabeled(
     write_tsv(xpath, processed)
 
 
-def main(smk, sconf: cfg.StratoMod) -> None:
+def main(smk: Any, sconf: cfg.StratoMod) -> None:
     sin = smk.input
     sout = smk.output
     wcs = smk.wildcards
-    _fmt_vcf_feature = sconf.feature_meta.vcf.fmt_feature
     raw_df = read_input(
         sin["annotated"][0],
         sin["paths"],
         wcs["input_key"],
-        _fmt_vcf_feature("input"),
+        sconf.feature_meta.vcf.input_name,
     )
-    rconf = sconf.models[wcs.model_key]
+    rconf = sconf.models[cfg.ModelKey(wcs.model_key)]
     if "test_y" in dict(sout):
         write_labeled(
             sout["test_x"],
             sout["test_y"],
             sconf,
             rconf,
-            _fmt_vcf_feature("filter"),
+            sconf.feature_meta.vcf.filter_name,
             raw_df,
         )
     else:

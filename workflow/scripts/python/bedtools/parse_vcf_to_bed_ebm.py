@@ -1,5 +1,5 @@
 import numpy as np
-from typing import NamedTuple, List, Optional, Dict
+from typing import NamedTuple, List, Optional, Dict, Tuple, Any
 import pandas as pd
 import common.config as cfg
 from functools import partial
@@ -62,7 +62,7 @@ def assign_format_sample_fields(
     fields: Dict[cfg.FeatureKey, Optional[str]],
     df: pd.DataFrame,
 ) -> pd.DataFrame:
-    def log_split(what, xs):
+    def log_split(what: str, xs: List[Tuple[cfg.FeatureKey, Optional[str]]]) -> None:
         logger.info(
             "Splitting FORMAT/SAMPLE into %i %s columns.",
             len(xs),
@@ -92,7 +92,7 @@ def assign_format_sample_fields(
 
     # For all columns that aren't to be NaN'd, split format and sample fields
     # into lists (to be zipped later).
-    def split_col(n):
+    def split_col(n: str) -> Tuple["pd.Series[Any]", "pd.Series[int]"]:
         split_ser = df[n].str.split(":")
         len_ser = split_ser.str.len()
         return split_ser, len_ser
@@ -154,8 +154,12 @@ def add_length_and_filter(
     max_ref: int,
     max_alt: int,
     df: pd.DataFrame,
-):
-    def log_removed(filter_mask, other_mask, msg):
+) -> pd.DataFrame:
+    def log_removed(
+        filter_mask: "pd.Series[bool]",
+        other_mask: "pd.Series[bool]",
+        msg: str,
+    ) -> None:
         logger.info(
             "Removing %i %ss with %s",
             (filter_mask & ~other_mask).sum(),
@@ -207,14 +211,14 @@ def select_columns(
     return df[cols]
 
 
-def get_label(wildcards) -> Optional[str]:
+def get_label(wildcards: Dict[str, Any]) -> Optional[str]:
     if hasattr(wildcards, "label"):
         return wildcards.label
     return None
 
 
 # ASSUME these vcf file already have standard chromosomes
-def main(smk, sconf: cfg.StratoMod) -> None:
+def main(smk: Any, sconf: cfg.StratoMod) -> None:
     wildcards = smk.wildcards
     fconf = sconf.feature_meta
     iconf = sconf._querykey_to_input(smk.params.query_key)

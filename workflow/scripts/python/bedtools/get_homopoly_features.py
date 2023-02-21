@@ -1,5 +1,6 @@
 import pandas as pd
 import common.config as cfg
+from typing import Any
 from pybedtools import BedTool as bt  # type: ignore
 from pybedtools import cleanup
 from common.tsv import write_tsv, read_tsv
@@ -15,7 +16,7 @@ PFCT_LEN_COL = "_perfect_length"
 SLOP = 1
 
 
-def read_input(path: str, bed_cols: cfg.BedIndex):
+def read_input(path: str, bed_cols: cfg.BedIndex) -> pd.DataFrame:
     logger.info("Reading dataframe from %s", path)
     names = [*bed_cols.bed_cols_ordered(), BASE_COL]
     return read_tsv(path, header=None, comment="#", names=names)
@@ -59,7 +60,7 @@ def merge_base(
     return merged.drop(columns=[PFCT_LEN_COL])
 
 
-def main(smk, config: cfg.StratoMod) -> None:
+def main(smk: Any, config: cfg.StratoMod) -> None:
     bed_cols = config.feature_meta.bed_index
     # ASSUME this file is already sorted
     simreps = read_input(smk.input["bed"][0], bed_cols)

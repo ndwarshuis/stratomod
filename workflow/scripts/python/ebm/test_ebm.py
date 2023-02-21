@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import Tuple
+from typing import Tuple, Any
 from common.cli import setup_logging
 from common.tsv import read_tsv, write_tsv
 from common.ebm import read_model
@@ -21,7 +21,7 @@ def predict_from_x(
     return pd.DataFrame(probs), pd.DataFrame(explanations, columns=ebm.feature_names)
 
 
-def main(smk, sconf: cfg.StratoMod) -> None:
+def main(smk: Any, sconf: cfg.StratoMod) -> None:
     sin = smk.input
     sout = smk.output
     ebm = read_model(sin["model"])

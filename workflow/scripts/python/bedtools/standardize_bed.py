@@ -1,16 +1,18 @@
 import gzip
 import io
 import re
-from typing import Callable
-from common.config import StratoMod, ChrIndex
+from typing import Callable, Any
+from common.config import StratoMod, ChrIndex, RefsetKey
 
 # I could use pandas for all this, but vcfeval will complain if I strip out the
 # headers (which pandas will do). Imperative loop it is...
 
 
-def filter_file(smk, config: StratoMod, fi: io.TextIOWrapper) -> None:
+def filter_file(smk: Any, config: StratoMod, fi: io.TextIOWrapper) -> None:
     chr_prefix = smk.params.chr_prefix
-    chr_indices = config.refsetkey_to_chr_indices(smk.wildcards["refset_key"])
+    chr_indices = config.refsetkey_to_chr_indices(
+        RefsetKey(smk.wildcards["refset_key"])
+    )
     fs = tuple(["#", *[f"{i.chr_name}\t" for i in chr_indices]])
 
     def make_sub(i: ChrIndex) -> Callable[[str], str]:
@@ -26,7 +28,7 @@ def filter_file(smk, config: StratoMod, fi: io.TextIOWrapper) -> None:
             return s[len(chr_prefix) :]  # noqa: ignore=E203
         return s
 
-    def tolines(f: io.TextIOWrapper):
+    def tolines(f: io.TextIOWrapper) -> None:
         f.writelines(
             (subY(subX(y)) for x in fi if (y := remove_prefix(x)).startswith(fs)),
         )
@@ -39,7 +41,7 @@ def filter_file(smk, config: StratoMod, fi: io.TextIOWrapper) -> None:
             tolines(fo)
 
 
-def main(smk, config: StratoMod) -> None:
+def main(smk: Any, config: StratoMod) -> None:
     if str(smk.input[0]).endswith(".gz"):
         with gzip.open(smk.input[0], "rt") as f:
             filter_file(smk, config, f)

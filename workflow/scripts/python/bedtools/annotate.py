@@ -1,5 +1,6 @@
 from functools import reduce
-from typing import List
+import pandas as pd
+from typing import List, Any
 import numpy as np
 from pybedtools import BedTool as bt  # type: ignore
 from common.tsv import read_tsv, write_tsv
@@ -9,7 +10,7 @@ import common.config as cfg
 logger = setup_logging(snakemake.log[0])  # type: ignore
 
 
-def left_outer_intersect(left, path):
+def left_outer_intersect(left: pd.DataFrame, path: str) -> pd.DataFrame:
     logger.info("Adding annotations from %s", path)
 
     # Use bedtools to perform left-outer join of two bed/tsv files. Since
@@ -50,7 +51,12 @@ def left_outer_intersect(left, path):
     return new_df.drop(columns=new_pky)
 
 
-def intersect_tsvs(config: cfg.StratoMod, ifile: str, ofile: str, tsv_paths: List[str]):
+def intersect_tsvs(
+    config: cfg.StratoMod,
+    ifile: str,
+    ofile: str,
+    tsv_paths: List[str],
+) -> None:
     target_df = read_tsv(ifile)
     new_df = reduce(left_outer_intersect, tsv_paths, target_df)
     new_df.insert(
@@ -61,7 +67,7 @@ def intersect_tsvs(config: cfg.StratoMod, ifile: str, ofile: str, tsv_paths: Lis
     write_tsv(ofile, new_df)
 
 
-def main(smk, config: cfg.StratoMod) -> None:
+def main(smk: Any, config: cfg.StratoMod) -> None:
     tsvs = smk.input.annotations
     vcf = smk.input.variants[0]
     logger.info("Adding annotations to %s\n", vcf)

@@ -2,6 +2,7 @@ import re
 import random
 from pathlib import Path
 from typing import (
+    Type,
     TypeVar,
     Sequence,
     Dict,
@@ -18,7 +19,7 @@ from typing import (
     Any,
     cast,
 )
-from typing_extensions import Annotated
+from typing_extensions import Annotated, Self
 from more_itertools import flatten, duplicates_everseen, unzip, partition
 from itertools import product
 from .functional import maybe
@@ -37,6 +38,7 @@ from pydantic import (
 )
 from enum import Enum, auto
 
+# TODO shouldn't all these really be nonempty strings?
 RefKey = NewType("RefKey", str)
 RefsetKey = NewType("RefsetKey", str)
 TestKey = NewType("TestKey", str)
@@ -56,8 +58,9 @@ Fraction = Annotated[float, confloat(ge=0, le=1, allow_inf_nan=False)]
 
 
 class ListEnum(Enum):
+    # TODO any type?
     @classmethod
-    def all(cls):
+    def all(cls: Type[Self]) -> List[Any]:
         return [x.value for x in cls]
 
 
@@ -193,7 +196,11 @@ class Truncation(BaseModel):
     upper: Optional[float] = None
 
     @validator("upper")
-    def lower_less_than_upper(cls, v: Optional[float], values) -> Optional[float]:
+    def lower_less_than_upper(
+        cls: "Type[Truncation]",
+        v: Optional[float],
+        values: Dict[str, Any],
+    ) -> Optional[float]:
         lower = values["lower"]
         if v is not None and values["lower"] is not None:
             assert lower <= v
@@ -368,8 +375,8 @@ class BedIndex(BaseModel):
     start: NonEmptyStr
     end: NonEmptyStr
 
-    def bed_cols_ordered(self) -> List[str]:
-        return [self.chr, self.start, self.end]
+    def bed_cols_ordered(self) -> List[FeatureKey]:
+        return [FeatureKey(x) for x in [self.chr, self.start, self.end]]
 
     def bed_cols_indexed(self, indices: Tuple[int, int, int]) -> Dict[int, str]:
         return dict(zip(indices, self.bed_cols_ordered()))
@@ -398,10 +405,51 @@ class VCFMeta(FeatureGroup):
     columns: VCFColumns
 
     @validator("columns")
-    def prefix_columns(cls, columns: VCFColumns, values) -> VCFColumns:
+    def prefix_columns(
+        cls: "Type[VCFMeta]",
+        columns: VCFColumns,
+        values: Dict[str, Any],
+    ) -> VCFColumns:
         return VCFColumns(
             **{k: f"{values['prefix']}_{v}" for k, v in columns.dict().items()}
         )
+
+    # TODO use template haskell here :(
+    @property
+    def input_name(self: Self) -> FeatureKey:
+        return self.fmt_feature(self.columns.input)
+
+    @property
+    def qual_name(self: Self) -> FeatureKey:
+        return self.fmt_feature(self.columns.qual)
+
+    @property
+    def filter_name(self: Self) -> FeatureKey:
+        return self.fmt_feature(self.columns.filter)
+
+    @property
+    def info_name(self: Self) -> FeatureKey:
+        return self.fmt_feature(self.columns.info)
+
+    @property
+    def gt_name(self: Self) -> FeatureKey:
+        return self.fmt_feature(self.columns.gt)
+
+    @property
+    def gq_name(self: Self) -> FeatureKey:
+        return self.fmt_feature(self.columns.gq)
+
+    @property
+    def dp_name(self: Self) -> FeatureKey:
+        return self.fmt_feature(self.columns.dp)
+
+    @property
+    def vaf_name(self: Self) -> FeatureKey:
+        return self.fmt_feature(self.columns.vaf)
+
+    @property
+    def len_name(self: Self) -> FeatureKey:
+        return self.fmt_feature(self.columns.len)
 
     def str_feature_names(self) -> List[FeatureKey]:
         cs = self.columns
@@ -615,8 +663,12 @@ class FeatureMeta(BaseModel):
     tandem_repeats: TandemRepeatMeta
     variables: Variables
 
-    def all_index_cols(self) -> List[str]:
-        return [self.raw_index, *self.bed_index.bed_cols_ordered()]
+    @property
+    def label_name(self: Self) -> FeatureKey:
+        return FeatureKey(self.label)
+
+    def all_index_cols(self) -> List[FeatureKey]:
+        return [FeatureKey(self.raw_index), *self.bed_index.bed_cols_ordered()]
 
     def all_feature_names(self) -> Set[FeatureKey]:
         return set(
@@ -662,7 +714,11 @@ class StratoMod(BaseModel):
     models: Dict[ModelKey, Model]
 
     @validator("reference_sets", each_item=True)
-    def refsets_have_valid_refkeys(cls, v: RefSet, values) -> RefSet:
+    def refsets_have_valid_refkeys(
+        cls: Type[Self],
+        v: RefSet,
+        values: Dict[str, Any],
+    ) -> RefSet:
         if "reference" in values:
             assert (
                 v.ref in values["references"]
@@ -670,7 +726,11 @@ class StratoMod(BaseModel):
         return v
 
     @validator("labeled_queries", "unlabeled_queries", each_item=True)
-    def inputs_have_valid_refsetkeys(cls, v: VCFInput, values) -> VCFInput:
+    def inputs_have_valid_refsetkeys(
+        cls: Type[Self],
+        v: VCFInput,
+        values: Dict[str, Any],
+    ) -> VCFInput:
         if "reference_sets" in values:
             assert (
                 v.refset in values["reference_sets"]
@@ -678,7 +738,11 @@ class StratoMod(BaseModel):
         return v
 
     @validator("labeled_queries", "unlabeled_queries", each_item=True)
-    def inputs_have_valid_variables(cls, v: VCFInput, values) -> VCFInput:
+    def inputs_have_valid_variables(
+        cls: Type[Self],
+        v: VCFInput,
+        values: Dict[str, Any],
+    ) -> VCFInput:
         if "feature_meta" in values:
             var_root = cast(FeatureMeta, values["feature_meta"]).variables
             for varname, varval in v.variables.items():
@@ -686,7 +750,11 @@ class StratoMod(BaseModel):
         return v
 
     @validator("labeled_queries", each_item=True)
-    def inputs_have_valid_benchkeys(cls, v: LabeledVCFInput, values) -> LabeledVCFInput:
+    def inputs_have_valid_benchkeys(
+        cls: Type[Self],
+        v: LabeledVCFInput,
+        values: Dict[str, Any],
+    ) -> LabeledVCFInput:
         if "reference_sets" in values and "references" in values:
             ref_key = values["reference_sets"][v.refset].ref
             ref_benchmarks = values["references"][ref_key].benchmarks
@@ -696,7 +764,11 @@ class StratoMod(BaseModel):
         return v
 
     @validator("unlabeled_queries")
-    def input_keys_unique(cls, v: UnlabeledQueries, values) -> UnlabeledQueries:
+    def input_keys_unique(
+        cls: Type[Self],
+        v: UnlabeledQueries,
+        values: Dict[str, Any],
+    ) -> UnlabeledQueries:
         try:
             assert set(v).isdisjoint(
                 set(values["labeled_queries"])
@@ -706,20 +778,28 @@ class StratoMod(BaseModel):
         return v
 
     @validator("models", each_item=True)
-    def models_have_valid_features(cls, v: Model, values) -> Model:
+    def models_have_valid_features(
+        cls: Type[Self],
+        v: Model,
+        values: Dict[str, Any],
+    ) -> Model:
         if "feature_meta" in values:
             features = values["feature_meta"].all_feature_names()
             assert_subset(set(v.features), features)
         return v
 
     @validator("models", each_item=True)
-    def models_have_valid_features_alt(cls, v: Model) -> Model:
+    def models_have_valid_features_alt(cls: Type[Self], v: Model) -> Model:
         # TODO dry?
         assert_no_dups(flatten_features(v.features), "Duplicated features")
         return v
 
     @validator("models", each_item=True)
-    def models_have_valid_interactions(cls, v: Model, values) -> Model:
+    def models_have_valid_interactions(
+        cls: Type[Self],
+        v: Model,
+        values: Dict[str, Any],
+    ) -> Model:
         if isinstance(v.interactions, set):
             features = set(flatten_features(v.features))
             interactions = set(
@@ -732,21 +812,33 @@ class StratoMod(BaseModel):
         return v
 
     @validator("models", each_item=True)
-    def models_have_valid_runs_train(cls, v: Model, values) -> Model:
+    def models_have_valid_runs_train(
+        cls: Type[Self],
+        v: Model,
+        values: Dict[str, Any],
+    ) -> Model:
         if "inputs" in values:
             train = [t for r in v.runs.values() for t in r.train]
             assert_subset(set(train), set(values["inputs"]))
         return v
 
     @validator("models", each_item=True)
-    def models_have_valid_runs_test(cls, v: Model, values) -> Model:
+    def models_have_valid_runs_test(
+        cls: Type[Self],
+        v: Model,
+        values: Dict[str, Any],
+    ) -> Model:
         if "inputs" in values:
             tests = [t.query_key for r in v.runs.values() for t in r.test.values()]
             assert_subset(set(tests), set(values["inputs"]))
         return v
 
     @validator("models", each_item=True)
-    def models_have_valid_runs_test_variables(cls, v: Model, values) -> Model:
+    def models_have_valid_runs_test_variables(
+        cls: Type[Self],
+        v: Model,
+        values: Dict[str, Any],
+    ) -> Model:
         if "feature_meta" in values:
             var_root = cast(FeatureMeta, values["feature_meta"]).variables
             varpairs = [
@@ -978,7 +1070,7 @@ class StratoMod(BaseModel):
     # the config in rmarkdown, just return a blank dict. Returning a real dict
     # will work assuming all the types in the underlying structure are hashable
     # but not all will convert to R types (eg enum, which is silly)
-    def items(self):
+    def items(self: Self) -> Any:
         return {}.items()
 
 
@@ -1102,7 +1194,7 @@ def all_input_summary_files(
     labeled_target: InputFiles,
     unlabeled_target: InputFiles,
 ) -> InputFiles:
-    def labeled_targets(target: InputFiles, key_set: List[RunKeysTrain]):
+    def labeled_targets(target: InputFiles, key_set: List[RunKeysTrain]) -> InputFiles:
         return expand(
             target,
             zip,
@@ -1204,13 +1296,13 @@ _constraints = {
 all_wildcards = {k: f"{{{k},{v}}}" for k, v in _constraints.items()}
 
 
-def wildcard_ext(key, ext):
+def wildcard_ext(key: str, ext: str) -> str:
     return f"{all_wildcards[key]}.{ext}"
 
 
-def wildcard_format(format_str, *keys):
+def wildcard_format(format_str: str, *keys: str) -> str:
     return format_str.format(*[all_wildcards[k] for k in keys])
 
 
-def wildcard_format_ext(format_str, keys, ext):
+def wildcard_format_ext(format_str: str, keys: str, ext: str) -> str:
     return wildcard_format(f"{format_str}.{ext}", *keys)

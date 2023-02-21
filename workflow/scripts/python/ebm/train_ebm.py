@@ -1,6 +1,6 @@
 import pandas as pd
 import yaml
-from typing import Union, List, Set, cast
+from typing import Union, List, Any
 from more_itertools import flatten
 from sklearn.model_selection import train_test_split  # type: ignore
 from interpret.glassbox import ExplainableBoostingClassifier  # type: ignore
@@ -12,25 +12,23 @@ import common.config as cfg
 logger = setup_logging(snakemake.log[0])  # type: ignore
 
 
-def _write_tsv(smk, key: str, df: pd.DataFrame) -> None:
+def _write_tsv(smk: Any, key: str, df: pd.DataFrame) -> None:
     write_tsv(smk.output[key], df, header=True)
 
 
-def dump_config(smk, config: cfg.Model) -> None:
+def dump_config(smk: Any, config: cfg.Model) -> None:
     with open(smk.output["config"], "w") as f:
         yaml.dump(config, f)
 
 
 def get_interactions(
     df_columns: List[cfg.FeatureKey],
-    iconfig: Union[int, Set[Union[cfg.FeatureKey, cfg.FeaturePair]]],
-) -> Union[int, List[cfg.FeatureKey]]:
-    def expand_interactions(i):
+    iconfig: Union[int, cfg.InteractionSpec],
+) -> Union[int, List[List[int]]]:
+    def expand_interactions(i: cfg.InteractionSpec_) -> List[List[int]]:
         if isinstance(i, str):
             return [
-                [df_columns.index(cast(cfg.FeatureKey, i)), c]
-                for c, f in enumerate(df_columns)
-                if f != i
+                [df_columns.index(i), c] for c, f in enumerate(df_columns) if f != i
             ]
         else:
             return [[df_columns.index(i.f1), df_columns.index(i.f2)]]
@@ -42,14 +40,14 @@ def get_interactions(
 
 
 def train_ebm(
-    smk,
+    smk: Any,
     sconf: cfg.StratoMod,
     rconf: cfg.Model,
     df: pd.DataFrame,
 ) -> None:
     label = (sconf.feature_meta.label,)
 
-    def strip_coords(df):
+    def strip_coords(df: pd.DataFrame) -> pd.DataFrame:
         return df.drop(columns=sconf.feature_meta.all_index_cols())
 
     features = rconf.features
@@ -100,7 +98,7 @@ def train_ebm(
     _write_tsv(smk, "test_y", y_test)
 
 
-def main(smk, sconf: cfg.StratoMod) -> None:
+def main(smk: Any, sconf: cfg.StratoMod) -> None:
     rconf = sconf.models[smk.wildcards.model_key]
     df = read_tsv(smk.input[0])
     train_ebm(smk, sconf, rconf, df)

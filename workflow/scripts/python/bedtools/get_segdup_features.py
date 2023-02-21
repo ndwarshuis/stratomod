@@ -31,7 +31,7 @@ def read_segdups(
     bed_mapping = bed_cols.bed_cols_indexed((1, 2, 3))
     chr_filter = config.refsetkey_to_chr_filter(
         lambda r: r.annotations.superdups.chr_prefix,
-        smk.wildcards["refset_key"],
+        cfg.RefsetKey(smk.wildcards["refset_key"]),
     )
     return read_bed_df(path, bed_mapping, feature_cols, chr_filter)
 
@@ -45,7 +45,7 @@ def merge_segdups(
     return bed.to_dataframe(names=names)
 
 
-def main(smk, config: cfg.StratoMod) -> None:
+def main(smk: Any, config: cfg.StratoMod) -> None:
     fconf = config.feature_meta.segdups
     bed_cols = config.feature_meta.bed_index
     repeat_df = read_segdups(smk, config, smk.input[0], fconf, bed_cols)

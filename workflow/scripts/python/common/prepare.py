@@ -1,10 +1,8 @@
 import pandas as pd
 import numpy as np
 import common.config as cfg
-from typing import List, Set, Dict
-from functools import partial
+from typing import List, Set, Dict, Optional
 from more_itertools import duplicates_everseen
-from common.functional import compose
 
 # TODO don't hardcode this (and also turn into a list)
 FILTERED_VAL = "RefCall"
@@ -37,7 +35,7 @@ def process_columns(
     return df
 
 
-def check_columns(wanted_cols: List[str], df_cols: List[str]) -> None:
+def check_columns(wanted_cols: List[cfg.FeatureKey], df_cols: List[str]) -> None:
     def assert_dups(xs: List[str], msg: str) -> Set[str]:
         dups = [*duplicates_everseen(xs)]
         assert 0 == len(dups), f"{msg}: {dups}"
@@ -55,8 +53,8 @@ def check_columns(wanted_cols: List[str], df_cols: List[str]) -> None:
 
 def select_columns(
     features: Dict[cfg.FeatureKey, cfg.Feature],
-    idx_cols: List[str],
-    label_col: str,
+    idx_cols: List[cfg.FeatureKey],
+    label_col: Optional[cfg.FeatureKey],
     df: pd.DataFrame,
 ) -> pd.DataFrame:
     wanted_cols = [*features] if label_col is None else [*features, label_col]
@@ -74,7 +72,7 @@ def mask_labels(
     label_col: str,
     filter_col: str,
     df: pd.DataFrame,
-):
+) -> pd.DataFrame:
     # if we don't want to include filtered labels (from the perspective of
     # the truth set) they all become false negatives
     def mask(row: Dict[str, str]) -> str:
@@ -109,11 +107,11 @@ def process_labeled_data(
     features: Dict[cfg.FeatureKey, cfg.Feature],
     error_labels: Set[cfg.ErrorLabel],
     filtered_are_candidates: bool,
-    idx_cols: List[str],
+    idx_cols: List[cfg.FeatureKey],
     filter_col: str,
-    label_col: str,
+    label_col: cfg.FeatureKey,
     df: pd.DataFrame,
-):
+) -> pd.DataFrame:
     # select columns after transforms to avoid pandas asking me to make a
     # deep copy (which will happen on a slice of a slice)
     return collapse_labels(
@@ -133,8 +131,9 @@ def process_labeled_data(
     )
 
 
-def process_unlabeled_data(features, idx_cols, df):
-    return compose(
-        partial(select_columns, features, idx_cols, None),
-        partial(process_columns, features),
-    )(df)
+def process_unlabeled_data(
+    features: Dict[cfg.FeatureKey, cfg.Feature],
+    idx_cols: List[cfg.FeatureKey],
+    df: pd.DataFrame,
+) -> pd.DataFrame:
+    return select_columns(features, idx_cols, None, process_columns(features, df))

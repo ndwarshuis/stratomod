@@ -49,7 +49,7 @@ def read_tandem_repeats(
     bed_mapping = bed_cols.bed_cols_indexed((1, 2, 3))
     chr_filter = sconf.refsetkey_to_chr_filter(
         lambda r: r.annotations.simreps.chr_prefix,
-        smk.wildcards["refset_key"],
+        cfg.RefsetKey(smk.wildcards["refset_key"]),
     )
     df = read_bed_df(path, bed_mapping, feature_cols, chr_filter)
     df[fmt_base("AT")] = df[perc_a_col] + df[perc_t_col]
@@ -77,7 +77,7 @@ def merge_tandem_repeats(
     return merged_df
 
 
-def main(smk, sconf: cfg.StratoMod) -> None:
+def main(smk: Any, sconf: cfg.StratoMod) -> None:
     i = smk.input
     bed_cols = sconf.feature_meta.bed_index
     fconf = sconf.feature_meta.tandem_repeats

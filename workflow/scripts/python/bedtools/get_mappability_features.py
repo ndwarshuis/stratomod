@@ -1,5 +1,6 @@
 import pandas as pd
 import common.config as cfg
+from typing import Any
 from functools import partial
 from pybedtools import BedTool as bt  # type: ignore
 from common.tsv import read_tsv, write_tsv
@@ -29,9 +30,9 @@ def read_plain_bed(
     )
 
 
-def main(smk, config: cfg.StratoMod) -> None:
+def main(smk: Any, config: cfg.StratoMod) -> None:
     mapconf = config.refsetkey_to_ref(
-        smk.wildcards["refset_key"]
+        cfg.RefsetKey(smk.wildcards["refset_key"])
     ).annotations.mappability
     mapmeta = config.feature_meta.mappability
 

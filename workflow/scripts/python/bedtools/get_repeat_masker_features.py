@@ -28,7 +28,7 @@ def read_rmsk_df(smk: Any, config: cfg.StratoMod, path: str) -> pd.DataFrame:
     bed_mapping = bed_cols.bed_cols_indexed((5, 6, 7))
     chr_filter = config.refsetkey_to_chr_filter(
         lambda r: r.annotations.superdups.chr_prefix,
-        smk.wildcards["refset_key"],
+        cfg.RefsetKey(smk.wildcards["refset_key"]),
     )
     return read_bed_df(path, bed_mapping, COLS, chr_filter)
 
@@ -79,7 +79,7 @@ def parse_output(config: cfg.StratoMod, path: str, df: pd.DataFrame) -> None:
             logger.info("Invalid family/class spec in path: %s", path)
 
 
-def main(smk, config: cfg.StratoMod) -> None:
+def main(smk: Any, config: cfg.StratoMod) -> None:
     rmsk_df = read_rmsk_df(smk, config, smk.input[0])
     for path in smk.output:
         parse_output(config, path, rmsk_df)

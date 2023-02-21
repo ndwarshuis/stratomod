@@ -1,7 +1,7 @@
 import json
 import pandas as pd
 import common.config as cfg
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Any
 from functools import partial
 from common.tsv import read_tsv, write_tsv
 from common.cli import setup_logging
@@ -24,9 +24,9 @@ def read_inputs(
     )
 
 
-def main(smk, sconf: cfg.StratoMod) -> None:
+def main(smk: Any, sconf: cfg.StratoMod) -> None:
     sout = smk.output
-    rconf = sconf.models[smk.wildcards.model_key]
+    rconf = sconf.models[cfg.ModelKey(smk.wildcards.model_key)]
     fconf = sconf.feature_meta
     label_col = fconf.label
     _fmt_vcf_feature = partial(sconf.feature_meta.vcf.fmt_feature, sconf)
@@ -39,7 +39,7 @@ def main(smk, sconf: cfg.StratoMod) -> None:
         rconf.filtered_are_candidates,
         sconf.feature_meta.all_index_cols(),
         filter_col,
-        label_col,
+        cfg.FeatureKey(label_col),
         raw_df,
     )
     with open(sout["paths"], "w") as f:
