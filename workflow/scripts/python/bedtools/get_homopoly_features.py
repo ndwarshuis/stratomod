@@ -3,7 +3,7 @@ import common.config as cfg
 from typing import Any, cast
 from pybedtools import BedTool as bt  # type: ignore
 from pybedtools import cleanup
-from common.tsv import write_tsv, read_tsv
+from common.tsv import write_tsv
 from common.cli import setup_logging
 
 
@@ -19,7 +19,7 @@ SLOP = 1
 def read_input(path: str, bed_cols: cfg.BedIndex) -> pd.DataFrame:
     logger.info("Reading dataframe from %s", path)
     names = [*bed_cols.bed_cols_ordered(), BASE_COL]
-    return read_tsv(path, header=None, comment="#", names=names)
+    return pd.read_table(path, header=None, comment="#", names=names)
 
 
 def merge_base(

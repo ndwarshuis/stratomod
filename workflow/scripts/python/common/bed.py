@@ -2,7 +2,6 @@ import logging
 from itertools import product
 from more_itertools import unzip
 import pandas as pd
-from common.tsv import read_tsv
 import common.config as cfg
 from pybedtools import BedTool as bt  # type: ignore
 
@@ -61,7 +60,7 @@ def read_bed_df(
     chr_filter: cfg.ChrFilter,
 ) -> pd.DataFrame:
     mapping = {**bed_mapping, **col_mapping}
-    df = read_tsv(path, header=None)[[*mapping]].rename(columns=mapping)
+    df = pd.read_table(path, header=None)[[*mapping]].rename(columns=mapping)
     chr_col = df.columns.tolist()[0]
     df_standardized = standardize_chr_column(
         chr_filter.prefix,

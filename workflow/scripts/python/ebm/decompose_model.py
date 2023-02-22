@@ -4,7 +4,7 @@ import numpy as np
 from typing import Any, NamedTuple, Hashable, cast
 from common.cli import setup_logging
 from common.ebm import read_model
-from common.tsv import read_tsv, write_tsv
+from common.tsv import write_tsv
 import common.config as cfg
 from interpret.glassbox import ExplainableBoostingClassifier  # type: ignore
 
@@ -205,8 +205,8 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
     bed_cols = sconf.feature_names.all_index_cols()
 
     def write_predictions(xpath: str, ypath: str, out_path: str) -> None:
-        X = read_tsv(xpath).drop(columns=bed_cols)
-        y = read_tsv(ypath)
+        X = pd.read_table(xpath).drop(columns=bed_cols)
+        y = pd.read_table(ypath)
         y_pred = pd.DataFrame(
             {
                 "prob": ebm.predict_proba(X)[::, 1],

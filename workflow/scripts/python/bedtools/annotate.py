@@ -3,7 +3,6 @@ import pandas as pd
 from typing import Any, cast
 import numpy as np
 from pybedtools import BedTool as bt  # type: ignore
-from common.tsv import read_tsv, write_tsv
 from common.cli import setup_logging
 import common.config as cfg
 
@@ -19,7 +18,7 @@ def left_outer_intersect(left: pd.DataFrame, path: str) -> pd.DataFrame:
     # input (chr, chrStart, chrEnd, which are redundant) can be dropped.
     left_cols = left.columns.tolist()
     left_width = len(left_cols)
-    right = read_tsv(path)
+    right = pd.read_table(path)
     # ASSUME the first three columns are the bed index columns
     right_cols = ["_" + c if i < 3 else c for i, c in enumerate(right.columns.tolist())]
     right_bed = bt.from_dataframe(right)
@@ -58,14 +57,15 @@ def intersect_tsvs(
     ofile: str,
     tsv_paths: list[str],
 ) -> None:
-    target_df = read_tsv(ifile)
+    target_df = pd.read_table(ifile)
     new_df = reduce(left_outer_intersect, tsv_paths, target_df)
     new_df.insert(
         loc=0,
         column=config.feature_names.raw_index,
         value=new_df.index,
     )
-    write_tsv(ofile, new_df)
+    # write_tsv(ofile, new_df)
+    new_df.to_csv(ofile, sep="\t")
 
 
 def main(smk: Any, config: cfg.StratoMod) -> None:

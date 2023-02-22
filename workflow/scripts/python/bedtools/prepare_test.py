@@ -1,6 +1,6 @@
 import pandas as pd
 from typing import Any
-from common.tsv import read_tsv, write_tsv
+from common.tsv import write_tsv
 from common.cli import setup_logging
 import common.config as cfg
 from common.prepare import process_labeled_data, process_unlabeled_data
@@ -53,7 +53,7 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
         cfg.RunKey(wcs["run_key"]),
         cfg.TestKey(wcs["test_key"]),
     )
-    df = read_tsv(sin["annotated"][0]).assign(
+    df = pd.read_table(sin["annotated"][0]).assign(
         **{str(k): v for k, v in variables.items()}
     )
     rconf = sconf.models[cfg.ModelKey(wcs.model_key)]

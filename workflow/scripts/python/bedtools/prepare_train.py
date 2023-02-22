@@ -1,7 +1,7 @@
 import pandas as pd
 import common.config as cfg
 from typing import Any
-from common.tsv import read_tsv, write_tsv
+from common.tsv import write_tsv
 from common.cli import setup_logging
 from common.prepare import process_labeled_data
 
@@ -12,7 +12,7 @@ def read_query(
     config: cfg.StratoMod, path: str, key: cfg.LabeledQueryKey
 ) -> pd.DataFrame:
     variables = config.labeled_queries[key].variables
-    return read_tsv(path).assign(**{str(k): v for k, v in variables.items()})
+    return pd.read_table(path).assign(**{str(k): v for k, v in variables.items()})
 
 
 def read_queries(

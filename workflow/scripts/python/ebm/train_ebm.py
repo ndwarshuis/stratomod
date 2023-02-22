@@ -4,7 +4,7 @@ from typing import Any
 from more_itertools import flatten
 from sklearn.model_selection import train_test_split  # type: ignore
 from interpret.glassbox import ExplainableBoostingClassifier  # type: ignore
-from common.tsv import read_tsv, write_tsv
+from common.tsv import write_tsv
 from common.cli import setup_logging
 from common.ebm import write_model
 import common.config as cfg
@@ -100,7 +100,7 @@ def train_ebm(
 
 def main(smk: Any, sconf: cfg.StratoMod) -> None:
     rconf = sconf.models[smk.wildcards.model_key]
-    df = read_tsv(smk.input[0])
+    df = pd.read_table(smk.input[0])
     train_ebm(smk, sconf, rconf, df)
     dump_config(smk, rconf)
 

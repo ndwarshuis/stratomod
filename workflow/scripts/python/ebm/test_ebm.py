@@ -1,7 +1,7 @@
 import pandas as pd
 from typing import Any
 from common.cli import setup_logging
-from common.tsv import read_tsv, write_tsv
+from common.tsv import write_tsv
 from common.ebm import read_model
 import common.config as cfg
 from interpret.glassbox import ExplainableBoostingClassifier  # type: ignore
@@ -25,7 +25,7 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
     sin = smk.input
     sout = smk.output
     ebm = read_model(sin["model"])
-    predict_x = read_tsv(sin["test_x"]).drop(
+    predict_x = pd.read_table(sin["test_x"]).drop(
         columns=sconf.feature_names.all_index_cols()
     )
     ps, xs = predict_from_x(ebm, predict_x)
