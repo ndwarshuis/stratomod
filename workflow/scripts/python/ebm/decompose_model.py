@@ -1,7 +1,7 @@
 import json
 import pandas as pd
 import numpy as np
-from typing import Any, List, Dict, NamedTuple, Hashable, cast, Tuple
+from typing import Any, NamedTuple, Hashable, cast
 from common.cli import setup_logging
 from common.ebm import read_model
 from common.tsv import read_tsv, write_tsv
@@ -10,7 +10,7 @@ from interpret.glassbox import ExplainableBoostingClassifier  # type: ignore
 
 setup_logging(snakemake.log[0])  # type: ignore
 
-AllFeatures = Dict[str, Tuple[str, int]]
+AllFeatures = dict[str, tuple[str, int]]
 
 
 class Variable(NamedTuple):
@@ -21,18 +21,18 @@ class Variable(NamedTuple):
 class BivariateData(NamedTuple):
     left: Variable
     right: Variable
-    df: Dict[Hashable, Any]
+    df: dict[Hashable, Any]
 
 
 class GlobalScoreData(NamedTuple):
-    variable: List[str]
-    score: List[float]
+    variable: list[str]
+    score: list[float]
 
 
 class UnivariateDF(NamedTuple):
-    value: List[Any]
-    score: List[float]
-    stdev: List[float]
+    value: list[Any]
+    score: list[float]
+    stdev: list[float]
 
 
 class UnivariateData(NamedTuple):
@@ -44,8 +44,8 @@ class UnivariateData(NamedTuple):
 class ModelData(NamedTuple):
     global_scores: GlobalScoreData
     intercept: float
-    univariate: List[UnivariateData]
-    bivariate: List[BivariateData]
+    univariate: list[UnivariateData]
+    bivariate: list[BivariateData]
 
 
 # TODO there is no reason this can't be done immediately after training
@@ -60,7 +60,7 @@ def array_to_list(arr: Any, repeat_last: bool) -> Any:
 def get_univariate_df(
     vartype: str,
     feature_data: Any,
-    stdev: List[float],
+    stdev: list[float],
 ) -> UnivariateDF:
     def proc_scores(scores: Any) -> Any:
         if vartype == "continuous":
@@ -94,7 +94,7 @@ def get_bivariate_df(
     ebm_global: ExplainableBoostingClassifier,
     name: str,
     data_index: int,
-    stdevs: Dict[int, Any],
+    stdevs: dict[int, Any],
 ) -> BivariateData:
     def lookup_feature_type(name: str) -> str:
         return all_features[name][0]
@@ -147,8 +147,8 @@ def get_global_scores(ebm_global: ExplainableBoostingClassifier) -> GlobalScoreD
 def get_univariate_list(
     ebm_global: ExplainableBoostingClassifier,
     all_features: AllFeatures,
-    stdevs: Dict[int, Any],
-) -> List[UnivariateData]:
+    stdevs: dict[int, Any],
+) -> list[UnivariateData]:
     return [
         UnivariateData(
             name=name,
@@ -163,8 +163,8 @@ def get_univariate_list(
 def get_bivariate_list(
     ebm_global: ExplainableBoostingClassifier,
     all_features: AllFeatures,
-    stdevs: Dict[int, Any],
-) -> List[BivariateData]:
+    stdevs: dict[int, Any],
+) -> list[BivariateData]:
     return [
         get_bivariate_df(all_features, ebm_global, name, i, stdevs)
         for name, (vartype, i) in all_features.items()
@@ -174,7 +174,7 @@ def get_bivariate_list(
 
 def get_model(ebm: ExplainableBoostingClassifier) -> ModelData:
     ebm_global = ebm.explain_global()
-    stdevs = cast(Dict[int, Any], ebm.term_standard_deviations_)
+    stdevs = cast(dict[int, Any], ebm.term_standard_deviations_)
     all_features = {
         cast(str, n): (cast(str, t), i)
         for i, (n, t) in enumerate(

@@ -1,5 +1,4 @@
 import logging
-from typing import List, Dict, Tuple, Set
 from itertools import product
 from more_itertools import unzip
 import pandas as pd
@@ -9,7 +8,7 @@ from pybedtools import BedTool as bt  # type: ignore
 
 
 def filter_chromosomes(
-    chr_indices: Set[cfg.ChrIndex], df: pd.DataFrame
+    chr_indices: set[cfg.ChrIndex], df: pd.DataFrame
 ) -> pd.DataFrame:
     cs = [x.value for x in chr_indices]
     if len(cs) > 0:
@@ -57,8 +56,8 @@ def sort_bed_numerically(df: pd.DataFrame, drop_chr: bool = True) -> pd.DataFram
 
 def read_bed_df(
     path: str,
-    bed_mapping: Dict[int, str],
-    col_mapping: Dict[int, str],
+    bed_mapping: dict[int, str],
+    col_mapping: dict[int, str],
     chr_filter: cfg.ChrFilter,
 ) -> pd.DataFrame:
     mapping = {**bed_mapping, **col_mapping}
@@ -81,7 +80,7 @@ def merge_and_apply_stats(
     bed_cols: cfg.BedIndex,
     fconf: cfg.MergedFeatureGroup,
     bed_df: pd.DataFrame,
-) -> Tuple[bt, List[str]]:
+) -> tuple[bt, list[str]]:
     # import this here so we can import other functions in this module
     # without pulling in bedtools
 

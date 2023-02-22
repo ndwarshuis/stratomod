@@ -1,6 +1,6 @@
 import pandas as pd
 import yaml
-from typing import Union, List, Any
+from typing import Any
 from more_itertools import flatten
 from sklearn.model_selection import train_test_split  # type: ignore
 from interpret.glassbox import ExplainableBoostingClassifier  # type: ignore
@@ -22,10 +22,10 @@ def dump_config(smk: Any, config: cfg.Model) -> None:
 
 
 def get_interactions(
-    df_columns: List[cfg.FeatureKey],
-    iconfig: Union[int, cfg.InteractionSpec],
-) -> Union[int, List[List[int]]]:
-    def expand_interactions(i: cfg.InteractionSpec_) -> List[List[int]]:
+    df_columns: list[cfg.FeatureKey],
+    iconfig: int | cfg.InteractionSpec,
+) -> int | list[list[int]]:
+    def expand_interactions(i: cfg.InteractionSpec_) -> list[list[int]]:
         if isinstance(i, str):
             return [
                 [df_columns.index(i), c] for c, f in enumerate(df_columns) if f != i

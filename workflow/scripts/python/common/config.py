@@ -5,11 +5,6 @@ from typing import (
     Type,
     TypeVar,
     Sequence,
-    Dict,
-    List,
-    Tuple,
-    Union,
-    Set,
     Iterable,
     Collection,
     Callable,
@@ -51,27 +46,27 @@ FeatureKey = NewType("FeatureKey", str)
 VarKey = NewType("VarKey", str)
 ChrPrefix = NewType("ChrPrefix", str)
 
-QueryKey = Union[UnlabeledQueryKey, LabeledQueryKey]
+QueryKey = UnlabeledQueryKey | LabeledQueryKey
 
 
 Fraction = Annotated[float, confloat(ge=0, le=1, allow_inf_nan=False)]
 
 
-class ListEnum(Enum):
+class listEnum(Enum):
     # TODO any type?
     @classmethod
-    def all(cls: Type[Self]) -> List[Any]:
+    def all(cls: Type[Self]) -> list[Any]:
         return [x.value for x in cls]
 
 
-class Base(ListEnum):
+class Base(listEnum):
     A = "A"
     C = "C"
     G = "G"
     T = "T"
 
 
-class ChrIndex(ListEnum):
+class ChrIndex(listEnum):
     CHR1 = auto()
     CHR2 = auto()
     CHR3 = auto()
@@ -111,26 +106,26 @@ class ChrIndex(ListEnum):
 
 class ChrFilter(NamedTuple):
     prefix: ChrPrefix
-    indices: Set[ChrIndex]
+    indices: set[ChrIndex]
 
 
-class FilterKey(ListEnum):
+class FilterKey(listEnum):
     SNV = "SNV"
     INDEL = "INDEL"
 
 
-class ErrorLabel(ListEnum):
+class ErrorLabel(listEnum):
     FP = "fp"
     FN = "fn"
 
 
-class VCFLabel(ListEnum):
+class VCFLabel(listEnum):
     FP = "fp"
     FN = "fn"
     TP = "tp"
 
 
-class AnyLabel(ListEnum):
+class AnyLabel(listEnum):
     FP = "fp"
     FN = "fn"
     TP = "tp"
@@ -165,7 +160,7 @@ class Transform(Enum):
     BINARY = "binary"
 
 
-def alternate_constraint(xs: List[str]) -> str:
+def alternate_constraint(xs: list[str]) -> str:
     return f"({'|'.join(xs)})"
 
 
@@ -182,13 +177,13 @@ class Paths(BaseModel):
     log: Path
 
 
-class RefSet(BaseModel):
+class Refset(BaseModel):
     ref: RefKey
-    chr_filter: Set[ChrIndex]
+    chr_filter: set[ChrIndex]
 
 
 class CatVar(BaseModel):
-    levels: Annotated[Set[str], conset(str, min_items=1)]
+    levels: Annotated[set[str], conset(str, min_items=1)]
 
 
 class Range(BaseModel):
@@ -199,7 +194,7 @@ class Range(BaseModel):
     def lower_less_than_upper(
         cls: "Type[Range]",
         v: Optional[float],
-        values: Dict[str, Any],
+        values: dict[str, Any],
     ) -> Optional[float]:
         lower = values["lower"]
         if v is not None and values["lower"] is not None:
@@ -222,12 +217,12 @@ class ContVar(Range):
 
 class TestDataInput(BaseModel):
     query_key: QueryKey
-    variables: Dict[VarKey, str]
+    variables: dict[VarKey, str]
 
 
 class ModelRun(BaseModel):
-    train: Annotated[Set[LabeledQueryKey], conset(LabeledQueryKey, min_items=1)]
-    test: Dict[TestKey, TestDataInput]
+    train: Annotated[set[LabeledQueryKey], conset(LabeledQueryKey, min_items=1)]
+    test: dict[TestKey, TestDataInput]
 
 
 class EBMMiscParams(BaseModel):
@@ -255,7 +250,7 @@ class EBMClassifierParams(BaseModel):
     random_state: Optional[int] = None
 
 
-class EBMSettings(BaseModel):
+class EBMsettings(BaseModel):
     misc_parameters: EBMMiscParams = EBMMiscParams()
     split_parameters: EBMSplitParams = EBMSplitParams()
     classifier_parameters: EBMClassifierParams = EBMClassifierParams()
@@ -268,7 +263,7 @@ class Visualization(BaseModel):
 
     # convert to R-friendly dict for use in rmarkdown scripts
     @property
-    def r_dict(self) -> Dict[Any, Any]:
+    def r_dict(self) -> dict[Any, Any]:
         return {**self.dict(), **{"plot_type": self.plot_type.value}}
 
 
@@ -281,7 +276,7 @@ class Feature(BaseModel):
 
     # convert to R-friendly dict for use in rmarkdown scripts
     @property
-    def r_dict(self) -> Dict[Any, Any]:
+    def r_dict(self) -> dict[Any, Any]:
         return {
             **self.dict(),
             **{
@@ -299,25 +294,25 @@ class FeaturePair(BaseModel):
 # NOTE need to use conlist vs set here since this will contain another
 # pydantic model class, which will prevent the overall model from being
 # converted to a dict (see https://github.com/pydantic/pydantic/issues/1090)
-InteractionSpec_ = Union[FeatureKey, FeaturePair]
+InteractionSpec_ = FeatureKey | FeaturePair
 InteractionSpec = Annotated[
-    List[InteractionSpec_], conlist(InteractionSpec_, unique_items=True)
+    list[InteractionSpec_], conlist(InteractionSpec_, unique_items=True)
 ]
 
 
 class Model(BaseModel):
-    runs: Dict[RunKey, ModelRun]
-    filter: Set[FilterKey]
-    ebm_settings: EBMSettings
-    error_labels: Annotated[Set[ErrorLabel], conset(ErrorLabel, min_items=1)]
+    runs: dict[RunKey, ModelRun]
+    filter: set[FilterKey]
+    ebm_settings: EBMsettings
+    error_labels: Annotated[set[ErrorLabel], conset(ErrorLabel, min_items=1)]
     filtered_are_candidates: bool
-    interactions: Union[NonNegativeInt, InteractionSpec] = 0
-    features: Dict[FeatureKey, Feature]
+    interactions: NonNegativeInt | InteractionSpec = 0
+    features: dict[FeatureKey, Feature]
 
     @validator("features")
     def model_has_matching_alt_features(
-        cls, fs: Dict[FeatureKey, Feature]
-    ) -> Dict[FeatureKey, Feature]:
+        cls, fs: dict[FeatureKey, Feature]
+    ) -> dict[FeatureKey, Feature]:
         for k, v in fs.items():
             alt = v.alt_name
             if alt is not None:
@@ -364,7 +359,7 @@ class Reference(BaseModel):
     genome: BedFile
     strats: Strats
     annotations: Annotations
-    benchmarks: Dict[BenchKey, Benchmark]
+    benchmarks: dict[BenchKey, Benchmark]
 
 
 Prefix = Annotated[str, constr(regex="[A-Z]+")]
@@ -377,10 +372,10 @@ class BedIndex(BaseModel):
     start: NonEmptyStr
     end: NonEmptyStr
 
-    def bed_cols_ordered(self) -> List[FeatureKey]:
+    def bed_cols_ordered(self) -> list[FeatureKey]:
         return [FeatureKey(x) for x in [self.chr, self.start, self.end]]
 
-    def bed_cols_indexed(self, indices: Tuple[int, int, int]) -> Dict[int, str]:
+    def bed_cols_indexed(self, indices: tuple[int, int, int]) -> dict[int, str]:
         return dict(zip(indices, self.bed_cols_ordered()))
 
 
@@ -439,10 +434,10 @@ class VCFGroup(FeatureGroup):
     def len_name(self: Self) -> FeatureKey:
         return self.fmt_feature(self.columns.len)
 
-    def str_feature_names(self) -> List[FeatureKey]:
+    def str_feature_names(self) -> list[FeatureKey]:
         return [self.filter_name, self.info_name, self.gt_name, self.gq_name]
 
-    def feature_names(self) -> List[FeatureKey]:
+    def feature_names(self) -> list[FeatureKey]:
         return [
             self.qual_name,
             self.filter_name,
@@ -471,7 +466,7 @@ class MapGroup(FeatureGroup):
     def high(self) -> FeatureKey:
         return self.fmt_feature(self.suffixes.high)
 
-    def feature_names(self) -> List[FeatureKey]:
+    def feature_names(self) -> list[FeatureKey]:
         return [self.low, self.high]
 
 
@@ -481,7 +476,7 @@ class HomopolySuffixes(BaseModel):
 
 
 class HomopolyGroup(FeatureGroup):
-    bases: Set[Base]
+    bases: set[Base]
     suffixes: HomopolySuffixes
 
     def _fmt_name(self, bases: Base, which: str) -> FeatureKey:
@@ -493,17 +488,17 @@ class HomopolyGroup(FeatureGroup):
     def fmt_name_imp_frac(self, base: Base) -> FeatureKey:
         return self._fmt_name(base, self.suffixes.imp_frac)
 
-    def feature_names(self) -> List[FeatureKey]:
+    def feature_names(self) -> list[FeatureKey]:
         return [self.fmt_name_len(b) for b in self.bases] + [
             self.fmt_name_imp_frac(b) for b in self.bases
         ]
 
 
 class RMSKGroup(FeatureGroup):
-    SINE: Set[NonEmptyStr] = set()
-    LINE: Set[NonEmptyStr] = set()
-    LTR: Set[NonEmptyStr] = set()
-    Satellite: Set[NonEmptyStr] = set()
+    SINE: set[NonEmptyStr] = set()
+    LINE: set[NonEmptyStr] = set()
+    LTR: set[NonEmptyStr] = set()
+    Satellite: set[NonEmptyStr] = set()
 
     # TODO weakly typed
     def fmt_name(
@@ -515,7 +510,7 @@ class RMSKGroup(FeatureGroup):
         rest = maybe(grp, lambda f: f"{grp}_{fam}", fam)
         return self.fmt_feature(f"{rest}_length")
 
-    def feature_names(self) -> List[FeatureKey]:
+    def feature_names(self) -> list[FeatureKey]:
         def fmt(grp: str, fam: Optional[str]) -> FeatureKey:
             return self.fmt_name(grp, fam)
 
@@ -526,7 +521,7 @@ class RMSKGroup(FeatureGroup):
 
 
 class MergedFeatureGroup(FeatureGroup):
-    operations: Set[BedMergeOp]
+    operations: set[BedMergeOp]
 
     def fmt_count_feature(self) -> FeatureKey:
         return self.fmt_feature("count")
@@ -534,7 +529,7 @@ class MergedFeatureGroup(FeatureGroup):
     def fmt_merged_feature(self, middle: str, op: BedMergeOp) -> FeatureKey:
         return self.fmt_feature(f"{middle}_{op.value}")
 
-    def merged_feature_names(self, names: List[str]) -> List[FeatureKey]:
+    def merged_feature_names(self, names: list[str]) -> list[FeatureKey]:
         return [
             *[
                 self.fmt_merged_feature(n, o)
@@ -552,7 +547,7 @@ class SegDupsColumns(BaseModel):
 class SegDupsGroup(MergedFeatureGroup):
     columns: SegDupsColumns
 
-    def feature_names(self) -> List[FeatureKey]:
+    def feature_names(self) -> list[FeatureKey]:
         return self.merged_feature_names(list(self.columns.dict().values()))
 
 
@@ -596,7 +591,7 @@ class TandemRepeatGroup(MergedFeatureGroup):
     # def GC_name(self) -> FeatureKey:
     #     return self.fmt_feature(self.other.GC)
 
-    def feature_names(self) -> List[FeatureKey]:
+    def feature_names(self) -> list[FeatureKey]:
         # TODO weirdly hardcoded in several places
         bases = ["A", "T", "G", "C", "AT", "GC"]
         bs = [self.fmt_name_base(b) for b in bases]
@@ -618,7 +613,7 @@ class UnlabeledVCFInput(BaseModel):
     refset: RefsetKey
     chr_prefix: ChrPrefix
     url: Optional[HttpUrl]
-    variables: Dict[VarKey, str]
+    variables: dict[VarKey, str]
     format_fields: FormatFields = FormatFields()
     max_ref: Annotated[int, conint(ge=0)] = 50
     max_alt: Annotated[int, conint(ge=0)] = 50
@@ -628,17 +623,17 @@ class LabeledVCFInput(UnlabeledVCFInput):
     benchmark: BenchKey
 
 
-VCFInput = Union[UnlabeledVCFInput, LabeledVCFInput]
+VCFInput = UnlabeledVCFInput | LabeledVCFInput
 
 
 class VariableGroup(FeatureGroup):
-    continuous: Dict[VarKey, ContVar]
-    categorical: Dict[VarKey, CatVar]
+    continuous: dict[VarKey, ContVar]
+    categorical: dict[VarKey, CatVar]
 
-    def all_keys(self) -> List[VarKey]:
+    def all_keys(self) -> list[VarKey]:
         return list(self.continuous) + list(self.categorical)
 
-    def feature_names(self) -> List[FeatureKey]:
+    def feature_names(self) -> list[FeatureKey]:
         return [self.fmt_feature(x) for x in self.all_keys()]
 
     # not a pydantic validator; requires lots of data from parent classes
@@ -672,10 +667,10 @@ class FeatureNames(BaseModel):
     def label_name(self: Self) -> FeatureKey:
         return FeatureKey(self.label)
 
-    def all_index_cols(self) -> List[FeatureKey]:
+    def all_index_cols(self) -> list[FeatureKey]:
         return [FeatureKey(self.raw_index), *self.bed_index.bed_cols_ordered()]
 
-    def all_feature_names(self) -> Set[FeatureKey]:
+    def all_feature_names(self) -> set[FeatureKey]:
         return set(
             [
                 *self.vcf.feature_names(),
@@ -689,7 +684,7 @@ class FeatureNames(BaseModel):
         )
 
     @property
-    def non_summary_cols(self) -> List[FeatureKey]:
+    def non_summary_cols(self) -> list[FeatureKey]:
         return [
             FeatureKey(x)
             for x in (self.all_index_cols() + self.vcf.str_feature_names())
@@ -700,30 +695,30 @@ class Tools(BaseModel):
     repseq: HttpUrl
 
 
-def flatten_features(fs: Dict[FeatureKey, Feature]) -> List[FeatureKey]:
+def flatten_features(fs: dict[FeatureKey, Feature]) -> list[FeatureKey]:
     return [k if v.alt_name is None else v.alt_name for k, v in fs.items()]
 
 
-LabeledQueries = Dict[LabeledQueryKey, LabeledVCFInput]
-UnlabeledQueries = Dict[UnlabeledQueryKey, UnlabeledVCFInput]
+LabeledQueries = dict[LabeledQueryKey, LabeledVCFInput]
+UnlabeledQueries = dict[UnlabeledQueryKey, UnlabeledVCFInput]
 
 
 class StratoMod(BaseModel):
     paths: Paths
     tools: Tools
     feature_names: FeatureNames
-    references: Dict[RefKey, Reference]
-    reference_sets: Dict[RefsetKey, RefSet]
+    references: dict[RefKey, Reference]
+    reference_sets: dict[RefsetKey, Refset]
     labeled_queries: LabeledQueries
     unlabeled_queries: UnlabeledQueries
-    models: Dict[ModelKey, Model]
+    models: dict[ModelKey, Model]
 
     @validator("reference_sets", each_item=True)
     def refsets_have_valid_refkeys(
         cls: Type[Self],
-        v: RefSet,
-        values: Dict[str, Any],
-    ) -> RefSet:
+        v: Refset,
+        values: dict[str, Any],
+    ) -> Refset:
         try:
             assert (
                 v.ref in values["references"]
@@ -736,7 +731,7 @@ class StratoMod(BaseModel):
     def inputs_have_valid_refsetkeys(
         cls: Type[Self],
         v: VCFInput,
-        values: Dict[str, Any],
+        values: dict[str, Any],
     ) -> VCFInput:
         try:
             assert (
@@ -750,7 +745,7 @@ class StratoMod(BaseModel):
     def inputs_have_valid_variables(
         cls: Type[Self],
         v: VCFInput,
-        values: Dict[str, Any],
+        values: dict[str, Any],
     ) -> VCFInput:
         try:
             var_root = cast(FeatureNames, values["feature_names"]).variables
@@ -765,7 +760,7 @@ class StratoMod(BaseModel):
     def inputs_have_valid_benchkeys(
         cls: Type[Self],
         v: LabeledVCFInput,
-        values: Dict[str, Any],
+        values: dict[str, Any],
     ) -> LabeledVCFInput:
         try:
             refsets = values["reference_sets"]
@@ -784,7 +779,7 @@ class StratoMod(BaseModel):
     def input_keys_unique(
         cls: Type[Self],
         v: UnlabeledQueries,
-        values: Dict[str, Any],
+        values: dict[str, Any],
     ) -> UnlabeledQueries:
         try:
             assert set(v).isdisjoint(
@@ -798,7 +793,7 @@ class StratoMod(BaseModel):
     def models_have_valid_features(
         cls: Type[Self],
         v: Model,
-        values: Dict[str, Any],
+        values: dict[str, Any],
     ) -> Model:
         try:
             features = values["feature_names"].all_feature_names()
@@ -818,7 +813,7 @@ class StratoMod(BaseModel):
     def models_have_valid_interactions(
         cls: Type[Self],
         v: Model,
-        values: Dict[str, Any],
+        values: dict[str, Any],
     ) -> Model:
         if isinstance(v.interactions, set):
             features = set(flatten_features(v.features))
@@ -835,7 +830,7 @@ class StratoMod(BaseModel):
     def models_have_valid_runs_train(
         cls: Type[Self],
         v: Model,
-        values: Dict[str, Any],
+        values: dict[str, Any],
     ) -> Model:
         try:
             train = [t for r in v.runs.values() for t in r.train]
@@ -848,7 +843,7 @@ class StratoMod(BaseModel):
     def models_have_valid_runs_test(
         cls: Type[Self],
         v: Model,
-        values: Dict[str, Any],
+        values: dict[str, Any],
     ) -> Model:
         try:
             tests = [t.query_key for r in v.runs.values() for t in r.test.values()]
@@ -861,7 +856,7 @@ class StratoMod(BaseModel):
     def models_have_valid_runs_test_variables(
         cls: Type[Self],
         v: Model,
-        values: Dict[str, Any],
+        values: dict[str, Any],
     ) -> Model:
         try:
             var_root = cast(FeatureNames, values["feature_names"]).variables
@@ -886,7 +881,7 @@ class StratoMod(BaseModel):
     def refsetkey_to_ref(self, key: RefsetKey) -> Reference:
         return self.references[self.refsetkey_to_refkey(key)]
 
-    def refsetkey_to_refset(self, key: RefsetKey) -> RefSet:
+    def refsetkey_to_refset(self, key: RefsetKey) -> Refset:
         return self.reference_sets[key]
 
     def _querykey_to_input(self, key: QueryKey) -> VCFInput:
@@ -898,7 +893,7 @@ class StratoMod(BaseModel):
     def refsetkey_to_refkey(self, key: RefsetKey) -> RefKey:
         return self.refsetkey_to_refset(key).ref
 
-    def refsetkey_to_chr_indices(self, key: RefsetKey) -> Set[ChrIndex]:
+    def refsetkey_to_chr_indices(self, key: RefsetKey) -> set[ChrIndex]:
         f = self.refsetkey_to_refset(key).chr_filter
         return set(x for x in ChrIndex) if len(f) == 0 else f
 
@@ -911,7 +906,7 @@ class StratoMod(BaseModel):
         prefix = get_prefix(self.refsetkey_to_ref(key))
         return ChrFilter(prefix, indices)
 
-    def refsetkey_to_sdf_chr_filter(self, key: RefsetKey) -> Set[str]:
+    def refsetkey_to_sdf_chr_filter(self, key: RefsetKey) -> set[str]:
         prefix, indices = self.refsetkey_to_chr_filter(lambda r: r.sdf.chr_prefix, key)
         return set(i.chr_name_full(prefix) for i in indices)
 
@@ -931,20 +926,20 @@ class StratoMod(BaseModel):
     def querykey_to_benchkey(self, key: LabeledQueryKey) -> BenchKey:
         return self.labeled_queries[key].benchmark
 
-    def all_refsetkeys(self) -> Set[RefsetKey]:
+    def all_refsetkeys(self) -> set[RefsetKey]:
         return set(
             v.refset
             for v in list(self.labeled_queries.values())
             + list(self.unlabeled_queries.values())
         )
 
-    def all_refkeys(self) -> Set[str]:
+    def all_refkeys(self) -> set[str]:
         return set(map(self.refsetkey_to_refkey, self.all_refsetkeys()))
 
     def querykey_to_chr_prefix(self, key: QueryKey) -> str:
         return self._querykey_to_input(key).chr_prefix
 
-    def querykey_to_variables(self, input_key: QueryKey) -> Dict[VarKey, str]:
+    def querykey_to_variables(self, input_key: QueryKey) -> dict[VarKey, str]:
         return self._querykey_to_input(input_key).variables
 
     def querykey_to_bench_correction(
@@ -960,7 +955,7 @@ class StratoMod(BaseModel):
         mkey: ModelKey,
         rkey: RunKey,
         tkey: TestKey,
-    ) -> Dict[VarKey, str]:
+    ) -> dict[VarKey, str]:
         test = self.models[mkey].runs[rkey].test[tkey]
         return {**test.variables, **self.querykey_to_variables(test.query_key)}
 
@@ -968,10 +963,10 @@ class StratoMod(BaseModel):
         self,
         mkey: ModelKey,
         rkey: RunKey,
-    ) -> List[LabeledQueryKey]:
+    ) -> list[LabeledQueryKey]:
         return [t for t in self.models[mkey].runs[rkey].train]
 
-    def runkey_to_test_querykeys(self, mkey: ModelKey, rkey: RunKey) -> List[QueryKey]:
+    def runkey_to_test_querykeys(self, mkey: ModelKey, rkey: RunKey) -> list[QueryKey]:
         return [t.query_key for t in self.models[mkey].runs[rkey].test.values()]
 
     def testkey_to_querykey(
@@ -982,7 +977,7 @@ class StratoMod(BaseModel):
     ) -> QueryKey:
         return self.models[mkey].runs[rkey].test[tkey].query_key
 
-    def _workflow_path(self, components: List[str]) -> Path:
+    def _workflow_path(self, components: list[str]) -> Path:
         p = Path(*components).resolve()
         assert p.exists(), f"{p} does not exist"
         return p
@@ -990,7 +985,7 @@ class StratoMod(BaseModel):
     def env_file(self, envname: str) -> Path:
         return self._workflow_path(["workflow/envs", f"{envname}.yml"])
 
-    def _scripts_dir(self, rest: List[str]) -> Path:
+    def _scripts_dir(self, rest: list[str]) -> Path:
         return self._workflow_path(["workflow/scripts", *rest])
 
     def python_script(self, basename: str) -> Path:
@@ -1126,7 +1121,7 @@ def assert_match(pat: str, s: str) -> str:
     return res[0]
 
 
-def assert_subset(xs: Set[X], ys: Set[X]) -> None:
+def assert_subset(xs: set[X], ys: set[X]) -> None:
     assert xs <= ys, f"not a subset - extra members: {xs - ys}"
 
 
@@ -1134,7 +1129,7 @@ def assert_subset(xs: Set[X], ys: Set[X]) -> None:
 # resources
 
 
-def attempt_mem_gb(mem_gb: int) -> Callable[[Dict[str, str], int], int]:
+def attempt_mem_gb(mem_gb: int) -> Callable[[dict[str, str], int], int]:
     # double initial memory on each attempt
     return lambda _, attempt: cast(int, mem_gb * 1000 * 2 ** (attempt - 1))
 
@@ -1166,7 +1161,7 @@ class RunKeysTest(NamedTuple):
     query_key: QueryKey
 
 
-def lookup_run_sets(config: StratoMod) -> Tuple[List[RunKeysTrain], List[RunKeysTest]]:
+def lookup_run_sets(config: StratoMod) -> tuple[list[RunKeysTrain], list[RunKeysTest]]:
     models = [
         ((model_key, filter_key, run_key), rest)
         for model_key, model in config.models.items()
@@ -1192,16 +1187,16 @@ def test_has_bench(config: StratoMod, runs: RunKeysTest) -> bool:
 
 def partition_test_set(
     config: StratoMod,
-    test_set: List[RunKeysTest],
-) -> Tuple[List[RunKeysTest], List[RunKeysTest]]:
+    test_set: list[RunKeysTest],
+) -> tuple[list[RunKeysTest], list[RunKeysTest]]:
     unlabeled, labeled = partition(lambda t: test_has_bench(config, t), test_set)
     return list(unlabeled), list(labeled)
 
 
 def all_refset_keys(
     config: StratoMod,
-    ks: Sequence[Union[RunKeysTest, RunKeysTrain]],
-) -> List[RefsetKey]:
+    ks: Sequence[RunKeysTest | RunKeysTrain],
+) -> list[RefsetKey]:
     return list(
         map(
             lambda x: config.querykey_to_refsetkey(
@@ -1217,7 +1212,7 @@ def all_input_summary_files(
     labeled_target: InputFiles,
     unlabeled_target: InputFiles,
 ) -> InputFiles:
-    def labeled_targets(target: InputFiles, key_set: List[RunKeysTrain]) -> InputFiles:
+    def labeled_targets(target: InputFiles, key_set: list[RunKeysTrain]) -> InputFiles:
         return expand(
             target,
             zip,
@@ -1226,7 +1221,7 @@ def all_input_summary_files(
             l_query_key=map(lambda x: x.labeled_query_key, key_set),
         )
 
-    def test_targets(target: InputFiles, key_set: List[RunKeysTest]) -> InputFiles:
+    def test_targets(target: InputFiles, key_set: list[RunKeysTest]) -> InputFiles:
         return expand(
             target,
             zip,
@@ -1253,7 +1248,7 @@ def all_ebm_files(
     labeled_test_target: InputFiles,
     unlabeled_test_target: InputFiles,
 ) -> InputFiles:
-    def test_targets(path: InputFiles, key_set: List[RunKeysTest]) -> InputFiles:
+    def test_targets(path: InputFiles, key_set: list[RunKeysTest]) -> InputFiles:
         return expand(
             path,
             zip,
@@ -1290,7 +1285,7 @@ def all_ebm_files(
     return train + labeled_test + unlabeled_test
 
 
-_constraints: Dict[str, str] = {
+_constraints: dict[str, str] = {
     # corresponds to a genome reference
     "ref_key": "[^/]+",
     # corresponds to a reference set (reference + chromosome filter + etc)
@@ -1316,7 +1311,7 @@ _constraints: Dict[str, str] = {
     "base": alternate_constraint(Base.all()),
 }
 
-all_wildcards: Dict[str, str] = {k: f"{{{k},{v}}}" for k, v in _constraints.items()}
+all_wildcards: dict[str, str] = {k: f"{{{k},{v}}}" for k, v in _constraints.items()}
 
 
 def wildcard_ext(key: str, ext: str) -> str:

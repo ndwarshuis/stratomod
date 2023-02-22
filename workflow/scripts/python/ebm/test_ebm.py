@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import Tuple, Any
+from typing import Any
 from common.cli import setup_logging
 from common.tsv import read_tsv, write_tsv
 from common.ebm import read_model
@@ -16,7 +16,7 @@ def _write_tsv(path: str, df: pd.DataFrame) -> None:
 def predict_from_x(
     ebm: ExplainableBoostingClassifier,
     df: pd.DataFrame,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     probs, explanations = ebm.predict_and_contrib(df)
     return pd.DataFrame(probs), pd.DataFrame(explanations, columns=ebm.feature_names)
 

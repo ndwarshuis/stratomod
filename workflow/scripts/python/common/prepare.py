@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import common.config as cfg
-from typing import List, Set, Dict, Optional, cast
+from typing import Optional, cast
 from more_itertools import duplicates_everseen
 
 # TODO don't hardcode this (and also turn into a list)
@@ -30,7 +30,7 @@ def process_series(opts: cfg.Feature, ser: "pd.Series[float]") -> "pd.Series[flo
 
 
 def process_columns(
-    features: Dict[cfg.FeatureKey, cfg.Feature],
+    features: dict[cfg.FeatureKey, cfg.Feature],
     df: pd.DataFrame,
 ) -> pd.DataFrame:
     for col, opts in features.items():
@@ -38,8 +38,8 @@ def process_columns(
     return df
 
 
-def check_columns(wanted_cols: List[cfg.FeatureKey], df_cols: List[str]) -> None:
-    def assert_dups(xs: List[str], msg: str) -> Set[str]:
+def check_columns(wanted_cols: list[cfg.FeatureKey], df_cols: list[str]) -> None:
+    def assert_dups(xs: list[str], msg: str) -> set[str]:
         dups = [*duplicates_everseen(xs)]
         assert 0 == len(dups), f"{msg}: {dups}"
         return set(xs)
@@ -55,8 +55,8 @@ def check_columns(wanted_cols: List[cfg.FeatureKey], df_cols: List[str]) -> None
 
 
 def select_columns(
-    features: Dict[cfg.FeatureKey, cfg.Feature],
-    idx_cols: List[cfg.FeatureKey],
+    features: dict[cfg.FeatureKey, cfg.Feature],
+    idx_cols: list[cfg.FeatureKey],
     label_col: Optional[cfg.FeatureKey],
     df: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -78,7 +78,7 @@ def mask_labels(
 ) -> pd.DataFrame:
     # if we don't want to include filtered labels (from the perspective of
     # the truth set) they all become false negatives
-    def mask(row: Dict[str, str]) -> str:
+    def mask(row: dict[str, str]) -> str:
         if row[filter_col] == FILTERED_VAL:
             if row[label_col] == cfg.AnyLabel.FP.value:
                 return cfg.AnyLabel.TN.value
@@ -96,7 +96,7 @@ def mask_labels(
 
 
 def collapse_labels(
-    error_labels: Set[cfg.ErrorLabel],
+    error_labels: set[cfg.ErrorLabel],
     label_col: str,
     df: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -107,10 +107,10 @@ def collapse_labels(
 
 
 def process_labeled_data(
-    features: Dict[cfg.FeatureKey, cfg.Feature],
-    error_labels: Set[cfg.ErrorLabel],
+    features: dict[cfg.FeatureKey, cfg.Feature],
+    error_labels: set[cfg.ErrorLabel],
     filtered_are_candidates: bool,
-    idx_cols: List[cfg.FeatureKey],
+    idx_cols: list[cfg.FeatureKey],
     filter_col: str,
     label_col: cfg.FeatureKey,
     df: pd.DataFrame,
@@ -135,8 +135,8 @@ def process_labeled_data(
 
 
 def process_unlabeled_data(
-    features: Dict[cfg.FeatureKey, cfg.Feature],
-    idx_cols: List[cfg.FeatureKey],
+    features: dict[cfg.FeatureKey, cfg.Feature],
+    idx_cols: list[cfg.FeatureKey],
     df: pd.DataFrame,
 ) -> pd.DataFrame:
     return select_columns(features, idx_cols, None, process_columns(features, df))

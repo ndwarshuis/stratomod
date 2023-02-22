@@ -1,6 +1,6 @@
 from functools import reduce
 import pandas as pd
-from typing import List, Any, cast
+from typing import Any, cast
 import numpy as np
 from pybedtools import BedTool as bt  # type: ignore
 from common.tsv import read_tsv, write_tsv
@@ -56,7 +56,7 @@ def intersect_tsvs(
     config: cfg.StratoMod,
     ifile: str,
     ofile: str,
-    tsv_paths: List[str],
+    tsv_paths: list[str],
 ) -> None:
     target_df = read_tsv(ifile)
     new_df = reduce(left_outer_intersect, tsv_paths, target_df)

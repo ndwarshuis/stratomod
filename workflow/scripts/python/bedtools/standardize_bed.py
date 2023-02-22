@@ -22,15 +22,13 @@ def filter_file(smk: Any, config: StratoMod, fi: io.TextIOWrapper) -> None:
     subX = make_sub(ChrIndex.CHRX)
     subY = make_sub(ChrIndex.CHRY)
 
-    # pre 3.9 :(
-    def remove_prefix(s: str) -> str:
-        if s.startswith(chr_prefix):
-            return s[len(chr_prefix) :]  # noqa: ignore=E203
-        return s
-
     def tolines(f: io.TextIOWrapper) -> None:
         f.writelines(
-            (subY(subX(y)) for x in fi if (y := remove_prefix(x)).startswith(fs)),
+            (
+                subY(subX(y))
+                for x in fi
+                if (y := x.removeprefix(chr_prefix)).startswith(fs)
+            ),
         )
 
     if str(smk.output[0]).endswith(".gz"):

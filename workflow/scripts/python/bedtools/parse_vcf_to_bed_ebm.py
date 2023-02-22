@@ -1,5 +1,5 @@
 import numpy as np
-from typing import NamedTuple, List, Optional, Dict, Tuple, Any
+from typing import NamedTuple, Optional, Any
 import pandas as pd
 import common.config as cfg
 from functools import partial
@@ -22,7 +22,7 @@ FORMAT = "FORMAT"
 SAMPLE = "SAMPLE"
 
 
-def read_vcf(input_cols: Dict[str, InputCol], path: str) -> pd.DataFrame:
+def read_vcf(input_cols: dict[str, InputCol], path: str) -> pd.DataFrame:
     # Add columns manually because pandas can't distinguish between lines
     # starting with '##' or '#'
     dtypes, na_values = unzip(
@@ -52,17 +52,17 @@ def fix_dot_alts(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def lookup_maybe(k: str, d: Dict[str, float]) -> float:
+def lookup_maybe(k: str, d: dict[str, float]) -> float:
     return d[k] if k in d else np.nan
 
 
 def assign_format_sample_fields(
     chrom: str,
     start: str,
-    fields: Dict[cfg.FeatureKey, Optional[str]],
+    fields: dict[cfg.FeatureKey, Optional[str]],
     df: pd.DataFrame,
 ) -> pd.DataFrame:
-    def log_split(what: str, xs: List[Tuple[cfg.FeatureKey, Optional[str]]]) -> None:
+    def log_split(what: str, xs: list[tuple[cfg.FeatureKey, Optional[str]]]) -> None:
         logger.info(
             "Splitting FORMAT/SAMPLE into %i %s columns.",
             len(xs),
@@ -92,7 +92,7 @@ def assign_format_sample_fields(
 
     # For all columns that aren't to be NaN'd, split format and sample fields
     # into lists (to be zipped later).
-    def split_col(n: str) -> Tuple["pd.Series[Any]", "pd.Series[int]"]:
+    def split_col(n: str) -> tuple["pd.Series[Any]", "pd.Series[int]"]:
         split_ser = df[n].str.split(":")
         len_ser = split_ser.str.len()
         return split_ser, len_ser
@@ -197,8 +197,8 @@ def add_length_and_filter(
 
 
 def select_columns(
-    non_field_cols: List[str],
-    fields: List[str],
+    non_field_cols: list[str],
+    fields: list[str],
     label_col: str,
     label: Optional[str],
     df: pd.DataFrame,
@@ -211,7 +211,7 @@ def select_columns(
     return df[cols]
 
 
-def get_label(wildcards: Dict[str, str]) -> Optional[str]:
+def get_label(wildcards: dict[str, str]) -> Optional[str]:
     try:
         return wildcards["label"]
     except KeyError:

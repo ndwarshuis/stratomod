@@ -1,6 +1,6 @@
 import pandas as pd
 import common.config as cfg
-from typing import Dict, Any
+from typing import Any
 from common.tsv import read_tsv, write_tsv
 from common.cli import setup_logging
 from common.prepare import process_labeled_data
@@ -17,7 +17,7 @@ def read_query(
 
 def read_queries(
     config: cfg.StratoMod,
-    paths: Dict[cfg.LabeledQueryKey, str],
+    paths: dict[cfg.LabeledQueryKey, str],
 ) -> pd.DataFrame:
     return pd.concat([read_query(config, path, key) for key, path in paths.items()])
 
