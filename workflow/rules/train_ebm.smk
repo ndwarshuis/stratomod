@@ -126,14 +126,19 @@ use rule summarize_labeled_input as summarize_unlabeled_input with:
 
 rule prepare_train_data:
     input:
-        lambda wildcards: expand(
-            rules.annotate_labeled_tsv.output,
-            allow_missing=True,
-            l_query_key=config.runkey_to_train_querykeys(
+        # NOTE: name these inputs according to their labeled_query_keys so
+        # they can be used in the script along with each file path
+        lambda wildcards: {
+            k: expand(
+                rules.annotate_labeled_tsv.output,
+                allow_missing=True,
+                l_query_key=k,
+            )
+            for k in config.runkey_to_train_querykeys(
                 wildcards.model_key,
                 wildcards.run_key,
-            ),
-        ),
+            )
+        },
     output:
         df=config.model_train_dir(log=False) / "train.tsv.gz",
         paths=config.model_train_dir(log=False) / "input_paths.json",

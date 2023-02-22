@@ -390,7 +390,7 @@ class FeatureGroup(BaseModel):
 
 
 class VCFColumns(BaseModel):
-    input: NonEmptyStr
+    # input: NonEmptyStr
     qual: NonEmptyStr
     filter: NonEmptyStr
     info: NonEmptyStr
@@ -404,20 +404,21 @@ class VCFColumns(BaseModel):
 class VCFMeta(FeatureGroup):
     columns: VCFColumns
 
-    @validator("columns")
-    def prefix_columns(
-        cls: "Type[VCFMeta]",
-        columns: VCFColumns,
-        values: Dict[str, Any],
-    ) -> VCFColumns:
-        return VCFColumns(
-            **{k: f"{values['prefix']}_{v}" for k, v in columns.dict().items()}
-        )
+    # @validator("columns")
+    # def prefix_columns(
+    #     cls: "Type[VCFMeta]",
+    #     columns: VCFColumns,
+    #     values: Dict[str, Any],
+    # ) -> VCFColumns:
+    #     return VCFColumns(
+    #         **{k: f"{values['prefix']}_{v}" for k, v in columns.dict().items()}
+    #     )
 
     # TODO use template haskell here :(
-    @property
-    def input_name(self: Self) -> FeatureKey:
-        return self.fmt_feature(self.columns.input)
+
+    # @property
+    # def input_name(self: Self) -> FeatureKey:
+    #     return self.fmt_feature(self.columns.input)
 
     @property
     def qual_name(self: Self) -> FeatureKey:
@@ -452,11 +453,19 @@ class VCFMeta(FeatureGroup):
         return self.fmt_feature(self.columns.len)
 
     def str_feature_names(self) -> List[FeatureKey]:
-        cs = self.columns
-        return [FeatureKey(x) for x in [cs.filter, cs.info, cs.gt, cs.gq]]
+        return [self.filter_name, self.info_name, self.gt_name, self.gq_name]
 
     def feature_names(self) -> List[FeatureKey]:
-        return list(self.columns.dict().values())
+        return [
+            self.qual_name,
+            self.filter_name,
+            self.info_name,
+            self.gt_name,
+            self.gq_name,
+            self.dp_name,
+            self.vaf_name,
+            self.len_name,
+        ]
 
 
 class MapSuffixes(BaseModel):

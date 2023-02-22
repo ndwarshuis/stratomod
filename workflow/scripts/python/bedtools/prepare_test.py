@@ -1,7 +1,5 @@
-import json
 import pandas as pd
 from typing import Any
-from os.path import dirname, basename
 from common.tsv import read_tsv, write_tsv
 from common.cli import setup_logging
 import common.config as cfg
@@ -10,31 +8,14 @@ from common.prepare import process_labeled_data, process_unlabeled_data
 logger = setup_logging(snakemake.log[0])  # type: ignore
 
 
-# TODO get rid of this since I don't use vcf input anymore
-def read_vcf_input(path: str, input_key: str) -> pd.DataFrame:
-    with open(path, "r") as f:
-        mapping = {basename(dirname(k)): v for k, v in json.load(f).items()}
-        return mapping[input_key]
-
-
-def read_input(
-    df_path: str,
-    mapping_path: str,
-    input_key: str,
-    input_col: str,
-) -> pd.DataFrame:
-    vcf_input = read_vcf_input(mapping_path, input_key)
-    return read_tsv(df_path).assign(**{input_col: vcf_input})
-
-
 def write_labeled(
     xpath: str,
     ypath: str,
     sconf: cfg.StratoMod,
     rconf: cfg.Model,
-    filter_col: cfg.FeatureKey,
     df: pd.DataFrame,
 ) -> None:
+    filter_col = sconf.feature_meta.vcf.filter_name
     label_col = sconf.feature_meta.label_name
     processed = process_labeled_data(
         rconf.features,
@@ -67,11 +48,13 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
     sin = smk.input
     sout = smk.output
     wcs = smk.wildcards
-    raw_df = read_input(
-        sin["annotated"][0],
-        sin["paths"],
-        wcs["input_key"],
-        sconf.feature_meta.vcf.input_name,
+    variables = sconf.testkey_to_variables(
+        cfg.ModelKey(wcs["model_key"]),
+        cfg.RunKey(wcs["run_key"]),
+        cfg.TestKey(wcs["test_key"]),
+    )
+    df = read_tsv(sin["annotated"][0]).assign(
+        **{str(k): v for k, v in variables.items()}
     )
     rconf = sconf.models[cfg.ModelKey(wcs.model_key)]
     if "test_y" in dict(sout):
@@ -80,11 +63,10 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
             sout["test_y"],
             sconf,
             rconf,
-            sconf.feature_meta.vcf.filter_name,
-            raw_df,
+            df,
         )
     else:
-        write_unlabeled(sout["test_x"], sconf, rconf, raw_df)
+        write_unlabeled(sout["test_x"], sconf, rconf, df)
 
 
 main(snakemake, snakemake.config)  # type: ignore
