@@ -1,6 +1,6 @@
 from functools import reduce
 import pandas as pd
-from typing import List, Any
+from typing import List, Any, cast
 import numpy as np
 from pybedtools import BedTool as bt  # type: ignore
 from common.tsv import read_tsv, write_tsv
@@ -28,10 +28,11 @@ def left_outer_intersect(left: pd.DataFrame, path: str) -> pd.DataFrame:
     # convert "." to NaN since "." is a string/object which will make pandas run
     # slower than an actual panda
     na_vals = {c: "." for c in left_cols + right_cols[3:]}
-    new_df = (
+    new_df = cast(
+        pd.DataFrame,
         bt.from_dataframe(left)
         .intersect(right_bed, loj=True)
-        .to_dataframe(names=left_cols + right_cols, na_values=na_vals, dtype=dtypes)
+        .to_dataframe(names=left_cols + right_cols, na_values=na_vals, dtype=dtypes),
     )
     # Bedtools intersect will use -1 for NULL in the case of numeric columns. I
     # suppose this makes sense since any "real" bed columns (according to the
@@ -46,7 +47,7 @@ def left_outer_intersect(left: pd.DataFrame, path: str) -> pd.DataFrame:
         new_df[new_chr] != ".", np.nan
     )
 
-    logger.info("Annotations added: %s\n", ", ".join(new_data_cols))
+    logger.info("Annotations added: %s\n", ", ".join(new_data_cols.tolist()))
 
     return new_df.drop(columns=new_pky)
 
@@ -61,7 +62,7 @@ def intersect_tsvs(
     new_df = reduce(left_outer_intersect, tsv_paths, target_df)
     new_df.insert(
         loc=0,
-        column=config.feature_meta.raw_index,
+        column=config.feature_names.raw_index,
         value=new_df.index,
     )
     write_tsv(ofile, new_df)

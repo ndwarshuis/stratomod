@@ -26,7 +26,7 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
     sout = smk.output
     ebm = read_model(sin["model"])
     predict_x = read_tsv(sin["test_x"]).drop(
-        columns=sconf.feature_meta.all_index_cols()
+        columns=sconf.feature_names.all_index_cols()
     )
     ps, xs = predict_from_x(ebm, predict_x)
     _write_tsv(sout["predictions"], ps)

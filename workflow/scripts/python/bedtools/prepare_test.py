@@ -15,13 +15,13 @@ def write_labeled(
     rconf: cfg.Model,
     df: pd.DataFrame,
 ) -> None:
-    filter_col = sconf.feature_meta.vcf.filter_name
-    label_col = sconf.feature_meta.label_name
+    filter_col = sconf.feature_names.vcf.filter_name
+    label_col = sconf.feature_names.label_name
     processed = process_labeled_data(
         rconf.features,
         rconf.error_labels,
         rconf.filtered_are_candidates,
-        sconf.feature_meta.all_index_cols(),
+        sconf.feature_names.all_index_cols(),
         filter_col,
         label_col,
         df,
@@ -38,7 +38,7 @@ def write_unlabeled(
 ) -> None:
     processed = process_unlabeled_data(
         rconf.features,
-        sconf.feature_meta.all_index_cols(),
+        sconf.feature_names.all_index_cols(),
         df,
     )
     write_tsv(xpath, processed)

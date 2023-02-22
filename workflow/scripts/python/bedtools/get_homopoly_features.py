@@ -1,6 +1,6 @@
 import pandas as pd
 import common.config as cfg
-from typing import Any
+from typing import Any, cast
 from pybedtools import BedTool as bt  # type: ignore
 from pybedtools import cleanup
 from common.tsv import write_tsv, read_tsv
@@ -40,17 +40,18 @@ def merge_base(
     bed_start = bed_cols.start
     bed_end = bed_cols.end
     _df[PFCT_LEN_COL] = _df[bed_end] - _df[bed_start]
-    merged = (
+    merged = cast(
+        pd.DataFrame,
         bt.from_dataframe(_df)
         .merge(d=1, c=[4], o=["sum"])
         .slop(b=SLOP, g=genome)
-        .to_dataframe(names=[*bed_cols.bed_cols_ordered(), PFCT_LEN_COL])
+        .to_dataframe(names=[*bed_cols.bed_cols_ordered(), PFCT_LEN_COL]),
     )
     # these files are huge; now that we have a dataframe, remove all the bed
     # files from tmpfs to prevent a run on downloadmoreram.com
     cleanup()
 
-    hgroup = config.feature_meta.homopolymers
+    hgroup = config.feature_names.homopolymers
 
     length_col = hgroup.fmt_name_len(base)
     frac_col = hgroup.fmt_name_imp_frac(base)
@@ -61,7 +62,7 @@ def merge_base(
 
 
 def main(smk: Any, config: cfg.StratoMod) -> None:
-    bed_cols = config.feature_meta.bed_index
+    bed_cols = config.feature_names.bed_index
     # ASSUME this file is already sorted
     simreps = read_input(smk.input["bed"][0], bed_cols)
     merged = merge_base(

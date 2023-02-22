@@ -1,21 +1,24 @@
 import pandas as pd
 import numpy as np
 import common.config as cfg
-from typing import List, Set, Dict, Optional
+from typing import List, Set, Dict, Optional, cast
 from more_itertools import duplicates_everseen
 
 # TODO don't hardcode this (and also turn into a list)
 FILTERED_VAL = "RefCall"
 
 
-def process_series(opts: cfg.Feature, ser: pd.Series[float]) -> pd.Series[float]:
+def process_series(opts: cfg.Feature, ser: "pd.Series[float]") -> "pd.Series[float]":
     trans = opts.transform
     _ser = pd.to_numeric(ser, errors="coerce")
-    if trans == "binary":
+    if trans == cfg.Transform.BINARY:
         return (~_ser.isnull()).astype(int)
     else:
         fillval = opts.fill_na
-        return (np.log10(_ser) if trans == "log" else _ser).fillna(fillval)
+        return cast(
+            "pd.Series[float]",
+            (np.log10(_ser) if trans == cfg.Transform.LOG else _ser).fillna(fillval),
+        )
 
 
 # def process_chr(ser):

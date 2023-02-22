@@ -24,13 +24,13 @@ def read_queries(
 
 def main(smk: Any, sconf: cfg.StratoMod) -> None:
     rconf = sconf.models[cfg.ModelKey(cfg.ModelKey(smk.wildcards.model_key))]
-    fconf = sconf.feature_meta
+    fconf = sconf.feature_names
     raw_df = read_queries(sconf, smk.input)
     processed = process_labeled_data(
         rconf.features,
         rconf.error_labels,
         rconf.filtered_are_candidates,
-        sconf.feature_meta.all_index_cols(),
+        fconf.all_index_cols(),
         fconf.vcf.filter_name,
         fconf.label_name,
         raw_df,

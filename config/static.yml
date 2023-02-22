@@ -179,7 +179,6 @@ feature_meta:
   vcf:
     prefix: VCF
     columns:
-      input: input
       qual: QUAL
       filter: FILTER
       info: INFO
@@ -204,8 +203,6 @@ feature_meta:
 
   repeat_masker:
     prefix: REPMASK
-    suffixes:
-      len: length
     classes:
       SINE: []
       # TODO make this configurable since not all refs have the same families
@@ -236,7 +233,8 @@ feature_meta:
   variables:
     prefix: VAR
     continuous:
-      coverage: {}
+      coverage:
+        lower: 1
     categorical:
       seqtech:
         levels: ["PacBio HiFi", "Illumina"]

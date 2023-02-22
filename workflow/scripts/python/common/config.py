@@ -191,13 +191,13 @@ class CatVar(BaseModel):
     levels: Annotated[Set[str], conset(str, min_items=1)]
 
 
-class Truncation(BaseModel):
+class Range(BaseModel):
     lower: Optional[float] = None
     upper: Optional[float] = None
 
     @validator("upper")
     def lower_less_than_upper(
-        cls: "Type[Truncation]",
+        cls: "Type[Range]",
         v: Optional[float],
         values: Dict[str, Any],
     ) -> Optional[float]:
@@ -212,9 +212,12 @@ class Truncation(BaseModel):
         )
 
 
-class ContVar(Truncation):
-    lower: Optional[float] = None
-    upper: Optional[float] = None
+class Truncation(Range):
+    pass
+
+
+class ContVar(Range):
+    pass
 
 
 class TestDataInput(BaseModel):
@@ -306,7 +309,6 @@ class Model(BaseModel):
     runs: Dict[RunKey, ModelRun]
     filter: Set[FilterKey]
     ebm_settings: EBMSettings
-    # TODO only allow actual error labels here
     error_labels: Annotated[Set[ErrorLabel], conset(ErrorLabel, min_items=1)]
     filtered_are_candidates: bool
     interactions: Union[NonNegativeInt, InteractionSpec] = 0
@@ -390,7 +392,6 @@ class FeatureGroup(BaseModel):
 
 
 class VCFColumns(BaseModel):
-    # input: NonEmptyStr
     qual: NonEmptyStr
     filter: NonEmptyStr
     info: NonEmptyStr
@@ -401,24 +402,10 @@ class VCFColumns(BaseModel):
     len: NonEmptyStr
 
 
-class VCFMeta(FeatureGroup):
+class VCFGroup(FeatureGroup):
     columns: VCFColumns
 
-    # @validator("columns")
-    # def prefix_columns(
-    #     cls: "Type[VCFMeta]",
-    #     columns: VCFColumns,
-    #     values: Dict[str, Any],
-    # ) -> VCFColumns:
-    #     return VCFColumns(
-    #         **{k: f"{values['prefix']}_{v}" for k, v in columns.dict().items()}
-    #     )
-
     # TODO use template haskell here :(
-
-    # @property
-    # def input_name(self: Self) -> FeatureKey:
-    #     return self.fmt_feature(self.columns.input)
 
     @property
     def qual_name(self: Self) -> FeatureKey:
@@ -473,7 +460,7 @@ class MapSuffixes(BaseModel):
     high: NonEmptyStr
 
 
-class MapMeta(FeatureGroup):
+class MapGroup(FeatureGroup):
     suffixes: MapSuffixes
 
     @property
@@ -493,7 +480,7 @@ class HomopolySuffixes(BaseModel):
     imp_frac: NonEmptyStr
 
 
-class HomopolyMeta(FeatureGroup):
+class HomopolyGroup(FeatureGroup):
     bases: Set[Base]
     suffixes: HomopolySuffixes
 
@@ -512,20 +499,11 @@ class HomopolyMeta(FeatureGroup):
         ]
 
 
-class RMSKSuffixes(BaseModel):
-    len: str
-
-
-class RMSKClasses(BaseModel):
+class RMSKGroup(FeatureGroup):
     SINE: Set[NonEmptyStr] = set()
     LINE: Set[NonEmptyStr] = set()
     LTR: Set[NonEmptyStr] = set()
     Satellite: Set[NonEmptyStr] = set()
-
-
-class RMSKMeta(FeatureGroup):
-    suffixes: RMSKSuffixes
-    classes: RMSKClasses
 
     # TODO weakly typed
     def fmt_name(
@@ -533,24 +511,18 @@ class RMSKMeta(FeatureGroup):
         grp: str,
         fam: Optional[str],
     ) -> FeatureKey:
+        assert grp in self.dict()
         rest = maybe(grp, lambda f: f"{grp}_{fam}", fam)
-        # TODO this is hardcoded for now
-        suffix = self.suffixes.len
-        return self.fmt_feature(f"{rest}_{suffix}")
+        return self.fmt_feature(f"{rest}_length")
 
     def feature_names(self) -> List[FeatureKey]:
         def fmt(grp: str, fam: Optional[str]) -> FeatureKey:
             return self.fmt_name(grp, fam)
 
         return [
-            *[fmt(c, None) for c in self.classes.dict()],
-            *[fmt(c, f) for c, fs in self.classes.dict().items() for f in fs],
+            *[fmt(c, None) for c in self.dict()],
+            *[fmt(c, f) for c, fs in self.dict().items() for f in fs],
         ]
-
-
-class SegDupsColumns(BaseModel):
-    alignL: NonEmptyStr
-    fracMatchIndel: NonEmptyStr
 
 
 class MergedFeatureGroup(FeatureGroup):
@@ -572,7 +544,12 @@ class MergedFeatureGroup(FeatureGroup):
         ]
 
 
-class SegDupsMeta(MergedFeatureGroup):
+class SegDupsColumns(BaseModel):
+    alignL: NonEmptyStr
+    fracMatchIndel: NonEmptyStr
+
+
+class SegDupsGroup(MergedFeatureGroup):
     columns: SegDupsColumns
 
     def feature_names(self) -> List[FeatureKey]:
@@ -585,13 +562,19 @@ class TandemRepeatColumns(BaseModel):
     perMatch: NonEmptyStr
     perIndel: NonEmptyStr
     score: NonEmptyStr
+    A: NonEmptyStr
+    T: NonEmptyStr
+    G: NonEmptyStr
+    C: NonEmptyStr
 
 
 class TandemRepeatOther(BaseModel):
     len: NonEmptyStr
+    # AT: NonEmptyStr
+    # GC: NonEmptyStr
 
 
-class TandemRepeatMeta(MergedFeatureGroup):
+class TandemRepeatGroup(MergedFeatureGroup):
     bases_prefix: NonEmptyStr
     columns: TandemRepeatColumns
     other: TandemRepeatOther
@@ -600,6 +583,18 @@ class TandemRepeatMeta(MergedFeatureGroup):
     def fmt_name_base(self, bases: str) -> FeatureKey:
         bs_prefix = self.bases_prefix
         return FeatureKey(f"{bs_prefix}_{bases}")
+
+    @property
+    def length_name(self) -> FeatureKey:
+        return self.fmt_feature(self.other.len)
+
+    # @property
+    # def AT_name(self) -> FeatureKey:
+    #     return self.fmt_feature(self.other.AT)
+
+    # @property
+    # def GC_name(self) -> FeatureKey:
+    #     return self.fmt_feature(self.other.GC)
 
     def feature_names(self) -> List[FeatureKey]:
         # TODO weirdly hardcoded in several places
@@ -636,7 +631,7 @@ class LabeledVCFInput(UnlabeledVCFInput):
 VCFInput = Union[UnlabeledVCFInput, LabeledVCFInput]
 
 
-class Variables(FeatureGroup):
+class VariableGroup(FeatureGroup):
     continuous: Dict[VarKey, ContVar]
     categorical: Dict[VarKey, CatVar]
 
@@ -646,6 +641,7 @@ class Variables(FeatureGroup):
     def feature_names(self) -> List[FeatureKey]:
         return [self.fmt_feature(x) for x in self.all_keys()]
 
+    # not a pydantic validator; requires lots of data from parent classes
     def validate_variable(self, varname: VarKey, varval: str) -> None:
         cats = self.categorical
         conts = self.continuous
@@ -660,17 +656,17 @@ class Variables(FeatureGroup):
             assert False, f"'{varname}' not a valid variable name"
 
 
-class FeatureMeta(BaseModel):
+class FeatureNames(BaseModel):
     label: NonEmptyStr
     raw_index: NonEmptyStr
     bed_index: BedIndex
-    vcf: VCFMeta
-    mappability: MapMeta
-    homopolymers: HomopolyMeta
-    repeat_masker: RMSKMeta
-    segdups: SegDupsMeta
-    tandem_repeats: TandemRepeatMeta
-    variables: Variables
+    vcf: VCFGroup
+    mappability: MapGroup
+    homopolymers: HomopolyGroup
+    repeat_masker: RMSKGroup
+    segdups: SegDupsGroup
+    tandem_repeats: TandemRepeatGroup
+    variables: VariableGroup
 
     @property
     def label_name(self: Self) -> FeatureKey:
@@ -715,7 +711,7 @@ UnlabeledQueries = Dict[UnlabeledQueryKey, UnlabeledVCFInput]
 class StratoMod(BaseModel):
     paths: Paths
     tools: Tools
-    feature_meta: FeatureMeta
+    feature_names: FeatureNames
     references: Dict[RefKey, Reference]
     reference_sets: Dict[RefsetKey, RefSet]
     labeled_queries: LabeledQueries
@@ -728,10 +724,12 @@ class StratoMod(BaseModel):
         v: RefSet,
         values: Dict[str, Any],
     ) -> RefSet:
-        if "reference" in values:
+        try:
             assert (
                 v.ref in values["references"]
             ), f"'{v.ref}' does not refer to a valid reference"
+        except ValueError:
+            pass
         return v
 
     @validator("labeled_queries", "unlabeled_queries", each_item=True)
@@ -740,10 +738,12 @@ class StratoMod(BaseModel):
         v: VCFInput,
         values: Dict[str, Any],
     ) -> VCFInput:
-        if "reference_sets" in values:
+        try:
             assert (
                 v.refset in values["reference_sets"]
             ), f"'{v.refset}' does not refer to a valid reference set"
+        except ValueError:
+            pass
         return v
 
     @validator("labeled_queries", "unlabeled_queries", each_item=True)
@@ -752,8 +752,11 @@ class StratoMod(BaseModel):
         v: VCFInput,
         values: Dict[str, Any],
     ) -> VCFInput:
-        if "feature_meta" in values:
-            var_root = cast(FeatureMeta, values["feature_meta"]).variables
+        try:
+            var_root = cast(FeatureNames, values["feature_names"]).variables
+        except ValueError:
+            pass
+        else:
             for varname, varval in v.variables.items():
                 var_root.validate_variable(varname, varval)
         return v
@@ -764,9 +767,14 @@ class StratoMod(BaseModel):
         v: LabeledVCFInput,
         values: Dict[str, Any],
     ) -> LabeledVCFInput:
-        if "reference_sets" in values and "references" in values:
-            ref_key = values["reference_sets"][v.refset].ref
-            ref_benchmarks = values["references"][ref_key].benchmarks
+        try:
+            refsets = values["reference_sets"]
+            refs = values["references"]
+        except KeyError:
+            pass
+        else:
+            ref_key = refsets[v.refset].ref
+            ref_benchmarks = refs[ref_key].benchmarks
             assert (
                 v.benchmark in ref_benchmarks
             ), f"'{v.benchmark}' does not refer to a valid benchmark"
@@ -781,7 +789,7 @@ class StratoMod(BaseModel):
         try:
             assert set(v).isdisjoint(
                 set(values["labeled_queries"])
-            ), "labeled and unlabeled query keys overlap overlap"
+            ), "labeled and unlabeled query keys overlap"
         except KeyError:
             pass
         return v
@@ -792,8 +800,11 @@ class StratoMod(BaseModel):
         v: Model,
         values: Dict[str, Any],
     ) -> Model:
-        if "feature_meta" in values:
-            features = values["feature_meta"].all_feature_names()
+        try:
+            features = values["feature_names"].all_feature_names()
+        except KeyError:
+            pass
+        else:
             assert_subset(set(v.features), features)
         return v
 
@@ -826,9 +837,11 @@ class StratoMod(BaseModel):
         v: Model,
         values: Dict[str, Any],
     ) -> Model:
-        if "inputs" in values:
+        try:
             train = [t for r in v.runs.values() for t in r.train]
             assert_subset(set(train), set(values["inputs"]))
+        except KeyError:
+            pass
         return v
 
     @validator("models", each_item=True)
@@ -837,9 +850,11 @@ class StratoMod(BaseModel):
         v: Model,
         values: Dict[str, Any],
     ) -> Model:
-        if "inputs" in values:
+        try:
             tests = [t.query_key for r in v.runs.values() for t in r.test.values()]
             assert_subset(set(tests), set(values["inputs"]))
+        except ValueError:
+            pass
         return v
 
     @validator("models", each_item=True)
@@ -848,8 +863,11 @@ class StratoMod(BaseModel):
         v: Model,
         values: Dict[str, Any],
     ) -> Model:
-        if "feature_meta" in values:
-            var_root = cast(FeatureMeta, values["feature_meta"]).variables
+        try:
+            var_root = cast(FeatureNames, values["feature_names"]).variables
+        except KeyError:
+            pass
+        else:
             varpairs = [
                 (varname, varval)
                 for r in v.runs.values()
@@ -925,10 +943,6 @@ class StratoMod(BaseModel):
 
     def querykey_to_chr_prefix(self, key: QueryKey) -> str:
         return self._querykey_to_input(key).chr_prefix
-
-    # def querykey_to_chr_filter(self, input_key: QueryKey) -> Set[ChrIndex]:
-    #     refset_key = self.querykey_to_refsetkey(input_key)
-    #     return self.refsetkey_to_chr_indices(refset_key)
 
     def querykey_to_variables(self, input_key: QueryKey) -> Dict[VarKey, str]:
         return self._querykey_to_input(input_key).variables
@@ -1122,7 +1136,7 @@ def assert_subset(xs: Set[X], ys: Set[X]) -> None:
 
 def attempt_mem_gb(mem_gb: int) -> Callable[[Dict[str, str], int], int]:
     # double initial memory on each attempt
-    return lambda wildcards, attempt: mem_gb * 1000 * 2 ** (attempt - 1)
+    return lambda _, attempt: cast(int, mem_gb * 1000 * 2 ** (attempt - 1))
 
 
 # ------------------------------------------------------------------------------
@@ -1276,7 +1290,7 @@ def all_ebm_files(
     return train + labeled_test + unlabeled_test
 
 
-_constraints = {
+_constraints: Dict[str, str] = {
     # corresponds to a genome reference
     "ref_key": "[^/]+",
     # corresponds to a reference set (reference + chromosome filter + etc)
@@ -1302,7 +1316,7 @@ _constraints = {
     "base": alternate_constraint(Base.all()),
 }
 
-all_wildcards = {k: f"{{{k},{v}}}" for k, v in _constraints.items()}
+all_wildcards: Dict[str, str] = {k: f"{{{k},{v}}}" for k, v in _constraints.items()}
 
 
 def wildcard_ext(key: str, ext: str) -> str:

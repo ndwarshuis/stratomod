@@ -211,28 +211,27 @@ def select_columns(
     return df[cols]
 
 
-def get_label(wildcards: Dict[str, Any]) -> Optional[str]:
-    if hasattr(wildcards, "label"):
-        return wildcards.label
-    return None
+def get_label(wildcards: Dict[str, str]) -> Optional[str]:
+    try:
+        return wildcards["label"]
+    except KeyError:
+        return None
 
 
 # ASSUME these vcf file already have standard chromosomes
 def main(smk: Any, sconf: cfg.StratoMod) -> None:
     wildcards = smk.wildcards
-    fconf = sconf.feature_meta
+    fconf = sconf.feature_names
     iconf = sconf._querykey_to_input(smk.params.query_key)
     idx = fconf.bed_index
 
-    fmt_vcf_feature = sconf.feature_meta.vcf.fmt_feature
-
     chrom = idx.chr
     pos = idx.start
-    qual = fmt_vcf_feature("qual")
-    info = fmt_vcf_feature("info")
-    filt = fmt_vcf_feature("filter")
+    qual = fconf.vcf.qual_name
+    info = fconf.vcf.info_name
+    filt = fconf.vcf.filter_name
     end = idx.end
-    indel_length = fmt_vcf_feature("len")
+    indel_length = fconf.vcf.len_name
 
     input_cols = {
         chrom: InputCol("str", None),
@@ -248,6 +247,9 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
     }
 
     non_field_cols = [chrom, pos, end, indel_length, qual, filt, info]
+
+    # TODO weakly typed
+    fmt_vcf_feature = fconf.vcf.fmt_feature
 
     fields = {fmt_vcf_feature(k): v for k, v in iconf.format_fields.dict().items()}
     label = get_label(wildcards)

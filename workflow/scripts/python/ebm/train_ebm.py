@@ -45,10 +45,10 @@ def train_ebm(
     rconf: cfg.Model,
     df: pd.DataFrame,
 ) -> None:
-    label = (sconf.feature_meta.label,)
+    label = sconf.feature_names.label
 
     def strip_coords(df: pd.DataFrame) -> pd.DataFrame:
-        return df.drop(columns=sconf.feature_meta.all_index_cols())
+        return df.drop(columns=sconf.feature_names.all_index_cols())
 
     features = rconf.features
     feature_names = [

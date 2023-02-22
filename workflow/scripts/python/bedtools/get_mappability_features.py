@@ -11,6 +11,7 @@ from common.cli import setup_logging
 logger = setup_logging(snakemake.log[0])  # type: ignore
 
 
+# TODO apply chr filter to these
 def read_plain_bed(
     config: cfg.StratoMod,
     bedconf: cfg.BedFile,
@@ -19,22 +20,19 @@ def read_plain_bed(
 ) -> pd.DataFrame:
     logger.info("Reading mappability feature: %s", col)
     # these are just plain bed files with no extra columns
-    bed_cols = config.feature_meta.bed_index.bed_cols_ordered()
+    bed_index = config.feature_names.bed_index
+    bed_cols = bed_index.bed_cols_ordered()
     df = read_tsv(path, comment="#", names=bed_cols)
     # add a new column with all '1' (this will be a binary feature)
     df[col] = 1
-    return standardize_chr_column(
-        bedconf.chr_prefix,
-        config.feature_meta.bed_index.chr,
-        df,
-    )
+    return standardize_chr_column(bedconf.chr_prefix, bed_index.chr, df)
 
 
 def main(smk: Any, config: cfg.StratoMod) -> None:
     mapconf = config.refsetkey_to_ref(
         cfg.RefsetKey(smk.wildcards["refset_key"])
     ).annotations.mappability
-    mapmeta = config.feature_meta.mappability
+    mapmeta = config.feature_names.mappability
 
     read_bed = partial(read_plain_bed, config)
 

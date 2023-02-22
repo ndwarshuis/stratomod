@@ -1,10 +1,10 @@
 import sys
 import pandas as pd
-from typing import Any
+from typing import Any, cast
 
 
 def read_tsv_from(path: str, *args: Any, **kwargs: Any) -> pd.DataFrame:
-    return pd.read_csv(path, sep="\t", *args, **kwargs)
+    return cast(pd.DataFrame, pd.read_csv(path, sep="\t", *args, **kwargs))
 
 
 def read_tsv(path: str, *args: Any, **kwargs: Any) -> pd.DataFrame:

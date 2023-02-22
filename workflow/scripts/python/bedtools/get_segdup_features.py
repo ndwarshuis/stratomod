@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import Any
+from typing import Any, cast
 import common.config as cfg
 from common.tsv import write_tsv
 from common.bed import read_bed_df, merge_and_apply_stats
@@ -20,7 +20,7 @@ def read_segdups(
     smk: Any,
     config: cfg.StratoMod,
     path: str,
-    fconf: cfg.SegDupsMeta,
+    fconf: cfg.SegDupsGroup,
     bed_cols: cfg.BedIndex,
 ) -> pd.DataFrame:
     cols = fconf.columns
@@ -38,16 +38,16 @@ def read_segdups(
 
 def merge_segdups(
     df: pd.DataFrame,
-    fconf: cfg.SegDupsMeta,
+    fconf: cfg.SegDupsGroup,
     bed_cols: cfg.BedIndex,
 ) -> pd.DataFrame:
     bed, names = merge_and_apply_stats(bed_cols, fconf, df)
-    return bed.to_dataframe(names=names)
+    return cast(pd.DataFrame, bed.to_dataframe(names=names))
 
 
 def main(smk: Any, config: cfg.StratoMod) -> None:
-    fconf = config.feature_meta.segdups
-    bed_cols = config.feature_meta.bed_index
+    fconf = config.feature_names.segdups
+    bed_cols = config.feature_names.bed_index
     repeat_df = read_segdups(smk, config, smk.input[0], fconf, bed_cols)
     merged_df = merge_segdups(repeat_df, fconf, bed_cols)
     write_tsv(smk.output[0], merged_df, header=True)

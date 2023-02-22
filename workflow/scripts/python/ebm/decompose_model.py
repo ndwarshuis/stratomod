@@ -201,8 +201,8 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
     ebm = read_model(sin["model"])
     write_model_json(sout["model"], ebm)
 
-    label = sconf.feature_meta.label
-    bed_cols = sconf.feature_meta.all_index_cols()
+    label = sconf.feature_names.label
+    bed_cols = sconf.feature_names.all_index_cols()
 
     def write_predictions(xpath: str, ypath: str, out_path: str) -> None:
         X = read_tsv(xpath).drop(columns=bed_cols)

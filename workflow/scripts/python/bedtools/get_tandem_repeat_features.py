@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import Any
+from typing import Any, cast
 import common.config as cfg
 from common.tsv import write_tsv
 from common.bed import read_bed_df, merge_and_apply_stats
@@ -18,14 +18,10 @@ logger = setup_logging(snakemake.log[0])  # type: ignore
 SLOP = 5
 
 
-def format_base(bs_prefix: int, base: str) -> str:
-    return f"{bs_prefix}_{base}"
-
-
 def read_tandem_repeats(
     smk: Any,
     path: str,
-    fconf: cfg.TandemRepeatMeta,
+    fconf: cfg.TandemRepeatGroup,
     bed_cols: cfg.BedIndex,
     sconf: cfg.StratoMod,
 ) -> pd.DataFrame:
@@ -66,21 +62,20 @@ def read_tandem_repeats(
 def merge_tandem_repeats(
     gfile: str,
     df: pd.DataFrame,
-    fconf: cfg.TandemRepeatMeta,
+    fconf: cfg.TandemRepeatGroup,
     bed_cols: cfg.BedIndex,
 ) -> pd.DataFrame:
-    prefix = fconf.prefix
     bed, names = merge_and_apply_stats(bed_cols, fconf, df)
-    merged_df = bed.slop(b=SLOP, g=gfile).to_dataframe(names=names)
-    len_col = f"{prefix}_{fconf.other.len}"
+    merged_df = cast(pd.DataFrame, bed.slop(b=SLOP, g=gfile).to_dataframe(names=names))
+    len_col = fconf.length_name
     merged_df[len_col] = merged_df[bed_cols.end] - merged_df[bed_cols.start] - SLOP * 2
     return merged_df
 
 
 def main(smk: Any, sconf: cfg.StratoMod) -> None:
     i = smk.input
-    bed_cols = sconf.feature_meta.bed_index
-    fconf = sconf.feature_meta.tandem_repeats
+    bed_cols = sconf.feature_names.bed_index
+    fconf = sconf.feature_names.tandem_repeats
     repeat_df = read_tandem_repeats(smk, i.src[0], fconf, bed_cols, sconf)
     merged_df = merge_tandem_repeats(i.genome[0], repeat_df, fconf, bed_cols)
     write_tsv(smk.output[0], merged_df, header=True)
