@@ -13,28 +13,12 @@ to_tibble <- function(lst) {
     do.call(tibble, lst)
 }
 
-# TODO pass the run key as a parameter to disambiguate this
-## get_run_features <- function(wildcards, config) {
-##     run_key <- wildcards[["run_key"]]
-##     config[["ebm_runs"]][[run_key]][["features"]]
-## }
-
-## get_run_error_labels <- function(wildcards, config) {
-##     run_key <- wildcards[["run_key"]]
-##     config[["ebm_runs"]][[run_key]][["error_labels"]]
-## }
-
 read_model <- function(path) {
     jsonlite::read_json(path, simplifyVector = TRUE, simplifyDataFrame = FALSE)
 }
 
 read_predictions <- function(path) {
     readr::read_tsv(path, col_types = cols(.default = "d"))
-}
-
-read_input_paths <- function(path) {
-    jsonlite::read_json(path) %>%
-        set_names(~ basename(dirname(.x)))
 }
 
 lookup_input_path <- function(mapping, k) {
@@ -51,16 +35,12 @@ to_bivariate <- function(model) {
         map(~ list(left = .x$left, right = .x$right, df = to_tibble(.x$df)))
 }
 
-## run_features <- get_run_features(snakemake@wildcards, snakemake@config)
-## error_labels <- get_run_error_labels(snakemake@wildcards, snakemake@config)
-
-run_features <- snakemake@params.features
-error_labels <- snakemake@params.error_labels
+run_features <- snakemake@params[["features"]]
+error_labels <- snakemake@params[["error_labels"]]
 
 mod <- read_model(snakemake@input[["model"]])
 test_pred <- read_predictions(snakemake@input[["predictions"]])
 train_pred <- read_predictions(snakemake@input[["train_predictions"]])
-input_keys <- read_input_paths(snakemake@input[["paths"]])
 
 train_x <- readr::read_tsv(snakemake@input[["train_x"]],
                            col_types = cols(chrom = "-",
@@ -78,7 +58,7 @@ alltrain <- bind_cols(train_x, train_pred) %>%
 
 VCF_input_name <- "VCF_input"
 
-global_df <- to_tibble(mod$global)
+global_df <- to_tibble(mod$global_scores)
 
 univariate <- to_univariate(mod)
 bivariate <- to_bivariate(mod)
@@ -97,7 +77,6 @@ bivariate <- to_bivariate(mod)
 
 ```{r, echo = F, results = "asis"}
 
-iwalk(input_keys, ~ cat(sprintf("- %d: %s\n", .x, .y)))
 cat("\n")
 
 ```

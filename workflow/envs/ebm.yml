@@ -7,8 +7,7 @@ dependencies:
   - r-reticulate # to use python in Rmarkdown
   - pip=21.3.1 # conda complains without this
   - pyyaml=6.0 # for dumping the config in the EBM script
-  # - numba=0.54.1 # needed for interpret packages below
-  - numba=0.56.1 # needed for interpret packages below
+  - numba=0.56.4 # needed for interpret packages below
   - pandas=1.5.3 # version?
   - pydantic
   - more-itertools

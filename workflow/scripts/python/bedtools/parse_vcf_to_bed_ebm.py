@@ -214,7 +214,8 @@ def select_columns(
 def get_label(wildcards: dict[str, str]) -> Optional[str]:
     try:
         return wildcards["label"]
-    except KeyError:
+    # wildcards may look like a dict but missing keys will trigger an attr err
+    except AttributeError:
         return None
 
 
@@ -248,10 +249,7 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
 
     non_field_cols = [chrom, pos, end, indel_length, qual, filt, info]
 
-    # TODO weakly typed
-    fmt_vcf_feature = fconf.vcf.fmt_feature
-
-    fields = {fmt_vcf_feature(k): v for k, v in iconf.format_fields.dict().items()}
+    fields = iconf.format_fields.vcf_fields(fconf.vcf)
     label = get_label(wildcards)
 
     df = read_vcf(input_cols, smk.input[0])

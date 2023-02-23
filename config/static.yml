@@ -166,7 +166,7 @@ tools:
   repseq: https://github.com/ndwarshuis/repseq/archive/refs/tags/v1.0.0.tar.gz
 
 # TODO some of these feature names might be reference-dependent
-feature_meta:
+feature_names:
   label: label
 
   raw_index: variant_index

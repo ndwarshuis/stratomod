@@ -1,7 +1,7 @@
 from scripts.python.common.config import attempt_mem_gb
 
 rmsk_dir = "repeat_masker"
-rmsk_classes = config.feature_meta.repeat_masker.classes
+rmsk_classes = config.feature_names.repeat_masker.classes
 
 rmsk_res = config.annotation_dir(rmsk_dir, log=False)
 rmsk_log = config.annotation_dir(rmsk_dir, log=True)
@@ -20,19 +20,20 @@ rule download_repeat_masker:
         "curl -sS -L -o {output} {params.url}"
 
 
+# use keyed outputs to allow easier parsing in the script
 rule get_repeat_masker_classes:
     input:
         partial(expand_refkey_from_refsetkey, rules.download_repeat_masker.output),
     output:
-        [
-            ensure(rmsk_res / (f"{cls}.tsv.gz"), non_empty=True)
+        **{
+            cls: ensure(rmsk_res / (f"{cls}.tsv.gz"), non_empty=True)
             for cls in rmsk_classes.dict()
-        ],
-        [
-            ensure(rmsk_res / (f"{cls}_{fam}.tsv.gz"), non_empty=True)
+        },
+        **{
+            f"{cls}_{fam}": ensure(rmsk_res / (f"{cls}_{fam}.tsv.gz"), non_empty=True)
             for cls, fams in rmsk_classes.dict().items()
             for fam in fams
-        ],
+        },
     conda:
         config.env_file("bedtools")
     log:

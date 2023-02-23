@@ -95,12 +95,12 @@ rule summarize_labeled_input:
     conda:
         config.env_file("rmarkdown")
     benchmark:
-        config.annotated_dir(labeled=True, log=False) / summary_bench
+        config.annotated_dir(labeled=True, log=True) / summary_bench
     resources:
         mem_mb=cfg.attempt_mem_gb(16),
     params:
-        label_col=config.feature_meta.label,
-        columns=config.feature_meta.non_summary_cols,
+        label_col=config.feature_names.label,
+        columns=config.feature_names.non_summary_cols,
     script:
         config.rmd_script("input_summary.Rmd")
 
@@ -114,7 +114,7 @@ use rule summarize_labeled_input as summarize_unlabeled_input with:
         config.annotated_dir(labeled=False, log=True) / summary_bench
     params:
         label_col=None,
-        columns=config.feature_meta.non_summary_cols,
+        columns=config.feature_names.non_summary_cols,
 
 
 ################################################################################
@@ -128,26 +128,29 @@ rule prepare_train_data:
     input:
         # NOTE: name these inputs according to their labeled_query_keys so
         # they can be used in the script along with each file path
-        lambda wildcards: {
-            k: expand(
-                rules.annotate_labeled_tsv.output,
-                allow_missing=True,
-                l_query_key=k,
-            )
-            for k in config.runkey_to_train_querykeys(
-                wildcards.model_key,
-                wildcards.run_key,
-            )
-        },
+        unpack(
+            lambda wildcards: {
+                k: expand(
+                    rules.annotate_labeled_tsv.output,
+                    allow_missing=True,
+                    l_query_key=k,
+                )
+                for k in config.runkey_to_train_querykeys(
+                    wildcards.model_key,
+                    wildcards.run_key,
+                )
+            }
+        ),
     output:
         df=config.model_train_dir(log=False) / "train.tsv.gz",
-        paths=config.model_train_dir(log=False) / "input_paths.json",
     log:
         config.model_train_dir(log=True) / "prepare.log",
     benchmark:
         config.model_train_dir(log=True) / "prepare.bench"
     resources:
         mem_mb=cfg.attempt_mem_gb(8),
+    conda:
+        config.env_file("bedtools")
     script:
         config.python_script("bedtools/prepare_train.py")
 
@@ -202,15 +205,14 @@ rule decompose_model:
 rule summarize_model:
     input:
         **rules.decompose_model.output,
-        paths=rules.prepare_train_data.output.paths,
         train_x=rules.train_model.output.train_x,
         train_y=rules.train_model.output.train_y,
     output:
-        config.model_train_dir(log=True) / "summary.html",
+        config.model_train_dir(log=False) / "summary.html",
     conda:
         config.env_file("rmarkdown")
     benchmark:
-        config.model_train_dir(log=False) / "summary.bench"
+        config.model_train_dir(log=True) / "summary.bench"
     resources:
         mem_mb=cfg.attempt_mem_gb(8),
     params:
@@ -246,7 +248,6 @@ def test_data_input(annotated_path, key, wildcards):
                 )
             },
         ),
-        "paths": rules.prepare_train_data.output.paths,
     }
 
 
@@ -270,6 +271,8 @@ rule prepare_labeled_test_data:
         config.model_test_dir(labeled=True, log=True) / prepare_bench_file
     resources:
         mem_mb=cfg.attempt_mem_gb(8),
+    conda:
+        config.env_file("bedtools")
     script:
         config.python_script("bedtools/prepare_test.py")
 

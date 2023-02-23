@@ -1,74 +1,106 @@
 import json
 import pandas as pd
 import numpy as np
-from typing import Any, NamedTuple, Hashable, cast
+from numpy.typing import NDArray
+from typing import Any, Hashable, cast, TypedDict
 from common.cli import setup_logging
 from common.ebm import read_model
 from common.tsv import write_tsv
 import common.config as cfg
 from interpret.glassbox import ExplainableBoostingClassifier  # type: ignore
+from enum import Enum
 
 setup_logging(snakemake.log[0])  # type: ignore
 
-AllFeatures = dict[str, tuple[str, int]]
+
+IndexedVectors = dict[int, NDArray[np.float64]]
+NamedVectors = dict[str, NDArray[np.float64]]
+
+EBMUniData = TypedDict(
+    "EBMUniData",
+    {"type": str, "names": list[float | str], "scores": NDArray[np.float64]},
+)
 
 
-class Variable(NamedTuple):
-    name: str
-    type: str
+class VarType(Enum):
+    INT = "interaction"
+    CNT = "continuous"
+    CAT = "categorical"
 
 
-class BivariateData(NamedTuple):
-    left: Variable
-    right: Variable
-    df: dict[Hashable, Any]
+AllFeatures = dict[str, tuple[VarType, int]]
 
 
-class GlobalScoreData(NamedTuple):
-    variable: list[str]
-    score: list[float]
+Variable = TypedDict("Variable", {"name": str, "type": str})
 
 
-class UnivariateDF(NamedTuple):
-    value: list[Any]
-    score: list[float]
-    stdev: list[float]
+BivariateData = TypedDict(
+    "BivariateData",
+    {
+        "left": Variable,
+        "right": Variable,
+        "df": dict[Hashable, float],
+    },
+)
 
 
-class UnivariateData(NamedTuple):
-    name: str
-    vartype: str
-    df: UnivariateDF
+GlobalScoreData = TypedDict(
+    "GlobalScoreData",
+    {
+        "variable": list[str],
+        "score": list[float],
+    },
+)
 
 
-class ModelData(NamedTuple):
-    global_scores: GlobalScoreData
-    intercept: float
-    univariate: list[UnivariateData]
-    bivariate: list[BivariateData]
+UnivariateDF = TypedDict(
+    "UnivariateDF",
+    {
+        "value": list[str | float],
+        "score": list[float],
+        "stdev": list[float],
+    },
+)
+
+
+UnivariateData = TypedDict(
+    "UnivariateData",
+    {
+        "name": str,
+        "vartype": str,
+        "df": UnivariateDF,
+    },
+)
+
+
+ModelData = TypedDict(
+    "ModelData",
+    {
+        "global_scores": GlobalScoreData,
+        "intercept": float,
+        "univariate": list[UnivariateData],
+        "bivariate": list[BivariateData],
+    },
+)
 
 
 # TODO there is no reason this can't be done immediately after training
 # just to avoid the pickle thing
 
 
-def array_to_list(arr: Any, repeat_last: bool) -> Any:
-    al = arr.tolist()
+def array_to_list(arr: NDArray[np.float64], repeat_last: bool) -> list[float]:
+    # cast needed since this can return a nested list depending on number of dims
+    al = cast(list[float], arr.tolist())
     return al + [al[-1]] if repeat_last else al
 
 
 def get_univariate_df(
-    vartype: str,
-    feature_data: Any,
-    stdev: list[float],
+    continuous: bool,
+    feature_data: EBMUniData,
+    stdev: NDArray[np.float64],
 ) -> UnivariateDF:
-    def proc_scores(scores: Any) -> Any:
-        if vartype == "continuous":
-            return array_to_list(scores, True)
-        elif vartype == "categorical":
-            return array_to_list(scores, False)
-        else:
-            assert False, "wrong vartype, dummy: {}".format(vartype)
+    def proc_scores(scores: NDArray[np.float64]) -> list[float]:
+        return array_to_list(scores, continuous)
 
     return UnivariateDF(
         value=feature_data["names"],
@@ -79,12 +111,16 @@ def get_univariate_df(
     )
 
 
-def build_scores_array(arr: Any, left_type: str, right_type: str) -> Any:
+def build_scores_array(
+    arr: NDArray[np.float64],
+    left_type: VarType,
+    right_type: VarType,
+) -> NDArray[np.float64]:
     # any continuous dimension is going to be one less than the names length,
     # so copy the last row/column to the end in these cases
-    if left_type == "continuous":
+    if left_type == VarType.CNT:
         arr = np.vstack((arr, arr[-1, :]))
-    if right_type == "continuous":
+    if right_type == VarType.CNT:
         arr = np.column_stack((arr, arr[:, -1]))
     return arr
 
@@ -94,9 +130,9 @@ def get_bivariate_df(
     ebm_global: ExplainableBoostingClassifier,
     name: str,
     data_index: int,
-    stdevs: dict[int, Any],
+    stdevs: IndexedVectors,
 ) -> BivariateData:
-    def lookup_feature_type(name: str) -> str:
+    def lookup_feature_type(name: str) -> VarType:
         return all_features[name][0]
 
     feature_data = ebm_global.data(data_index)
@@ -109,24 +145,23 @@ def get_bivariate_df(
     left_index = pd.Index(feature_data["left_names"], name="left_value")
     right_index = pd.Index(feature_data["right_names"], name="right_value")
 
-    def stack_array(arr: Any, name: Any) -> pd.DataFrame:
-        return (
+    def stack_array(arr: NDArray[np.float64], name: str) -> "pd.Series[float]":
+        return cast(
+            "pd.Series[float]",
             pd.DataFrame(
                 build_scores_array(arr, left_type, right_type),
                 index=left_index,
                 columns=right_index,
-            )
-            .stack()
-            .rename(name)
-        )
+            ).stack(),
+        ).rename(name)
 
     # the standard deviations are in an array that has 1 larger shape than the
     # scores array in both directions where the first row/column is all zeros.
     # Not sure why it is all zeros, but in order to make it line up with the
     # scores array we need to shave off the first row/column.
     return BivariateData(
-        left=Variable(name=left_name, type=left_type),
-        right=Variable(name=right_name, type=right_type),
+        left=Variable(name=left_name, type=left_type.value),
+        right=Variable(name=right_name, type=right_type.value),
         df=pd.concat(
             [
                 stack_array(feature_data["scores"], "score"),
@@ -147,36 +182,40 @@ def get_global_scores(ebm_global: ExplainableBoostingClassifier) -> GlobalScoreD
 def get_univariate_list(
     ebm_global: ExplainableBoostingClassifier,
     all_features: AllFeatures,
-    stdevs: dict[int, Any],
+    stdevs: IndexedVectors,
 ) -> list[UnivariateData]:
     return [
         UnivariateData(
             name=name,
-            vartype=vartype,
-            df=get_univariate_df(vartype, ebm_global.data(i), stdevs[i]),
+            vartype=vartype.value,
+            df=get_univariate_df(
+                vartype == VarType.CNT,
+                ebm_global.data(i),
+                stdevs[i],
+            ),
         )
         for name, (vartype, i) in all_features.items()
-        if vartype in ["continuous", "categorical"]
+        if vartype in [VarType.CNT, VarType.CAT]
     ]
 
 
 def get_bivariate_list(
     ebm_global: ExplainableBoostingClassifier,
     all_features: AllFeatures,
-    stdevs: dict[int, Any],
+    stdevs: IndexedVectors,
 ) -> list[BivariateData]:
     return [
         get_bivariate_df(all_features, ebm_global, name, i, stdevs)
         for name, (vartype, i) in all_features.items()
-        if vartype == "interaction"
+        if vartype == VarType.INT
     ]
 
 
 def get_model(ebm: ExplainableBoostingClassifier) -> ModelData:
     ebm_global = ebm.explain_global()
-    stdevs = cast(dict[int, Any], ebm.term_standard_deviations_)
+    stdevs = cast(IndexedVectors, ebm.term_standard_deviations_)
     all_features = {
-        cast(str, n): (cast(str, t), i)
+        cast(str, n): (VarType(t), i)
         for i, (n, t) in enumerate(
             map(tuple, ebm_global.selector[["Name", "Type"]].to_numpy())
         )

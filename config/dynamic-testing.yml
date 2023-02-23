@@ -77,13 +77,13 @@ models:
     error_labels: [fp]
     filtered_are_candidates: false
     interactions:
-      - VCF_input
+      - VAR_variant_caller
       - {f1: VCF_indel_length, f2: HOMOPOL_A_length}
       - {f1: VCF_indel_length, f2: HOMOPOL_T_length}
       - {f1: VCF_indel_length, f2: HOMOPOL_G_length}
       - {f1: VCF_indel_length, f2: HOMOPOL_C_length}
     features: &base_features
-      VCF_input:
+      VAR_variant_caller:
         feature_type: categorical
       VCF_VAF: {}
       VCF_DP:

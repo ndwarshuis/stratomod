@@ -11,7 +11,7 @@ logger = setup_logging(snakemake.log[0])  # type: ignore
 def read_query(
     config: cfg.StratoMod, path: str, key: cfg.LabeledQueryKey
 ) -> pd.DataFrame:
-    variables = config.labeled_queries[key].variables
+    variables = config.querykey_to_variables(key)
     return pd.read_table(path).assign(**{str(k): v for k, v in variables.items()})
 
 
@@ -19,7 +19,8 @@ def read_queries(
     config: cfg.StratoMod,
     paths: dict[cfg.LabeledQueryKey, str],
 ) -> pd.DataFrame:
-    return pd.concat([read_query(config, path, key) for key, path in paths.items()])
+    # TODO this is weird, why do I need the [0] here?
+    return pd.concat([read_query(config, path[0], key) for key, path in paths.items()])
 
 
 def main(smk: Any, sconf: cfg.StratoMod) -> None:

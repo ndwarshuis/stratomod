@@ -2,6 +2,7 @@ from functools import reduce
 import pandas as pd
 from typing import Any, cast
 import numpy as np
+from common.tsv import write_tsv
 from pybedtools import BedTool as bt  # type: ignore
 from common.cli import setup_logging
 import common.config as cfg
@@ -64,8 +65,7 @@ def intersect_tsvs(
         column=config.feature_names.raw_index,
         value=new_df.index,
     )
-    # write_tsv(ofile, new_df)
-    new_df.to_csv(ofile, sep="\t")
+    write_tsv(ofile, new_df)
 
 
 def main(smk: Any, config: cfg.StratoMod) -> None:

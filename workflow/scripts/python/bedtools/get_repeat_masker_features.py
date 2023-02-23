@@ -1,7 +1,6 @@
 import pandas as pd
 from typing import Optional, Any
 import common.config as cfg
-from os.path import basename, splitext
 from pybedtools import BedTool as bt  # type: ignore
 from common.tsv import write_tsv
 from common.cli import setup_logging
@@ -56,8 +55,8 @@ def merge_and_write_group(
         write_tsv(path, merged, header=True)
 
 
-def parse_output(config: cfg.StratoMod, path: str, df: pd.DataFrame) -> None:
-    s = splitext(basename(path))[0].split("_")
+def parse_output(config: cfg.StratoMod, path: str, key: str, df: pd.DataFrame) -> None:
+    s = key.split("_")
     if len(s) == 1:
         cls = s[0]
         logger.info("Filtering/merging rmsk class %s", cls)
@@ -72,8 +71,8 @@ def parse_output(config: cfg.StratoMod, path: str, df: pd.DataFrame) -> None:
 
 def main(smk: Any, config: cfg.StratoMod) -> None:
     rmsk_df = read_rmsk_df(smk, config, smk.input[0])
-    for path in smk.output:
-        parse_output(config, path, rmsk_df)
+    for key, path in smk.output.items():
+        parse_output(config, path, key, rmsk_df)
 
 
 main(snakemake, snakemake.config)  # type: ignore

@@ -66,10 +66,8 @@ def train_ebm(
     X_train, X_test, y_train, y_test = train_test_split(
         X,
         y,
-        **rconf.ebm_settings.split_parameters,
+        **rconf.ebm_settings.split_parameters.dict(),
     )
-
-    ebm_config = rconf.ebm_settings.classifier_parameters
 
     cores = smk.threads
 
@@ -84,10 +82,10 @@ def train_ebm(
         # 'F1 x F2' but it appears to work when I specify them separately via
         # the 'interactions' parameter
         feature_names=feature_names,
-        feature_types=[f.feature_type for f in features.values()],
+        feature_types=[f.feature_type.value for f in features.values()],
         interactions=get_interactions(feature_names, rconf.interactions),
         n_jobs=cores,
-        **ebm_config,
+        **rconf.ebm_settings.classifier_parameters.mapping,
     )
     ebm.fit(strip_coords(X_train), y_train)
 

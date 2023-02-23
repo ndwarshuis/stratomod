@@ -247,7 +247,12 @@ class EBMClassifierParams(BaseModel):
     max_rounds: NonNegativeInt = 5000
     min_samples_leaf: NonNegativeInt = 2
     max_leaves: NonNegativeInt = 3
-    random_state: Optional[int] = None
+    random_state: int = random.randint(0, 420420)
+
+    # for easy insertion into the ebm classifier object
+    @property
+    def mapping(self) -> dict[str, Any]:
+        return {**self.dict(), "binning": self.binning.value}
 
 
 class EBMsettings(BaseModel):
@@ -282,6 +287,8 @@ class Feature(BaseModel):
             **{
                 "feature_type": self.feature_type.value,
                 "visualization": self.visualization.r_dict,
+                # pythonic fmap...
+                "transform": maybe(None, lambda x: x.value, self.transform),
             },
         }
 
@@ -494,11 +501,15 @@ class HomopolyGroup(FeatureGroup):
         ]
 
 
-class RMSKGroup(FeatureGroup):
+class RMSKClasses(BaseModel):
     SINE: set[NonEmptyStr] = set()
     LINE: set[NonEmptyStr] = set()
     LTR: set[NonEmptyStr] = set()
     Satellite: set[NonEmptyStr] = set()
+
+
+class RMSKGroup(FeatureGroup):
+    classes: RMSKClasses
 
     # TODO weakly typed
     def fmt_name(
@@ -506,7 +517,7 @@ class RMSKGroup(FeatureGroup):
         grp: str,
         fam: Optional[str],
     ) -> FeatureKey:
-        assert grp in self.dict()
+        assert grp in self.classes.dict(), f"{grp} not a valid RMSK class"
         rest = maybe(grp, lambda f: f"{grp}_{fam}", fam)
         return self.fmt_feature(f"{rest}_length")
 
@@ -515,8 +526,8 @@ class RMSKGroup(FeatureGroup):
             return self.fmt_name(grp, fam)
 
         return [
-            *[fmt(c, None) for c in self.dict()],
-            *[fmt(c, f) for c, fs in self.dict().items() for f in fs],
+            *[fmt(c, None) for c in self.classes.dict()],
+            *[fmt(c, f) for c, fs in self.classes.dict().items() for f in fs],
         ]
 
 
@@ -557,10 +568,6 @@ class TandemRepeatColumns(BaseModel):
     perMatch: NonEmptyStr
     perIndel: NonEmptyStr
     score: NonEmptyStr
-    A: NonEmptyStr
-    T: NonEmptyStr
-    G: NonEmptyStr
-    C: NonEmptyStr
 
 
 class TandemRepeatOther(BaseModel):
@@ -607,6 +614,14 @@ class FormatFields(BaseModel):
     dp: Optional[str] = None
     gt: Optional[str] = None
     gq: Optional[str] = None
+
+    def vcf_fields(self, vcf: VCFGroup) -> dict[FeatureKey, Optional[str]]:
+        return {
+            vcf.vaf_name: self.vaf,
+            vcf.dp_name: self.dp,
+            vcf.gt_name: self.gt,
+            vcf.gq_name: self.gq,
+        }
 
 
 class UnlabeledVCFInput(BaseModel):
@@ -706,8 +721,8 @@ UnlabeledQueries = dict[UnlabeledQueryKey, UnlabeledVCFInput]
 class StratoMod(BaseModel):
     paths: Paths
     tools: Tools
-    feature_names: FeatureNames
     references: dict[RefKey, Reference]
+    feature_names: FeatureNames
     reference_sets: dict[RefsetKey, Refset]
     labeled_queries: LabeledQueries
     unlabeled_queries: UnlabeledQueries
@@ -723,7 +738,7 @@ class StratoMod(BaseModel):
             assert (
                 v.ref in values["references"]
             ), f"'{v.ref}' does not refer to a valid reference"
-        except ValueError:
+        except KeyError:
             pass
         return v
 
@@ -737,7 +752,7 @@ class StratoMod(BaseModel):
             assert (
                 v.refset in values["reference_sets"]
             ), f"'{v.refset}' does not refer to a valid reference set"
-        except ValueError:
+        except KeyError:
             pass
         return v
 
@@ -749,7 +764,7 @@ class StratoMod(BaseModel):
     ) -> VCFInput:
         try:
             var_root = cast(FeatureNames, values["feature_names"]).variables
-        except ValueError:
+        except KeyError:
             pass
         else:
             for varname, varval in v.variables.items():
@@ -848,7 +863,7 @@ class StratoMod(BaseModel):
         try:
             tests = [t.query_key for r in v.runs.values() for t in r.test.values()]
             assert_subset(set(tests), set(values["inputs"]))
-        except ValueError:
+        except KeyError:
             pass
         return v
 
@@ -869,7 +884,10 @@ class StratoMod(BaseModel):
                 for t in r.test.values()
                 for varname, varval in t.variables.items()
             ]
-            assert_subset(set([p[0] for p in varpairs]), set(var_root.all_keys()))
+            assert set([p[0] for p in varpairs]) == set(
+                var_root.all_keys()
+            ), "missing variables"
+            # assert_subset(set([p[0] for p in varpairs]), set(var_root.all_keys()))
             for varname, varval in varpairs:
                 var_root.validate_variable(varname, varval)
         return v
@@ -939,8 +957,11 @@ class StratoMod(BaseModel):
     def querykey_to_chr_prefix(self, key: QueryKey) -> str:
         return self._querykey_to_input(key).chr_prefix
 
-    def querykey_to_variables(self, input_key: QueryKey) -> dict[VarKey, str]:
-        return self._querykey_to_input(input_key).variables
+    def querykey_to_variables(self, input_key: QueryKey) -> dict[FeatureKey, str]:
+        return {
+            self.feature_names.variables.fmt_feature(k): v
+            for k, v in self._querykey_to_input(input_key).variables.items()
+        }
 
     def querykey_to_bench_correction(
         self,
@@ -955,9 +976,13 @@ class StratoMod(BaseModel):
         mkey: ModelKey,
         rkey: RunKey,
         tkey: TestKey,
-    ) -> dict[VarKey, str]:
+    ) -> dict[FeatureKey, str]:
         test = self.models[mkey].runs[rkey].test[tkey]
-        return {**test.variables, **self.querykey_to_variables(test.query_key)}
+        tvars = {
+            self.feature_names.variables.fmt_feature(k): v
+            for k, v in test.variables.items()
+        }
+        return {**tvars, **self.querykey_to_variables(test.query_key)}
 
     def runkey_to_train_querykeys(
         self,
