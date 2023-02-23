@@ -13,25 +13,19 @@ from typing import (
     NewType,
     Any,
     cast,
+    Annotated,
 )
-from typing_extensions import Annotated, Self
+from typing_extensions import Self
 from more_itertools import flatten, duplicates_everseen, unzip, partition
 from itertools import product
 from .functional import maybe
 from snakemake.io import expand, InputFiles  # type: ignore
 from pydantic import BaseModel as PydanticBaseModel
-from pydantic import (
-    validator,
-    HttpUrl,
-    PositiveFloat,
-    NonNegativeInt,
-    conint,
-    constr,
-    conset,
-    confloat,
-    conlist,
-)
+from pydantic import validator, HttpUrl, PositiveFloat, NonNegativeInt, Field
 from enum import Enum, auto
+
+Fraction = Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)]
+NonEmptyStr = Annotated[str, Field(min_length=1)]
 
 # TODO shouldn't all these really be nonempty strings?
 RefKey = NewType("RefKey", str)
@@ -44,29 +38,27 @@ ModelKey = NewType("ModelKey", str)
 RunKey = NewType("RunKey", str)
 FeatureKey = NewType("FeatureKey", str)
 VarKey = NewType("VarKey", str)
-ChrPrefix = NewType("ChrPrefix", str)
+VarVal = NewType("VarVal", str)
+ChrPrefix = NewType("ChrPrefix", Annotated[str, Field(regex="[^\t]")])
 
 QueryKey = UnlabeledQueryKey | LabeledQueryKey
 
 
-Fraction = Annotated[float, confloat(ge=0, le=1, allow_inf_nan=False)]
-
-
-class listEnum(Enum):
+class ListEnum(Enum):
     # TODO any type?
     @classmethod
     def all(cls: Type[Self]) -> list[Any]:
         return [x.value for x in cls]
 
 
-class Base(listEnum):
+class Base(ListEnum):
     A = "A"
     C = "C"
     G = "G"
     T = "T"
 
 
-class ChrIndex(listEnum):
+class ChrIndex(ListEnum):
     CHR1 = auto()
     CHR2 = auto()
     CHR3 = auto()
@@ -109,23 +101,23 @@ class ChrFilter(NamedTuple):
     indices: set[ChrIndex]
 
 
-class FilterKey(listEnum):
+class FilterKey(ListEnum):
     SNV = "SNV"
     INDEL = "INDEL"
 
 
-class ErrorLabel(listEnum):
+class ErrorLabel(ListEnum):
     FP = "fp"
     FN = "fn"
 
 
-class VCFLabel(listEnum):
+class VCFLabel(ListEnum):
     FP = "fp"
     FN = "fn"
     TP = "tp"
 
 
-class AnyLabel(listEnum):
+class AnyLabel(ListEnum):
     FP = "fp"
     FN = "fn"
     TP = "tp"
@@ -183,7 +175,7 @@ class Refset(BaseModel):
 
 
 class CatVar(BaseModel):
-    levels: Annotated[set[str], conset(str, min_items=1)]
+    levels: Annotated[set[str], Field(min_items=1)]
 
 
 class Range(BaseModel):
@@ -217,11 +209,11 @@ class ContVar(Range):
 
 class TestDataInput(BaseModel):
     query_key: QueryKey
-    variables: dict[VarKey, str]
+    variables: dict[VarKey, VarVal]
 
 
 class ModelRun(BaseModel):
-    train: Annotated[set[LabeledQueryKey], conset(LabeledQueryKey, min_items=1)]
+    train: Annotated[set[LabeledQueryKey], Field(min_items=1)]
     test: dict[TestKey, TestDataInput]
 
 
@@ -302,16 +294,14 @@ class FeaturePair(BaseModel):
 # pydantic model class, which will prevent the overall model from being
 # converted to a dict (see https://github.com/pydantic/pydantic/issues/1090)
 InteractionSpec_ = FeatureKey | FeaturePair
-InteractionSpec = Annotated[
-    list[InteractionSpec_], conlist(InteractionSpec_, unique_items=True)
-]
+InteractionSpec = Annotated[list[InteractionSpec_], Field(unique_items=True)]
 
 
 class Model(BaseModel):
     runs: dict[RunKey, ModelRun]
     filter: set[FilterKey]
     ebm_settings: EBMsettings
-    error_labels: Annotated[set[ErrorLabel], conset(ErrorLabel, min_items=1)]
+    error_labels: Annotated[set[ErrorLabel], Field(min_items=1)]
     filtered_are_candidates: bool
     interactions: NonNegativeInt | InteractionSpec = 0
     features: dict[FeatureKey, Feature]
@@ -369,9 +359,7 @@ class Reference(BaseModel):
     benchmarks: dict[BenchKey, Benchmark]
 
 
-Prefix = Annotated[str, constr(regex="[A-Z]+")]
-
-NonEmptyStr = Annotated[str, constr(min_length=1)]
+Prefix = Annotated[str, Field(regex="^[A-Z]+$")]
 
 
 class BedIndex(BaseModel):
@@ -628,10 +616,10 @@ class UnlabeledVCFInput(BaseModel):
     refset: RefsetKey
     chr_prefix: ChrPrefix
     url: Optional[HttpUrl]
-    variables: dict[VarKey, str]
+    variables: dict[VarKey, VarVal]
     format_fields: FormatFields = FormatFields()
-    max_ref: Annotated[int, conint(ge=0)] = 50
-    max_alt: Annotated[int, conint(ge=0)] = 50
+    max_ref: Annotated[int, Field(ge=0)] = 50
+    max_alt: Annotated[int, Field(ge=0)] = 50
 
 
 class LabeledVCFInput(UnlabeledVCFInput):
@@ -646,7 +634,7 @@ class VariableGroup(FeatureGroup):
     categorical: dict[VarKey, CatVar]
 
     # not a pydantic validator; requires lots of data from parent classes
-    def validate_variable(self, varname: VarKey, varval: str) -> None:
+    def validate_variable(self, varname: VarKey, varval: VarVal) -> None:
         cats = self.categorical
         conts = self.continuous
         if varname in cats:
@@ -667,7 +655,7 @@ class VariableGroup(FeatureGroup):
 
     # ASSUME we don't need to check the incoming varkeys or varvals since they
     # will be validated on model creation
-    def _parse_var(self, k: VarKey, v: str) -> float:
+    def _parse_var(self, k: VarKey, v: VarVal) -> float:
         if k in self.categorical:
             return list(self.categorical[k].levels).index(v)
         elif k in self.continuous:
@@ -675,7 +663,7 @@ class VariableGroup(FeatureGroup):
         else:
             assert False, f"{k} not a valid variable key: this should not happen"
 
-    def parse_vars(self, kvs: dict[VarKey, str]) -> dict[FeatureKey, float]:
+    def parse_vars(self, kvs: dict[VarKey, VarVal]) -> dict[FeatureKey, float]:
         return {self.fmt_feature(k): self._parse_var(k, v) for k, v in kvs.items()}
 
 
