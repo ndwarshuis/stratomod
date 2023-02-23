@@ -610,10 +610,10 @@ class TandemRepeatGroup(MergedFeatureGroup):
 
 
 class FormatFields(BaseModel):
-    vaf: Optional[str] = None
-    dp: Optional[str] = None
-    gt: Optional[str] = None
-    gq: Optional[str] = None
+    vaf: Optional[str] = "VAF"
+    dp: Optional[str] = "DP"
+    gt: Optional[str] = "GT"
+    gq: Optional[str] = "GQ"
 
     def vcf_fields(self, vcf: VCFGroup) -> dict[FeatureKey, Optional[str]]:
         return {
