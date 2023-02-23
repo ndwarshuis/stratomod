@@ -645,12 +645,6 @@ class VariableGroup(FeatureGroup):
     continuous: dict[VarKey, ContVar]
     categorical: dict[VarKey, CatVar]
 
-    def all_keys(self) -> list[VarKey]:
-        return list(self.continuous) + list(self.categorical)
-
-    def feature_names(self) -> list[FeatureKey]:
-        return [self.fmt_feature(x) for x in self.all_keys()]
-
     # not a pydantic validator; requires lots of data from parent classes
     def validate_variable(self, varname: VarKey, varval: str) -> None:
         cats = self.categorical
@@ -664,6 +658,25 @@ class VariableGroup(FeatureGroup):
             assert conts[varname].in_range(float(varval))
         else:
             assert False, f"'{varname}' not a valid variable name"
+
+    def all_keys(self) -> list[VarKey]:
+        return list(self.continuous) + list(self.categorical)
+
+    def feature_names(self) -> list[FeatureKey]:
+        return [self.fmt_feature(x) for x in self.all_keys()]
+
+    # ASSUME we don't need to check the incoming varkeys or varvals since they
+    # will be validated on model creation
+    def _parse_var(self, k: VarKey, v: str) -> float:
+        if k in self.categorical:
+            return list(self.categorical[k].levels).index(v)
+        elif k in self.continuous:
+            return float(v)
+        else:
+            assert False, f"{k} not a valid variable key: this should not happen"
+
+    def parse_vars(self, kvs: dict[VarKey, str]) -> dict[FeatureKey, float]:
+        return {self.fmt_feature(k): self._parse_var(k, v) for k, v in kvs.items()}
 
 
 class FeatureNames(BaseModel):
@@ -957,11 +970,9 @@ class StratoMod(BaseModel):
     def querykey_to_chr_prefix(self, key: QueryKey) -> str:
         return self._querykey_to_input(key).chr_prefix
 
-    def querykey_to_variables(self, input_key: QueryKey) -> dict[FeatureKey, str]:
-        return {
-            self.feature_names.variables.fmt_feature(k): v
-            for k, v in self._querykey_to_input(input_key).variables.items()
-        }
+    def querykey_to_variables(self, input_key: QueryKey) -> dict[FeatureKey, float]:
+        vs = self._querykey_to_input(input_key).variables
+        return self.feature_names.variables.parse_vars(vs)
 
     def querykey_to_bench_correction(
         self,
@@ -976,13 +987,10 @@ class StratoMod(BaseModel):
         mkey: ModelKey,
         rkey: RunKey,
         tkey: TestKey,
-    ) -> dict[FeatureKey, str]:
+    ) -> dict[FeatureKey, float]:
         test = self.models[mkey].runs[rkey].test[tkey]
-        tvars = {
-            self.feature_names.variables.fmt_feature(k): v
-            for k, v in test.variables.items()
-        }
-        return {**tvars, **self.querykey_to_variables(test.query_key)}
+        qs = self.querykey_to_variables(test.query_key)
+        return {**qs, **self.feature_names.variables.parse_vars(test.variables)}
 
     def runkey_to_train_querykeys(
         self,
