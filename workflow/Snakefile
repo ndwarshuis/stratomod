@@ -73,15 +73,14 @@ rule all_resources:
         # query vcfs
         expand(
             rules.download_labeled_query_vcf.output,
-            l_query_key=[*config.labeled_queries],
+            l_query_key=[*config.all_labeled_querykeys],
         ),
         expand(
             rules.download_unlabeled_query_vcf.output,
-            ul_query_key=[*config.unlabeled_queries],
+            ul_query_key=[*config.all_unlabeled_querykeys],
         ),
         # benchmark vcfs/beds
-        cfg.all_benchkeys(
-            config,
+        config.bench_targets(
             [
                 *rules.download_bench_vcf.output,
                 *rules.download_bench_bed.output,
@@ -98,5 +97,5 @@ rule all_resources:
                 *rules.download_superdups.output,
                 *rules.download_tandem_repeats.output,
             ],
-            ref_key=config.all_refkeys(),
+            ref_key=config.all_refkeys,
         ),

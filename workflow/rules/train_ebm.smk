@@ -379,8 +379,7 @@ use rule summarize_labeled_test as summarize_unlabeled_test with:
 
 rule all_summary:
     input:
-        cfg.all_input_summary_files(
-            config,
+        config.summary_targets(
             rules.summarize_labeled_input.output,
             rules.summarize_unlabeled_input.output,
         ),
@@ -388,8 +387,7 @@ rule all_summary:
 
 rule all_ebm:
     input:
-        cfg.all_ebm_files(
-            config,
+        config.model_targets(
             rules.summarize_model.output,
             rules.summarize_labeled_test.output,
             rules.summarize_unlabeled_test.output,

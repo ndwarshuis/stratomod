@@ -27,13 +27,13 @@ def read_tandem_repeats(
 ) -> pd.DataFrame:
     fmt_base = fconf.fmt_base_col
     fmt_col = fconf.fmt_col
-    cols = fconf.columns
     perc_a_col = fmt_base(cfg.Base.A)
     perc_t_col = fmt_base(cfg.Base.T)
     perc_c_col = fmt_base(cfg.Base.C)
     perc_g_col = fmt_base(cfg.Base.G)
+    unit_size_col = fmt_col(lambda x: x.period)
     feature_cols: dict[int, cfg.PandasColumn] = {
-        5: fmt_col(lambda x: x.period),
+        5: unit_size_col,
         6: fmt_col(lambda x: x.copyNum),
         8: fmt_col(lambda x: x.perMatch),
         9: fmt_col(lambda x: x.perIndel),
@@ -63,7 +63,7 @@ def read_tandem_repeats(
     # sets of TRs where either == 1 are identical, so just use period here
     # since I can easily refer to it.
     logger.info("Removing TRs with unitsize == 1")
-    return df[df[cols.period] > 1]
+    return df[df[unit_size_col] > 1]
 
 
 def merge_tandem_repeats(

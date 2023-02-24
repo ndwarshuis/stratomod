@@ -203,7 +203,7 @@ def select_columns(
         logger.info("Applying label %s to column %s", label, label_col)
         df[label_col] = label
     cols = non_field_cols + fields + ([] if label is None else [label_col])
-    logger.info("Selecting columns for final TSV: %s", cfg.fmt_strs(cols))
+    logger.info("Selecting columns for final TSV: %s", cols)
     return df[cols]
 
 
