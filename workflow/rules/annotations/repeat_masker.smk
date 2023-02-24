@@ -27,11 +27,11 @@ rule get_repeat_masker_classes:
     output:
         **{
             cls: ensure(rmsk_res / (f"{cls}.tsv.gz"), non_empty=True)
-            for cls in rmsk_classes.dict()
+            for cls in rmsk_classes
         },
         **{
             f"{cls}_{fam}": ensure(rmsk_res / (f"{cls}_{fam}.tsv.gz"), non_empty=True)
-            for cls, fams in rmsk_classes.dict().items()
+            for cls, fams in rmsk_classes.items()
             for fam in fams
         },
     conda:

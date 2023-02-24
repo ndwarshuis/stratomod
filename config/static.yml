@@ -225,10 +225,7 @@ feature_names:
       perMatch: identity
       perIndel: per_indel_mismatch
       score: score
-    bases_prefix: percent
     operations: [max, min, median]
-    other:
-      len: length
 
   variables:
     prefix: VAR

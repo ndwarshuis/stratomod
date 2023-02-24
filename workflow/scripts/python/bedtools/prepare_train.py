@@ -31,9 +31,9 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
         rconf.features,
         rconf.error_labels,
         rconf.filtered_are_candidates,
-        fconf.all_index_cols(),
-        fconf.vcf.filter_name,
-        fconf.label_name,
+        [cfg.FeatureKey(x) for x in fconf.all_index_cols()],
+        cfg.FeatureKey(fconf.vcf.fmt_name(lambda x: x.filter)),
+        cfg.FeatureKey(fconf.label_name),
         raw_df,
     )
     write_tsv(smk.output["df"], processed)

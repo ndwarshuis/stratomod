@@ -1,9 +1,9 @@
 import numpy as np
-from typing import NamedTuple, Optional, Any
+from typing import NamedTuple, Optional, Any, Type, Callable
 import pandas as pd
 import common.config as cfg
 from functools import partial
-from more_itertools import partition, unzip
+from more_itertools import partition
 from common.tsv import write_tsv
 from common.cli import setup_logging
 
@@ -11,34 +11,30 @@ logger = setup_logging(snakemake.log[0])  # type: ignore
 
 
 class InputCol(NamedTuple):
-    dtype: str
+    dtype: Type[str | int | float]
     na_value: Optional[str]
 
 
-ID = "ID"
-REF = "REF"
-ALT = "ALT"
-FORMAT = "FORMAT"
-SAMPLE = "SAMPLE"
+ID = cfg.PandasColumn("ID")
+REF = cfg.PandasColumn("REF")
+ALT = cfg.PandasColumn("ALT")
+FORMAT = cfg.PandasColumn("FORMAT")
+SAMPLE = cfg.PandasColumn("SAMPLE")
 
 
-def read_vcf(input_cols: dict[str, InputCol], path: str) -> pd.DataFrame:
+def read_vcf(input_cols: dict[cfg.PandasColumn, InputCol], path: str) -> pd.DataFrame:
     # Add columns manually because pandas can't distinguish between lines
     # starting with '##' or '#'
-    dtypes, na_values = unzip(
-        (
-            (n, c.dtype),
-            (n, c.na_value),
-        )
-        for n, c in input_cols.items()
-    )
     df = pd.read_table(
         path,
         comment="#",
         header=None,
         # mypy complains if I don't filter on None, not sure why...
-        na_values={k: v for k, v in na_values if v is not None},
-        dtype={k: v for k, v in dtypes if v is not None},
+        # na_values={k: v for k, v in na_values if v is not None},
+        na_values={
+            k: n for k, v in input_cols.items() if (n := v.na_value) is not None
+        },
+        dtype={k: v.dtype for k, v in input_cols.items() if v is not None},
         names=[*input_cols],
     )
     # NOTE: if FORMAT/SAMPLE don't exist these will just be NaNs
@@ -59,10 +55,10 @@ def lookup_maybe(k: str, d: dict[str, float]) -> float:
 def assign_format_sample_fields(
     chrom: str,
     start: str,
-    fields: dict[cfg.FeatureKey, Optional[str]],
+    fields: dict[cfg.PandasColumn, Optional[str]],
     df: pd.DataFrame,
 ) -> pd.DataFrame:
-    def log_split(what: str, xs: list[tuple[cfg.FeatureKey, Optional[str]]]) -> None:
+    def log_split(what: str, xs: list[tuple[cfg.PandasColumn, Optional[str]]]) -> None:
         logger.info(
             "Splitting FORMAT/SAMPLE into %i %s columns.",
             len(xs),
@@ -197,9 +193,9 @@ def add_length_and_filter(
 
 
 def select_columns(
-    non_field_cols: list[str],
-    fields: list[str],
-    label_col: str,
+    non_field_cols: list[cfg.PandasColumn],
+    fields: list[cfg.PandasColumn],
+    label_col: cfg.PandasColumn,
     label: Optional[str],
     df: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -226,25 +222,28 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
     iconf = sconf._querykey_to_input(smk.params.query_key)
     idx = fconf.bed_index
 
+    def fmt(f: Callable[[cfg.VCFColumns], str]) -> cfg.PandasColumn:
+        return cfg.PandasColumn(fconf.vcf.fmt_name(f))
+
     chrom = idx.chr
     pos = idx.start
-    qual = fconf.vcf.qual_name
-    info = fconf.vcf.info_name
-    filt = fconf.vcf.filter_name
     end = idx.end
-    indel_length = fconf.vcf.len_name
+    qual = fmt(lambda x: x.qual)
+    info = fmt(lambda x: x.info)
+    filt = fmt(lambda x: x.filter)
+    indel_length = fmt(lambda x: x.len)
 
-    input_cols = {
-        chrom: InputCol("str", None),
-        pos: InputCol("int", None),
-        ID: InputCol("str", "."),
-        REF: InputCol("str", None),
-        ALT: InputCol("str", "."),
-        qual: InputCol("float", "."),
-        filt: InputCol("str", "."),
-        info: InputCol("str", "."),
-        FORMAT: InputCol("str", "."),
-        SAMPLE: InputCol("str", "."),
+    input_cols: dict[cfg.PandasColumn, InputCol] = {
+        chrom: InputCol(str, None),
+        pos: InputCol(int, None),
+        ID: InputCol(str, "."),
+        REF: InputCol(str, None),
+        ALT: InputCol(str, "."),
+        qual: InputCol(float, "."),
+        filt: InputCol(str, "."),
+        info: InputCol(str, "."),
+        FORMAT: InputCol(str, "."),
+        SAMPLE: InputCol(str, "."),
     }
 
     non_field_cols = [chrom, pos, end, indel_length, qual, filt, info]
@@ -257,7 +256,7 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
     parsed = select_columns(
         non_field_cols,
         list(fields),
-        fconf.label,
+        fconf.label_name,
         label,
         assign_format_sample_fields(
             chrom,

@@ -2,6 +2,7 @@ import re
 import random
 from pathlib import Path
 from typing import (
+    Generic,
     Type,
     TypeVar,
     Sequence,
@@ -39,7 +40,9 @@ RunKey = NewType("RunKey", str)
 FeatureKey = NewType("FeatureKey", str)
 VarKey = NewType("VarKey", str)
 VarVal = NewType("VarVal", str)
-ChrPrefix = NewType("ChrPrefix", Annotated[str, Field(regex="[^\t]")])
+ChrPrefix = NewType("ChrPrefix", str)
+
+PandasColumn = NewType("PandasColumn", str)
 
 QueryKey = UnlabeledQueryKey | LabeledQueryKey
 
@@ -175,7 +178,7 @@ class Refset(BaseModel):
 
 
 class CatVar(BaseModel):
-    levels: Annotated[set[str], Field(min_items=1)]
+    levels: Annotated[list[str], Field(min_items=1, unique_items=True)]
 
 
 class Range(BaseModel):
@@ -363,14 +366,16 @@ Prefix = Annotated[str, Field(regex="^[A-Z]+$")]
 
 
 class BedIndex(BaseModel):
-    chr: NonEmptyStr
-    start: NonEmptyStr
-    end: NonEmptyStr
+    chr: PandasColumn
+    start: PandasColumn
+    end: PandasColumn
 
-    def bed_cols_ordered(self) -> list[FeatureKey]:
-        return [FeatureKey(x) for x in [self.chr, self.start, self.end]]
+    def bed_cols_ordered(self) -> list[PandasColumn]:
+        return [self.chr, self.start, self.end]
 
-    def bed_cols_indexed(self, indices: tuple[int, int, int]) -> dict[int, str]:
+    def bed_cols_indexed(
+        self, indices: tuple[int, int, int]
+    ) -> dict[int, PandasColumn]:
         return dict(zip(indices, self.bed_cols_ordered()))
 
 
@@ -395,53 +400,30 @@ class VCFColumns(BaseModel):
 class VCFGroup(FeatureGroup):
     columns: VCFColumns
 
-    # TODO use template haskell here :(
+    def fmt_name(self: Self, f: Callable[[VCFColumns], str]) -> FeatureKey:
+        return self.fmt_feature(f(self.columns))
 
     @property
-    def qual_name(self: Self) -> FeatureKey:
-        return self.fmt_feature(self.columns.qual)
-
-    @property
-    def filter_name(self: Self) -> FeatureKey:
-        return self.fmt_feature(self.columns.filter)
-
-    @property
-    def info_name(self: Self) -> FeatureKey:
-        return self.fmt_feature(self.columns.info)
-
-    @property
-    def gt_name(self: Self) -> FeatureKey:
-        return self.fmt_feature(self.columns.gt)
-
-    @property
-    def gq_name(self: Self) -> FeatureKey:
-        return self.fmt_feature(self.columns.gq)
-
-    @property
-    def dp_name(self: Self) -> FeatureKey:
-        return self.fmt_feature(self.columns.dp)
-
-    @property
-    def vaf_name(self: Self) -> FeatureKey:
-        return self.fmt_feature(self.columns.vaf)
-
-    @property
-    def len_name(self: Self) -> FeatureKey:
-        return self.fmt_feature(self.columns.len)
-
     def str_feature_names(self) -> list[FeatureKey]:
-        return [self.filter_name, self.info_name, self.gt_name, self.gq_name]
+        return [
+            self.fmt_name(x)
+            for x in [
+                lambda x: x.filter,
+                lambda x: x.info,
+                lambda x: x.gt,
+                lambda x: x.gq,
+            ]
+        ]
 
     def feature_names(self) -> list[FeatureKey]:
-        return [
-            self.qual_name,
-            self.filter_name,
-            self.info_name,
-            self.gt_name,
-            self.gq_name,
-            self.dp_name,
-            self.vaf_name,
-            self.len_name,
+        return self.str_feature_names + [
+            self.fmt_name(x)
+            for x in [
+                lambda x: x.qual,
+                lambda x: x.dp,
+                lambda x: x.vaf,
+                lambda x: x.len,
+            ]
         ]
 
 
@@ -474,61 +456,63 @@ class HomopolyGroup(FeatureGroup):
     bases: set[Base]
     suffixes: HomopolySuffixes
 
-    def _fmt_name(self, bases: Base, which: str) -> FeatureKey:
-        return self.fmt_feature(f"{bases.value}_{which}")
-
-    def fmt_name_len(self, base: Base) -> FeatureKey:
-        return self._fmt_name(base, self.suffixes.len)
-
-    def fmt_name_imp_frac(self, base: Base) -> FeatureKey:
-        return self._fmt_name(base, self.suffixes.imp_frac)
+    def fmt_name(self, b: Base, f: Callable[[HomopolySuffixes], str]) -> FeatureKey:
+        return self.fmt_feature(f"{b.value}_{f(self.suffixes)}")
 
     def feature_names(self) -> list[FeatureKey]:
-        return [self.fmt_name_len(b) for b in self.bases] + [
-            self.fmt_name_imp_frac(b) for b in self.bases
+        return [
+            self.fmt_name(b, f)
+            for f, b in product([lambda x: x.len, lambda x: x.imp_frac], self.bases)
         ]
 
 
-class RMSKClasses(BaseModel):
-    SINE: set[NonEmptyStr] = set()
-    LINE: set[NonEmptyStr] = set()
-    LTR: set[NonEmptyStr] = set()
-    Satellite: set[NonEmptyStr] = set()
-
-
 class RMSKGroup(FeatureGroup):
-    classes: RMSKClasses
+    classes: dict[str, set[NonEmptyStr]] = {
+        k: set() for k in ["SINE", "LINE", "LTR", "Satellite"]
+    }
 
-    # TODO weakly typed
     def fmt_name(
         self,
         grp: str,
         fam: Optional[str],
-    ) -> FeatureKey:
-        assert grp in self.classes.dict(), f"{grp} not a valid RMSK class"
+    ) -> PandasColumn:
+        assert grp in self.classes, f"{grp} not a valid RMSK class"
         rest = maybe(grp, lambda f: f"{grp}_{fam}", fam)
-        return self.fmt_feature(f"{rest}_length")
+        return PandasColumn(self.fmt_feature(f"{rest}_length"))
 
     def feature_names(self) -> list[FeatureKey]:
         def fmt(grp: str, fam: Optional[str]) -> FeatureKey:
-            return self.fmt_name(grp, fam)
+            return FeatureKey(self.fmt_name(grp, fam))
 
         return [
-            *[fmt(c, None) for c in self.classes.dict()],
-            *[fmt(c, f) for c, fs in self.classes.dict().items() for f in fs],
+            *[fmt(c, None) for c in self.classes],
+            *[fmt(c, f) for c, fs in self.classes.items() for f in fs],
         ]
 
 
-class MergedFeatureGroup(FeatureGroup):
+T = TypeVar("T")
+
+
+class MergedFeatureGroup(FeatureGroup, Generic[T]):
     operations: set[BedMergeOp]
+    columns: T
+
+    def fmt_col(self, f: Callable[[T], str]) -> PandasColumn:
+        return PandasColumn(self.fmt_feature(f(self.columns)))
 
     def fmt_count_feature(self) -> FeatureKey:
         return self.fmt_feature("count")
 
     def fmt_merged_feature(self, middle: str, op: BedMergeOp) -> FeatureKey:
-        return self.fmt_feature(f"{middle}_{op.value}")
+        return FeatureKey(f"{middle}_{op.value}")
 
-    def merged_feature_names(self, names: list[str]) -> list[FeatureKey]:
+    def merged_feature_col_names(
+        self,
+        fs: list[Callable[[T], str]],
+    ) -> list[FeatureKey]:
+        return self.merged_feature_names([self.fmt_col(f) for f in fs])
+
+    def merged_feature_names(self, names: list[PandasColumn]) -> list[FeatureKey]:
         return [
             *[
                 self.fmt_merged_feature(n, o)
@@ -543,11 +527,13 @@ class SegDupsColumns(BaseModel):
     fracMatchIndel: NonEmptyStr
 
 
-class SegDupsGroup(MergedFeatureGroup):
+class SegDupsGroup(MergedFeatureGroup[SegDupsColumns]):
     columns: SegDupsColumns
 
     def feature_names(self) -> list[FeatureKey]:
-        return self.merged_feature_names(list(self.columns.dict().values()))
+        return self.merged_feature_col_names(
+            [lambda x: x.alignL, lambda x: x.fracMatchIndel]
+        )
 
 
 class TandemRepeatColumns(BaseModel):
@@ -560,41 +546,54 @@ class TandemRepeatColumns(BaseModel):
 
 class TandemRepeatOther(BaseModel):
     len: NonEmptyStr
-    # AT: NonEmptyStr
-    # GC: NonEmptyStr
 
 
-class TandemRepeatGroup(MergedFeatureGroup):
-    bases_prefix: NonEmptyStr
+class TandemRepeatGroup(MergedFeatureGroup[TandemRepeatColumns]):
     columns: TandemRepeatColumns
-    other: TandemRepeatOther
 
-    # TODO weakly typed
-    def fmt_name_base(self, bases: str) -> FeatureKey:
-        bs_prefix = self.bases_prefix
-        return FeatureKey(f"{bs_prefix}_{bases}")
+    def _base_name(self, base: str) -> PandasColumn:
+        return PandasColumn(self.fmt_feature(f"percent_{base}"))
 
     @property
-    def length_name(self) -> FeatureKey:
-        return self.fmt_feature(self.other.len)
+    def AT_name(self) -> PandasColumn:
+        return self._base_name("AT")
 
-    # @property
-    # def AT_name(self) -> FeatureKey:
-    #     return self.fmt_feature(self.other.AT)
+    @property
+    def GC_name(self) -> PandasColumn:
+        return self._base_name("GC")
 
-    # @property
-    # def GC_name(self) -> FeatureKey:
-    #     return self.fmt_feature(self.other.GC)
+    @property
+    def AG_name(self) -> PandasColumn:
+        return self._base_name("AG")
+
+    @property
+    def CT_name(self) -> PandasColumn:
+        return self._base_name("CT")
+
+    @property
+    def length_name(self) -> PandasColumn:
+        return PandasColumn(self.fmt_feature("length"))
+
+    def fmt_base_col(self, b: Base) -> PandasColumn:
+        return self._base_name(b.value)
 
     def feature_names(self) -> list[FeatureKey]:
-        # TODO weirdly hardcoded in several places
-        bases = ["A", "T", "G", "C", "AT", "GC"]
-        bs = [self.fmt_name_base(b) for b in bases]
-        cs = self.columns.dict().values()
-        return [
-            *self.merged_feature_names([*cs, *bs]),
-            *[self.fmt_feature(o) for o in self.other.dict().values()],
-        ]
+        single_base = [self.fmt_base_col(b) for b in Base]
+        # lombardo quit to become a bioinformatician...
+        double_base = [self.AT_name, self.GC_name, self.AG_name, self.CT_name]
+        noncols = self.merged_feature_names(
+            single_base + double_base + [self.length_name]
+        )
+        cols = self.merged_feature_col_names(
+            [
+                lambda x: x.period,
+                lambda x: x.copyNum,
+                lambda x: x.perMatch,
+                lambda x: x.perIndel,
+                lambda x: x.score,
+            ]
+        )
+        return noncols + cols
 
 
 class FormatFields(BaseModel):
@@ -603,12 +602,15 @@ class FormatFields(BaseModel):
     gt: Optional[str] = "GT"
     gq: Optional[str] = "GQ"
 
-    def vcf_fields(self, vcf: VCFGroup) -> dict[FeatureKey, Optional[str]]:
+    def vcf_fields(self, vcf: VCFGroup) -> dict[PandasColumn, Optional[str]]:
         return {
-            vcf.vaf_name: self.vaf,
-            vcf.dp_name: self.dp,
-            vcf.gt_name: self.gt,
-            vcf.gq_name: self.gq,
+            PandasColumn(vcf.fmt_name(f)): v
+            for f, v in [
+                (lambda x: x.vaf, self.vaf),
+                (lambda x: x.dp, self.dp),
+                (lambda x: x.gt, self.gt),
+                (lambda x: x.gq, self.gq),
+            ]
         }
 
 
@@ -657,7 +659,7 @@ class VariableGroup(FeatureGroup):
     # will be validated on model creation
     def _parse_var(self, k: VarKey, v: VarVal) -> float:
         if k in self.categorical:
-            return list(self.categorical[k].levels).index(v)
+            return self.categorical[k].levels.index(v)
         elif k in self.continuous:
             return float(v)
         else:
@@ -680,11 +682,11 @@ class FeatureNames(BaseModel):
     variables: VariableGroup
 
     @property
-    def label_name(self: Self) -> FeatureKey:
-        return FeatureKey(self.label)
+    def label_name(self: Self) -> PandasColumn:
+        return PandasColumn(self.label)
 
-    def all_index_cols(self) -> list[FeatureKey]:
-        return [FeatureKey(self.raw_index), *self.bed_index.bed_cols_ordered()]
+    def all_index_cols(self) -> list[PandasColumn]:
+        return [PandasColumn(self.raw_index), *self.bed_index.bed_cols_ordered()]
 
     def all_feature_names(self) -> set[FeatureKey]:
         return set(
@@ -700,10 +702,9 @@ class FeatureNames(BaseModel):
         )
 
     @property
-    def non_summary_cols(self) -> list[FeatureKey]:
-        return [
-            FeatureKey(x)
-            for x in (self.all_index_cols() + self.vcf.str_feature_names())
+    def non_summary_cols(self) -> list[PandasColumn]:
+        return self.all_index_cols() + [
+            PandasColumn(x) for x in self.vcf.str_feature_names
         ]
 
 

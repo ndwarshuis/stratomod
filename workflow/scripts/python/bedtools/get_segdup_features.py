@@ -23,10 +23,9 @@ def read_segdups(
     fconf: cfg.SegDupsGroup,
     bed_cols: cfg.BedIndex,
 ) -> pd.DataFrame:
-    cols = fconf.columns
     feature_cols = {
-        18: cols.alignL,
-        27: cols.fracMatchIndel,
+        18: fconf.fmt_col(lambda x: x.alignL),
+        27: fconf.fmt_col(lambda x: x.fracMatchIndel),
     }
     bed_mapping = bed_cols.bed_cols_indexed((1, 2, 3))
     chr_filter = config.refsetkey_to_chr_filter(

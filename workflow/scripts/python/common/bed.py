@@ -1,9 +1,13 @@
 import logging
+from typing import TypeVar
 from itertools import product
 from more_itertools import unzip
 import pandas as pd
 import common.config as cfg
 from pybedtools import BedTool as bt  # type: ignore
+
+
+T = TypeVar("T")
 
 
 def filter_chromosomes(
@@ -55,12 +59,18 @@ def sort_bed_numerically(df: pd.DataFrame, drop_chr: bool = True) -> pd.DataFram
 
 def read_bed_df(
     path: str,
-    bed_mapping: dict[int, str],
-    col_mapping: dict[int, str],
+    bed_mapping: dict[int, cfg.PandasColumn],
+    col_mapping: dict[int, cfg.PandasColumn],
     chr_filter: cfg.ChrFilter,
 ) -> pd.DataFrame:
     mapping = {**bed_mapping, **col_mapping}
-    df = pd.read_table(path, header=None)[[*mapping]].rename(columns=mapping)
+    df = pd.read_table(
+        path,
+        header=None,
+        usecols=[*mapping],
+        names=[*mapping.values()],
+    )
+    # [[*mapping]].rename(columns=mapping)
     chr_col = df.columns.tolist()[0]
     df_standardized = standardize_chr_column(
         chr_filter.prefix,
@@ -77,12 +87,9 @@ def read_bed_df(
 
 def merge_and_apply_stats(
     bed_cols: cfg.BedIndex,
-    fconf: cfg.MergedFeatureGroup,
+    fconf: cfg.MergedFeatureGroup[T],
     bed_df: pd.DataFrame,
 ) -> tuple[bt, list[str]]:
-    # import this here so we can import other functions in this module
-    # without pulling in bedtools
-
     # compute stats on all columns except the first 3
     drop_n = 3
     stat_cols = bed_df.columns.tolist()[drop_n:]

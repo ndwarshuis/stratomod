@@ -16,8 +16,8 @@ CLASSCOL = "_repClass"
 FAMCOL = "_repFamily"
 
 COLS = {
-    11: CLASSCOL,
-    12: FAMCOL,
+    11: cfg.PandasColumn(CLASSCOL),
+    12: cfg.PandasColumn(FAMCOL),
 }
 
 

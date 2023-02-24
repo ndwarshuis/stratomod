@@ -53,8 +53,8 @@ def merge_base(
 
     hgroup = config.feature_names.homopolymers
 
-    length_col = hgroup.fmt_name_len(base)
-    frac_col = hgroup.fmt_name_imp_frac(base)
+    length_col = hgroup.fmt_name(base, lambda x: x.len)
+    frac_col = hgroup.fmt_name(base, lambda x: x.imp_frac)
 
     merged[length_col] = merged[bed_end] - merged[bed_start] - SLOP * 2
     merged[frac_col] = 1 - (merged[PFCT_LEN_COL] / merged[length_col])

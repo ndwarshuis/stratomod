@@ -25,18 +25,19 @@ def read_tandem_repeats(
     bed_cols: cfg.BedIndex,
     sconf: cfg.StratoMod,
 ) -> pd.DataFrame:
-    fmt_base = fconf.fmt_name_base
+    fmt_base = fconf.fmt_base_col
+    fmt_col = fconf.fmt_col
     cols = fconf.columns
-    perc_a_col = fmt_base("A")
-    perc_t_col = fmt_base("T")
-    perc_c_col = fmt_base("C")
-    perc_g_col = fmt_base("G")
-    feature_cols = {
-        5: cols.period,
-        6: cols.copyNum,
-        8: cols.perMatch,
-        9: cols.perIndel,
-        10: cols.score,
+    perc_a_col = fmt_base(cfg.Base.A)
+    perc_t_col = fmt_base(cfg.Base.T)
+    perc_c_col = fmt_base(cfg.Base.C)
+    perc_g_col = fmt_base(cfg.Base.G)
+    feature_cols: dict[int, cfg.PandasColumn] = {
+        5: fmt_col(lambda x: x.period),
+        6: fmt_col(lambda x: x.copyNum),
+        8: fmt_col(lambda x: x.perMatch),
+        9: fmt_col(lambda x: x.perIndel),
+        10: fmt_col(lambda x: x.score),
         11: perc_a_col,
         12: perc_c_col,
         13: perc_g_col,
@@ -48,8 +49,14 @@ def read_tandem_repeats(
         cfg.RefsetKey(smk.wildcards["refset_key"]),
     )
     df = read_bed_df(path, bed_mapping, feature_cols, chr_filter)
-    df[fmt_base("AT")] = df[perc_a_col] + df[perc_t_col]
-    df[fmt_base("GC")] = df[perc_g_col] + df[perc_c_col]
+    base_groups = [
+        (fconf.AT_name, perc_a_col, perc_t_col),
+        (fconf.AG_name, perc_a_col, perc_g_col),
+        (fconf.CT_name, perc_c_col, perc_t_col),
+        (fconf.GC_name, perc_c_col, perc_g_col),
+    ]
+    for double, single1, single2 in base_groups:
+        df[double] = df[single1] + df[single2]
     # Filter out all TRs that have period == 1, since those by definition are
     # homopolymers. NOTE, there is a difference between period and consensusSize
     # in this database; however, it turns out that at least for GRCh38 that the
