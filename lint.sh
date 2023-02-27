@@ -8,7 +8,6 @@
 # (meant to be used by the CI/CD pipeline) and should correspond to what was
 # used to create the environments using `setup_dev.sh`
 
-eval "$(${CONDA_EXE} shell.bash hook 2> /dev/null)"
 anyfailed=false
 if [ -z "$1" ]; then
     prefix="$1"
@@ -20,6 +19,8 @@ _mypy () {
 }
 
 _conda_activate () {
+    eval "$(${CONDA_EXE} shell.bash hook 2> /dev/null)"
+
     # use either a local env or a user-installed env
     base="$1"
     if [ -z "$prefix" ]; then
