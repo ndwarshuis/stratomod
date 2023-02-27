@@ -79,7 +79,6 @@ install_lint_envs:
   script: ./setup_dev.sh dev
 
 run_linters:
-  needs: [install_lint_envs]
   stage: lint
   script: ./lint.sh dev
 
