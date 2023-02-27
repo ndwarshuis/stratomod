@@ -1,8 +1,4 @@
-from functools import partial
-from pathlib import Path
-from snakemake.utils import min_version, validate
-import scripts.python.common.config as cfg
-
+from snakemake.utils import min_version
 
 min_version("7.20")
 
@@ -10,6 +6,8 @@ min_version("7.20")
 configfile: "config/static.yml"
 
 
+# TODO this is a hack (required for depickling to work when sending the config
+# to scripts)
 sys.path.extend(["./workflow/scripts/python"])
 from common.config import StratoMod
 

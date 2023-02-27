@@ -20,7 +20,6 @@ explain_x <- read_df(snakemake@input[["explanations"]])
 
 ```
 
-
 ```{r, include = FALSE, eval = has_label}
 truth_y <- readr::read_tsv(snakemake@input[["truth_y"]],
                            col_types = cols(chrom = "-",

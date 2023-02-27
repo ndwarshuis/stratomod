@@ -93,7 +93,7 @@ rule summarize_labeled_input:
     output:
         config.annotated_dir(labeled=True, log=False) / summary_output,
     conda:
-        config.env_file("rmarkdown")
+        config.env_file("summary")
     benchmark:
         config.annotated_dir(labeled=True, log=True) / summary_bench
     resources:
@@ -102,7 +102,7 @@ rule summarize_labeled_input:
         label_col=config.feature_names.label,
         columns=config.feature_names.non_summary_cols,
     script:
-        config.rmd_script("input_summary.Rmd")
+        config.rmd_script("summary/input_summary.Rmd")
 
 
 use rule summarize_labeled_input as summarize_unlabeled_input with:
@@ -210,7 +210,7 @@ rule summarize_model:
     output:
         config.model_train_dir(log=False) / "summary.html",
     conda:
-        config.env_file("rmarkdown")
+        config.env_file("summary")
     benchmark:
         config.model_train_dir(log=True) / "summary.bench"
     resources:
@@ -224,7 +224,7 @@ rule summarize_model:
             x.value for x in config.models[wildcards.model_key].error_labels
         ],
     script:
-        config.rmd_script("train_summary.Rmd")
+        config.rmd_script("summary/train_summary.Rmd")
 
 
 ################################################################################
@@ -355,13 +355,13 @@ rule summarize_labeled_test:
     output:
         config.model_test_dir(labeled=True, log=False) / test_summary_file,
     conda:
-        config.env_file("rmarkdown")
+        config.env_file("summary")
     benchmark:
         config.model_test_dir(labeled=True, log=True) / test_summary_bench
     resources:
         mem_mb=cfg.attempt_mem_gb(8),
     script:
-        config.rmd_script("test_summary.Rmd")
+        config.rmd_script("summary/test_summary.Rmd")
 
 
 use rule summarize_labeled_test as summarize_unlabeled_test with:

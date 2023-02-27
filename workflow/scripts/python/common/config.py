@@ -1,3 +1,28 @@
+"""
+This is the main configuration for StratoMod.
+
+Unlike (current) snakemake pipelines, this configuration utilizes pydantic
+to parse the yaml configuration into a well-defined python class. This has
+several consequences/advantages:
+- all python code can be statically type checked without invoking snakemake
+- paths in the pipeline (which are methods in the pydantic class) can be
+  resolved in the parse phase rather than at runtime.
+- the user gets better errors when the configuration doesn't conform
+
+Ideally, most errors can now be caught by linters and dry-running snakemake.
+
+Several assumptions/conventions are maintained in order for this to work:
+- all python code is segregated cleanly into conda environments, where each
+  environment has mypy, pylint, etc to lint code as well as any runtime deps
+- rmarkdown does not use the config at all (since R doesn't understand python
+  classes)
+- wildcards have consistent meaning throughout the pipeline, which allows
+  matching wildcards to a given type when sent to a python script
+- generally, snakemake itself is used for build dependency resolution and
+  managing IO; everything else is done in raw python code which can be
+  statically checked
+
+"""
 import re
 import random
 from pathlib import Path
