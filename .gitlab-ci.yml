@@ -75,12 +75,12 @@ install_global_env:
 # lint code
 
 install_lint_envs:
-  stage: conda_lint
+  stage: lint
   script: ./setup_dev.sh dev
 
 run_linters:
   needs: [install_lint_envs]
-  stage: run_lint
+  stage: lint
   script: ./lint.sh dev
 
 ################################################################################
