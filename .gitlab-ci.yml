@@ -8,6 +8,7 @@ stages:
 
 variables:
   ENV_DIR: ./this-env
+  LINT_DIR: ./lint
   TESTCONF: config/dynamic-testing.yml
   # speed up cache compression
   FF_USE_FASTZIP: "true"
@@ -68,6 +69,19 @@ install_global_env:
       || mamba env create -f env.yml -p $ENV_DIR
   cache: 
     - <<: *smk_global_cache
+
+
+################################################################################
+# lint code
+
+install_lint_envs:
+  stage: conda_lint
+  script: ./setup_dev.sh dev
+
+run_linters:
+  needs: [install_lint_envs]
+  stage: run_lint
+  script: ./lint.sh dev
 
 ################################################################################
 # set up snakemake rule conda environments
