@@ -50,6 +50,14 @@ image: condaforge/mambaforge:4.12.0-0
       - config/static.yml
       - config/dynamic-testing.yml
 
+.lint_cache: &lint_cache
+  paths:
+    - lint-*
+  key:
+    files:
+      - workflow/scripts/python/*/env.yml
+      - workflow/scripts/rmarkdown/*/env.yml
+
 .activate_smk: &activate_smk
   before_script:
     - eval "$(${CONDA_DIR}/bin/conda shell.bash hook 2> /dev/null)"
@@ -78,10 +86,15 @@ install_global_env:
 install_lint_envs:
   stage: lint
   script: ./setup_dev.sh dev
+  cache:
+    - <<: *lint_cache
 
 run_linters:
   stage: lint
   script: ./lint.sh dev
+  cache:
+    - <<: *lint_cache
+      policy: pull
 
 ################################################################################
 # set up snakemake rule conda environments
