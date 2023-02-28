@@ -52,7 +52,7 @@ image: condaforge/mambaforge:4.12.0-0
 
 .lint_cache: &lint_cache
   paths:
-    - lint-*
+    - ./lint-*
   key:
     files:
       - workflow/scripts/python/*/env.yml
@@ -85,13 +85,13 @@ install_global_env:
 
 install_lint_envs:
   stage: lint
-  script: ./setup_dev.sh dev
+  script: ./setup_dev.sh $LINT_DIR
   cache:
     - <<: *lint_cache
 
 run_linters:
   stage: lint
-  script: ./lint.sh dev
+  script: ./lint.sh $LINT_DIR
   cache:
     - <<: *lint_cache
       policy: pull
