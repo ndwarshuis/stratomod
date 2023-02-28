@@ -8,12 +8,15 @@
 # (meant to be used by the CI/CD pipeline) and should correspond to what was
 # used to create the environments using `setup_dev.sh`
 
-eval "$(${CONDA_EXE} shell.bash hook 2> /dev/null)"
+anyfail=0 # global var (ew...) to track if we have any lint failures
 
-anyfailed=false
-if [ -n "$1" ]; then
-    prefix="$1"
-fi
+_run_test () {
+    "$@"
+    local status=$?
+    if (( status != 0 )) || (( anyfail == 1 )); then
+        anyfail=1
+    fi
+}
 
 _mypy () {
     # run mypy without the cache to ensure a clean (albeit slow) lint
@@ -21,7 +24,6 @@ _mypy () {
 }
 
 _conda_activate () {
-
     # use either a local env or a user-installed env
     base="$1"
     if [ -z "$prefix" ]; then
@@ -31,21 +33,28 @@ _conda_activate () {
     fi
 }
 
+eval "$(${CONDA_EXE} shell.bash hook 2> /dev/null)"
+
+python_root="workflow/scripts/python"
+
+if [ -n "$1" ]; then
+    prefix="$1"
+fi
+
 for base in bedtools ebm; do
     echo "Testing scripts for env: $base"
     echo ""
     
     _conda_activate "$base"
-    
-    flake8 "workflow/scripts/python/$base"
-    anyfailed=$([ $? -ne 0 ] || $anyfailed)
-    
-    _mypy "workflow/scripts/python/$base"
-    anyfailed=$([ $? -ne 0 ] || $anyfailed)
+
+    # test the common dir since flake8 doesn't follow imports
+    _run_test flake8 "$python_root/common"
+    _run_test flake8 "$python_root/$base"
+    _run_test _mypy "$python_root/$base"
 
     echo ""
 done
 
-if $anyfailed; then
+if (( anyfail == 1 )); then
    exit 1
 fi
