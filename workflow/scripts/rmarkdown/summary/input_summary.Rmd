@@ -75,11 +75,6 @@ label_summary_table <- function(y) {
         knitr::kable()
 }
 
-## fmt_vcf_col <- function(fconf, which) {
-##     .v <- fconf[["vcf"]]
-##     sprintf("%s_%s", .v[["prefix"]], .v[["columns"]][[which]])
-## }
-
 columns <- snakemake@params[["columns"]]
 label_col <- snakemake@params[["label_col"]]
 path <- snakemake@input[[1]]
@@ -92,39 +87,6 @@ x_col_types <- rep("-", length(all_columns)) %>%
   setNames(all_columns) %>%
   c(list(".default"="d")) %>%
   do.call(cols, .)
-
-## fconf <- snakemake@config[["features"]]
-## label_col <- fconf[["label"]]
-## raw_index_col <- fconf[["raw_index"]]
-## idx <- fconf[["bed_index"]]
-
-# TODO super wet... (pass all these columns in via python since I don't feel
-# like writing the machinary twice
-## x_col_types <- if (has_label) {
-##                    cols(
-##                        !!label_col := "-",
-##                        !!raw_index_col := "-",
-##                        !!idx[["chr"]] := "-",
-##                        !!idx[["start"]] := "-",
-##                        !!idx[["end"]] := "-",
-##                        !!fmt_vcf_col(fconf, "filter") := "-",
-##                        !!fmt_vcf_col(fconf, "info") := "-",
-##                        !!fmt_vcf_col(fconf, "gt") := "-",
-##                        !!fmt_vcf_col(fconf, "gq") := "-",
-##                        .default = "d")
-##                } else {
-##                    cols(
-##                        !!raw_index_col := "-",
-##                        !!idx[["chr"]] := "-",
-##                        !!idx[["start"]] := "-",
-##                        !!idx[["end"]] := "-",
-##                        !!fmt_vcf_col(fconf, "filter") := "-",
-##                        !!fmt_vcf_col(fconf, "info") := "-",
-##                        !!fmt_vcf_col(fconf, "gt") := "-",
-##                        !!fmt_vcf_col(fconf, "gq") := "-",
-##                        .default = "d")
-##                }
-                      
 
 df_x <- readr::read_tsv(path, col_types = x_col_types)
 features <- names(df_x)
@@ -293,9 +255,6 @@ y axis, $B$ overlaps with $A$ according to the value of their intersecting
 cell.
 
 ```{r, include = FALSE}
-
-ajaccard_combinations <- function(df_bool, comb_df) {
-}
 
 print_coloc <- function(df_bool, comb_df) {
     mutate(comb_df, asymm_jaccard = ajaccard(df_bool, var.x, var.y)) %>%
