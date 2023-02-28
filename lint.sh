@@ -27,7 +27,7 @@ _conda_activate () {
     if [ -z "$prefix" ]; then
         conda activate stratomod-"$base"
     else
-        conda activate -p "$prefix-$base"
+        conda activate "./$prefix-$base"
     fi
 }
 
