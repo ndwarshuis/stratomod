@@ -7,15 +7,24 @@
 # where ENV_BASE_PREFIX is an optional location to store each environment
 # (meant to be used by the CI/CD pipeline)
 
+_update () {
+    env_file="$1"
+    shift
+    mamba env update -f "$env_file" "$@" --prune
+}
+
 for i in workflow/scripts/{python,rmarkdown}/*; do
     base="$(basename "$i")"
+    env_file="$i/env.yml"
     if [ "$base" != "common" ]; then
         if [ -z "$1" ]; then
-            location=("-n" "stratomod-$base")
+            _update "$env_file" -n "stratomod-$base"
         else
-            location=("-p" "$1-$base")
+            local_path="$1-$base"
+            if [ ! -e "$local_path" ]; then
+                _update "$env_file" -p "$local_path"
+            fi
         fi
-        mamba env update -f "$i/env.yml" "${location[@]}" --prune
         
     fi
 done
