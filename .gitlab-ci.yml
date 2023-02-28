@@ -91,7 +91,10 @@ install_lint_envs:
 
 run_linters:
   stage: lint
-  script: ./lint.sh $LINT_DIR
+  script:
+    - echo $CONDA_EXE
+    - eval "$(${CONDA_DIR}/bin/conda shell.bash hook 2> /dev/null)"
+    - ./lint.sh $LINT_DIR
   cache:
     - <<: *lint_cache
       policy: pull
