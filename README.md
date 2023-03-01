@@ -169,14 +169,15 @@ initialized with `git init && dvc init`)
 
 Each entry under `ebm_runs` in the dynamic config corresponds to one EBM run
 with its corresponding features and settings to be used. After running the
-pipeline, each run should have a directory under `results/ebm` names like
-`<git_tag>_<run_entry_name>` where `<git_tag>` is the current tag of the repo
-(or the commit if there is none) and `<run_entry_name>` is the key under
-`ebm_runs` in the [dynamic config](config/dynamic.yml).
+pipeline, each run should have a directory under `results/model`.
 
 Each directory will contain the input tsv of data used to train the EBM, a
 config yml file with all settings used to train the EBM, and python pickles for
 the X/Y train/test datasets as well as a pickle for the final model itself.
+
+Within the run directory will also be a `test` directory which will contain all
+test runs (eg the results of the model test and the input data used for the
+test).
 
 ## Configuring the Pipeline
 
