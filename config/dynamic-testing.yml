@@ -6,61 +6,79 @@ reference_sets:
     ref: GRCh38
     chr_filter: [21]
 
-inputs:
+labeled_queries:
   HG002_Hifi_DV:
     refset: GRCh37_test
-    train:
-      chr_prefix: ""
-      url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh37/SupplementaryFiles/inputvcfsandbeds/HG002_GRCh37_1_22_PacBio_HiFi_DeepVariant.vcf.gz
-      benchmark: HG002_v4.2.1
-    test:
-      HG005_Hifi_DV:
-        chr_prefix: ""
-        url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh37/SupplementaryFiles/inputvcfsandbeds/HG005_GRCh37_1_22_PacBio_HiFi_DeepVariant.vcf.gz
-        benchmark: HG005_v4.2.1
+    chr_prefix: ""
+    url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh37/SupplementaryFiles/inputvcfsandbeds/HG002_GRCh37_1_22_PacBio_HiFi_DeepVariant.vcf.gz
+    benchmark: HG002_v421
+    variables:
+      coverage: 40
+      seqtech: "PacBio HiFi"
+      variant_caller: "DeepVariant"
   HG002_Illumina_DV:
     refset: GRCh38_test
-    train:
-      chr_prefix: chr
-      url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG002.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
-      benchmark: HG002_v4.2.1
-    test:
-      Clinvar_Illumina:
-        url: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/archive_2.0/2022/clinvar_20220812.vcf.gz
-        # isn't genomics wonderful?
-        chr_prefix: ''
-        format_fields: {}
-        benchmark: null
-        # There are some super long variants in clinvar. Filter these out
-        # because a) they would overlap with so many annotations that a new
-        # universe would spawn into existance and b) they are outside what a
-        # trained model would be good at testing anyways (until we incorporate
-        # structural variants)
-        format_fields:
-          vaf: null
-          dp: null
-          gt: null
-          gq: null
+    chr_prefix: chr
+    url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG002.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
+    benchmark: HG002_v421
+    variables:
+      coverage: 40
+      seqtech: Illumina
+      variant_caller: "DeepVariant"
+  HG005_Hifi_DV:
+    refset: GRCh37_test
+    chr_prefix: ""
+    url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh37/SupplementaryFiles/inputvcfsandbeds/HG005_GRCh37_1_22_PacBio_HiFi_DeepVariant.vcf.gz
+    benchmark: HG005_v421
+    variables:
+      coverage: 40
+      seqtech: "PacBio HiFi"
+      variant_caller: "DeepVariant"
 
-ebm_runs:
-  small_set_v3:
-    inputs:
-      - HG002_Hifi_DV: [HG005_Hifi_DV]
-        HG002_Illumina_DV: [Clinvar_Illumina]
-    filter: [SNP, INDEL]
+unlabeled_queries:
+  Clinvar:
+    refset: GRCh38_test
+    url: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/archive_2.0/2022/clinvar_20220812.vcf.gz
+    # isn't genomics wonderful?
+    chr_prefix: ''
+    # don't include any of these fields since they are not defined in clinvar
+    format_fields:
+      vaf: null
+      dp: null
+      gt: null
+      gq: null
+    variables: {}
+
+models:
+  test_model:
+    runs:
+      test_inputs:
+        train: [HG002_Hifi_DV, HG002_Illumina_DV]
+        test:
+          HG005_Hifi_DV:
+            query_key: HG005_Hifi_DV
+            # TODO default this out
+            variables: {}
+          Clinvar_Illumina:
+            query_key: Clinvar
+            variables:
+              coverage: 40
+              seqtech: "Illumina"
+              variant_caller: "DeepVariant"
+    filter: [SNV, INDEL]
     ebm_settings: &ebm_settings
       split_parameters:
         test_size: 0.2
     error_labels: [fp]
     filtered_are_candidates: false
     interactions:
-      - VCF_input
-      - [VCF_indel_length, HOMOPOL_A_length]
-      - [VCF_indel_length, HOMOPOL_T_length]
-      - [VCF_indel_length, HOMOPOL_G_length]
-      - [VCF_indel_length, HOMOPOL_C_length]
+      - VAR_variant_caller
+      - {f1: VCF_indel_length, f2: HOMOPOL_A_length}
+      - {f1: VCF_indel_length, f2: HOMOPOL_T_length}
+      - {f1: VCF_indel_length, f2: HOMOPOL_G_length}
+      - {f1: VCF_indel_length, f2: HOMOPOL_C_length}
     features: &base_features
-      VCF_input:
+      VAR_variant_caller:
         feature_type: categorical
       VCF_VAF: {}
       VCF_DP:

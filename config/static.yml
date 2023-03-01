@@ -2,6 +2,7 @@
 paths:
   resources: "resources"
   results: "results"
+  log: "log"
 
 # paths/urls for files to be downloaded for processing the inputs
 references:
@@ -34,37 +35,37 @@ references:
         url: https://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/rmsk.txt.gz
         chr_prefix: chr
     benchmarks:
-      HG002_v4.2.1:
+      HG002_v421:
         vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh37/HG002_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
         bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh37/HG002_GRCh37_1_22_v4.2.1_benchmark_noinconsistent.bed
         chr_prefix: ""
         corrections:
           strip_IPS: false
-      HG003_v4.2.1:
+      HG003_v421:
         vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG003_NA24149_father/NISTv4.2.1/GRCh37/HG003_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
         bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG003_NA24149_father/NISTv4.2.1/GRCh37/HG003_GRCh37_1_22_v4.2.1_benchmark_noinconsistent.bed
         chr_prefix: ""
         corrections:
           strip_IPS: false
-      HG004_v4.2.1:
+      HG004_v421:
         vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG004_NA24143_mother/NISTv4.2.1/GRCh37/HG004_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
         bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG004_NA24143_mother/NISTv4.2.1/GRCh37/HG004_GRCh37_1_22_v4.2.1_benchmark_noinconsistent.bed
         chr_prefix: ""
         corrections:
           strip_IPS: false
-      HG005_v4.2.1:
+      HG005_v421:
         vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh37/HG005_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
         bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh37/HG005_GRCh37_1_22_v4.2.1_benchmark.bed
         chr_prefix: ""
         corrections:
           strip_IPS: true
-      HG006_v4.2.1:
+      HG006_v421:
         vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG006_NA24694_father/NISTv4.2.1/GRCh37/HG006_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
         bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG006_NA24694_father/NISTv4.2.1/GRCh37/HG006_GRCh37_1_22_v4.2.1_benchmark.bed
         chr_prefix: ""
         corrections:
           strip_IPS: false
-      HG007_v4.2.1:
+      HG007_v421:
         vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG007_NA24695_mother/NISTv4.2.1/GRCh37/HG007_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
         bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG007_NA24695_mother/NISTv4.2.1/GRCh37/HG007_GRCh37_1_22_v4.2.1_benchmark.bed
         chr_prefix: ""
@@ -112,49 +113,49 @@ references:
         url: https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/rmsk.txt.gz
         chr_prefix: chr
     benchmarks:
-      HG002_v4.2.1:
+      HG002_v421:
         vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
         bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed
         chr_prefix: chr
         corrections:
           strip_IPS: false
-      HG003_v4.2.1:
+      HG003_v421:
         vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG003_NA24149_father/NISTv4.2.1/GRCh38/HG003_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
         bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG003_NA24149_father/NISTv4.2.1/GRCh38/HG003_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed
         chr_prefix: chr
         corrections:
           strip_IPS: false
-      HG004_v4.2.1:
+      HG004_v421:
         vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG004_NA24143_mother/NISTv4.2.1/GRCh38/HG004_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
         bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG004_NA24143_mother/NISTv4.2.1/GRCh38/HG004_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed
         chr_prefix: chr
         corrections:
           strip_IPS: false
-      HG005_v4.2.1:
+      HG005_v421:
         vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh38/HG005_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
         bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh38/HG005_GRCh38_1_22_v4.2.1_benchmark.bed
         chr_prefix: chr
         corrections:
           strip_IPS: true
-      HG006_v4.2.1:
+      HG006_v421:
         vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG006_NA24694_father/NISTv4.2.1/GRCh38/HG006_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
         bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG006_NA24694_father/NISTv4.2.1/GRCh38/HG006_GRCh38_1_22_v4.2.1_benchmark.bed
         chr_prefix: chr
         corrections:
           strip_IPS: false
-      HG007_v4.2.1:
+      HG007_v421:
         vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG007_NA24695_mother/NISTv4.2.1/GRCh38/HG007_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
         bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG007_NA24695_mother/NISTv4.2.1/GRCh38/HG007_GRCh38_1_22_v4.2.1_benchmark.bed
         chr_prefix: chr
         corrections:
           strip_IPS: false
-      draft_v0.005:
+      draft_v005:
         vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/data/AshkenazimTrio/analysis/T2T-HG002-XY-v2.7/20220324_v0.005_HG002XYvsGRCh38/preliminary-draft-small-variant-benchmark-files/GRCh38_T2T-XY-v2.7_dipcall-z2k.vcf.gz
         bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/data/AshkenazimTrio/analysis/T2T-HG002-XY-v2.7/20220324_v0.005_HG002XYvsGRCh38/preliminary-draft-small-variant-benchmark-files/GRCh38_T2T-XY-v2.7_dipcall-z2k.excluded.bed
         chr_prefix: chr
         corrections:
           strip_IPS: false
-      draft_v2.7_xy:
+      draft_v27_xy:
         vcf_url: null
         bed_url: null
         chr_prefix: chr
@@ -165,7 +166,12 @@ tools:
   repseq: https://github.com/ndwarshuis/repseq/archive/refs/tags/v1.0.0.tar.gz
 
 # TODO some of these feature names might be reference-dependent
-features:
+#
+# TODO it makes more sense for alot of this to be moved to config.py as a
+# static, hardcoded data structure (effectively a gigantic constant) since any
+# changes to the layout of these input files will require zillions of changes
+# that aren't worth exposing in a user-configurable fashion
+feature_names:
   label: label
 
   raw_index: variant_index
@@ -178,7 +184,6 @@ features:
   vcf:
     prefix: VCF
     columns:
-      input: input
       qual: QUAL
       filter: FILTER
       info: INFO
@@ -203,8 +208,6 @@ features:
 
   repeat_masker:
     prefix: REPMASK
-    suffixes:
-      len: length
     classes:
       SINE: []
       # TODO make this configurable since not all refs have the same families
@@ -227,7 +230,15 @@ features:
       perMatch: identity
       perIndel: per_indel_mismatch
       score: score
-    bases_prefix: percent
     operations: [max, min, median]
-    other:
-      len: length
+
+  variables:
+    prefix: VAR
+    continuous:
+      coverage:
+        lower: 1
+    categorical:
+      seqtech:
+        levels: ["PacBio HiFi", "Illumina"]
+      variant_caller:
+        levels: ["DeepVariant"]

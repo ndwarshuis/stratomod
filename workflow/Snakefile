@@ -1,7 +1,4 @@
-from functools import partial
-from pathlib import Path
-from snakemake.utils import min_version, validate
-import scripts.python.common.config as cfg
+from snakemake.utils import min_version
 
 min_version("7.20")
 
@@ -9,44 +6,16 @@ min_version("7.20")
 configfile: "config/static.yml"
 
 
-validate(config, "schemas/config-schema.yml")
-cfg.validate_inputs(config)
-cfg.validate_ebm_features(config)
-cfg.validate_ebm_inputs(config)
+# TODO this is a hack (required for depickling to work when sending the config
+# to scripts)
+sys.path.extend(["./workflow/scripts/python"])
+from common.config import StratoMod
 
-################################################################################
-# Wildcards
+# convert regular boring dict to super-awesome pydantic model
+config = StratoMod.parse_obj(config)
 
 
 include: "rules/wildcards.smk"
-
-
-################################################################################
-# Paths
-
-conf_paths = config["paths"]
-resources_dir = Path(conf_paths["resources"])
-results_dir = Path(conf_paths["results"])
-log_dir = results_dir / "log"
-log_refset_dir = log_dir / all_wildcards["refset_key"]
-scripts_root = Path("workflow/scripts")
-
-# TODO this shouldn't be necessary
-# this is necessary as envs/scripts are apparently resolved locally in each rule
-# file
-def build_abs_path(relpath, basename):
-    return str(relpath.resolve() / basename)
-
-
-envs_path = partial(build_abs_path, Path("workflow/envs"))
-python_path = partial(build_abs_path, scripts_root / "python")
-rmd_path = partial(build_abs_path, scripts_root / "rmarkdown")
-
-
-################################################################################
-# Import Subworkflows
-
-
 include: "rules/inputs.smk"
 include: "rules/annotations/main.smk"
 include: "rules/train_ebm.smk"
@@ -69,10 +38,16 @@ rule all:
 rule all_resources:
     input:
         # query vcfs
-        expand(rules.download_query_vcf.output, input_key=[*config["inputs"]]),
+        expand(
+            rules.download_labeled_query_vcf.output,
+            l_query_key=[*config.all_labeled_querykeys],
+        ),
+        expand(
+            rules.download_unlabeled_query_vcf.output,
+            ul_query_key=[*config.all_unlabeled_querykeys],
+        ),
         # benchmark vcfs/beds
-        cfg.all_benchkeys(
-            config,
+        config.bench_targets(
             [
                 *rules.download_bench_vcf.output,
                 *rules.download_bench_bed.output,
@@ -89,5 +64,5 @@ rule all_resources:
                 *rules.download_superdups.output,
                 *rules.download_tandem_repeats.output,
             ],
-            ref_key=cfg.all_refkeys(config),
+            ref_key=config.all_refkeys,
         ),

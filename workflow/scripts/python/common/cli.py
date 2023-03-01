@@ -1,4 +1,5 @@
 import argparse
+from logging import Logger
 
 
 def add_input_arg(desc: str, parser: argparse.ArgumentParser) -> None:
@@ -41,7 +42,7 @@ def make_io_parser(desc: str, idesc: str, odesc: str) -> argparse.ArgumentParser
 
 # set up basic logger that prints to both console and a file (the log directive
 # from snakemake) and captures warnings so those don't go unnoticed
-def setup_logging(path: str, console: bool = False):
+def setup_logging(path: str, console: bool = False) -> Logger:
     import logging
 
     logging.basicConfig(filename=path, level=logging.INFO)

@@ -1,18 +1,17 @@
-from scripts.python.common.config import attempt_mem_gb
+from scripts.python.common.config import attempt_mem_gb, wildcard_format_ext
 
-homopolymers_dir = "homopolymers"
-homopolymers_src_dir = annotations_src_dir / homopolymers_dir
-homopolymers_results_dir = annotations_tsv_dir / homopolymers_dir
-homopolymers_log_dir = annotations_log_dir / homopolymers_dir
+hp_dir = "homopolymers"
+hp_res = config.annotation_dir(hp_dir, log=False)
+hp_log = config.annotation_dir(hp_dir, log=True)
 
 
 rule download_repseq:
     output:
-        resources_dir / "tools" / "repseq.tar.gz",
+        config.tool_resource_dir / "repseq.tar.gz",
     params:
-        url=config["tools"]["repseq"],
+        url=config.tools.repseq,
     conda:
-        envs_path("utils.yml")
+        config.env_file("utils")
     shell:
         "curl -sS -L -o {output} {params.url}"
 
@@ -21,7 +20,7 @@ rule unpack_repseq:
     input:
         rules.download_repseq.output,
     output:
-        directory(results_dir / "tools" / "make" / "repseq"),
+        directory(config.tool_dir(log=False) / "make" / "repseq"),
     shell:
         """
         mkdir {output} && \
@@ -33,11 +32,11 @@ rule build_repseq:
     input:
         rules.unpack_repseq.output,
     output:
-        results_dir / "tools" / "bin" / "repseq",
+        config.tool_dir(log=False) / "bin" / "repseq",
     conda:
-        envs_path("build.yml")
+        config.env_file("build")
     log:
-        log_dir / "tools" / "repseq.log",
+        config.tool_dir(log=True) / "repseq.log",
     shell:
         "make -C {input} > {log} && mv {input}/repseq {output}"
 
@@ -48,13 +47,11 @@ rule find_simple_repeats:
         ref=partial(expand_refkey_from_refsetkey, rules.sdf_to_fasta.output),
         bin=rules.build_repseq.output,
     output:
-        homopolymers_results_dir / "simple_repeats_p3.bed",
-    conda:
-        envs_path("find_simple_repeats.yml")
+        hp_res / "simple_repeats_p3.bed",
     benchmark:
-        homopolymers_results_dir / "find_regions.bench"
+        hp_log / "find_regions.bench"
     log:
-        homopolymers_log_dir / "find_regions.log",
+        hp_log / "find_regions.log",
     resources:
         mem_mb=attempt_mem_gb(4),
     shell:
@@ -75,14 +72,14 @@ rule get_homopolymers:
         bed=rules.find_simple_repeats.output,
         genome=rules.get_genome.output,
     output:
-        ensure(homopolymers_results_dir / homopolymer_file("tsv.gz"), non_empty=True),
+        ensure(hp_res / homopolymer_file("tsv.gz"), non_empty=True),
     conda:
-        envs_path("bedtools.yml")
+        config.env_file("bedtools")
     log:
-        homopolymers_log_dir / homopolymer_file("log"),
+        hp_log / homopolymer_file("log"),
     benchmark:
-        homopolymers_results_dir / homopolymer_file("bench")
+        hp_log / homopolymer_file("bench")
     resources:
         mem_mb=attempt_mem_gb(16),
     script:
-        python_path("get_homopoly_features.py")
+        config.python_script("bedtools/get_homopoly_features.py")

@@ -62,51 +62,7 @@ of this repo:
 mamba env create -f env.yml
 ```
 
-For development packages (`black`, `flake8`, etc) run this after creating the
-environment:
-
-```
-mamba install --file dev.txt -n snakemake-ebm -c conda-forge -c bioconda
-```
-
-## Development and Experiment Workflow
-
-Both development and experiments are tracked using git branches. There are two
-main branches: `master` and `develop`
-
-### Adding a New Feature
-
-Make a new branch off of develop for the new feature, then merge into develop
-when done (note `--no-ff`).
-
-```
-git checkout develop
-git branch -n <new_feature>
-git checkout <new_feature>
-
-# do a bunch of stuff...
-
-git checkout develop
-git merge --no-ff <new_feature>
-```
-
-After feature(s) have been added and all tests have succeeded, update changelog,
-add tag, and merge into master. Use semantic versioning for tags.
-
-```
-# update changelog
-vim CHANGELOG.md
-
-git commit
-
-git tag vX.Y.Z
-git checkout master
-git merge --no-ff vX.Y.Z
-```
-
-NOTE: do not add an experiment-specific configuration to `master` or `develop`.
-The yml files in `config` for these branches are used for testing. See below
-for how to add an experiment.
+## Running the Pipeline
 
 ### Adding an Experiment
 
@@ -128,8 +84,6 @@ If the master branch is updated to a new version, either merge that tag into the
 experiment branch or create an entirely new experiment.
 
 Don't merge any experiment branches back into master.
-
-## Running the Pipeline
 
 ### Auto (dvc + snakemake)
 
@@ -215,14 +169,15 @@ initialized with `git init && dvc init`)
 
 Each entry under `ebm_runs` in the dynamic config corresponds to one EBM run
 with its corresponding features and settings to be used. After running the
-pipeline, each run should have a directory under `results/ebm` names like
-`<git_tag>_<run_entry_name>` where `<git_tag>` is the current tag of the repo
-(or the commit if there is none) and `<run_entry_name>` is the key under
-`ebm_runs` in the [dynamic config](config/dynamic.yml).
+pipeline, each run should have a directory under `results/model`.
 
 Each directory will contain the input tsv of data used to train the EBM, a
 config yml file with all settings used to train the EBM, and python pickles for
 the X/Y train/test datasets as well as a pickle for the final model itself.
+
+Within the run directory will also be a `test` directory which will contain all
+test runs (eg the results of the model test and the input data used for the
+test).
 
 ## Configuring the Pipeline
 
@@ -233,3 +188,79 @@ and parameters used to generate the annotated dataframes.
 The latter is for selecting various features within the annotated dataframes,
 applying transformations, and selecting hyperparameters when training the EBM
 models.
+
+## Development
+
+"Development" refers to adding features/altering code. For configuring and
+committing experiments, see above.
+
+### Environments
+
+By convention, the conda environment specified by `env.yml` only has runtime
+dependencies for the pipeline itself.
+
+To install development environments, run the following:
+
+```
+./setup_dev.sh
+```
+
+In addition to creating new environments, this script will update existing
+ones if they are changed during development.
+
+Note that scripts in the pipeline are segregated by environment in order to
+prevent dependency hell while maintaining reproducible builds. When editing, one
+will need to switch between environments in the IDE in order to benefit from the
+features they provide. Further details on which environments correspond to which
+files can be found in `workflow/scripts`.
+
+Note that this will only install environments necessary for running scripts (eg
+rules with a `script` directive).
+
+### Linting
+
+All python code should be error free when finalizing any new features. Linting
+will be performed automatically as part of the CI/CD pipeline, but to run it
+manually, invoke the following:
+
+```
+./lint.sh
+```
+
+This assumes all development environments are installed (see above).
+
+### New Feature Workflow
+
+There are two main development branches: `master` and `develop`.
+
+Make a new branch off of develop for the new feature, then merge into develop
+when done (note `--no-ff`).
+
+```
+git checkout develop
+git branch -n <new_feature>
+git checkout <new_feature>
+
+# do a bunch of stuff...
+
+git checkout develop
+git merge --no-ff <new_feature>
+```
+
+After feature(s) have been added and all tests have succeeded, update changelog,
+add tag, and merge into master. Use semantic versioning for tags.
+
+```
+# update changelog
+vim CHANGELOG.md
+
+git commit
+
+git tag vX.Y.Z
+git checkout master
+git merge --no-ff vX.Y.Z
+```
+
+NOTE: do not add an experiment-specific configuration to `master` or `develop`.
+The yml files in `config` for these branches are used for testing. See below
+for how to add an experiment.

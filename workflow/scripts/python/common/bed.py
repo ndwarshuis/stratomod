@@ -1,39 +1,37 @@
 import logging
-from typing import List, Dict, Union
-from functools import partial
+from typing import TypeVar
 from itertools import product
 from more_itertools import unzip
 import pandas as pd
-from common.tsv import read_tsv
-from common.functional import compose
-from common.config import (
-    fmt_count_feature,
-    fmt_merged_feature,
-    bed_cols_ordered,
-    fmt_strs,
-)
+import common.config as cfg
+from pybedtools import BedTool as bt  # type: ignore
 
 
-def filter_chromosomes(chr_filter: List[int], df: pd.DataFrame) -> pd.DataFrame:
-    if len(chr_filter) > 0:
-        logging.info(
-            "Pre-filtering chromosomes: %s",
-            fmt_strs(map(str, chr_filter)),
-        )
-        return df[df.iloc[:, 0].isin(chr_filter)].copy()
+T = TypeVar("T")
+
+
+def filter_chromosomes(
+    chr_indices: set[cfg.ChrIndex], df: pd.DataFrame
+) -> pd.DataFrame:
+    cs = [x.value for x in chr_indices]
+    if len(cs) > 0:
+        logging.info("Pre-filtering chromosomes: %s", cs)
+        _df = df[df.iloc[:, 0].isin(cs)].copy()
+        assert not _df.empty
+        return _df
     return df
 
 
-def standardize_chr_series(prefix: str, ser: pd.Series) -> pd.Series:
+def standardize_chr_series(prefix: str, ser: "pd.Series[str]") -> "pd.Series[int]":
     _ser = ser if prefix == "" else ser.str.replace(prefix, "")
-    _ser[_ser == "X"] = "23"
-    _ser[_ser == "Y"] = "24"
+    for c in [cfg.ChrIndex.CHRX, cfg.ChrIndex.CHRY]:
+        _ser[_ser == c.chr_name] = str(c.value)
     return pd.to_numeric(_ser, errors="coerce").astype("Int64")
 
 
 def standardize_chr_column(
     prefix: str,
-    chr_col: Union[str, int],
+    chr_col: str,
     df: pd.DataFrame,
 ) -> pd.DataFrame:
     logging.info("Standardizing chromosome column: %s", chr_col)
@@ -61,41 +59,47 @@ def sort_bed_numerically(df: pd.DataFrame, drop_chr: bool = True) -> pd.DataFram
 
 def read_bed_df(
     path: str,
-    bed_mapping: Dict[int, str],
-    col_mapping: Dict[int, str],
-    prefix: str,
-    filt: List[int],
+    bed_mapping: dict[int, cfg.PandasColumn],
+    col_mapping: dict[int, cfg.PandasColumn],
+    chr_filter: cfg.ChrFilter,
 ) -> pd.DataFrame:
     mapping = {**bed_mapping, **col_mapping}
-    df = read_tsv(path, header=None)[[*mapping]].rename(columns=mapping)
+    df = pd.read_table(
+        path,
+        header=None,
+        usecols=[*mapping],
+        names=[*mapping.values()],
+    )
+    # [[*mapping]].rename(columns=mapping)
     chr_col = df.columns.tolist()[0]
-    return compose(
-        sort_bed_numerically,
-        partial(filter_chromosomes, filt),
-        partial(standardize_chr_column, prefix, chr_col),
-    )(df.astype({chr_col: str}))
+    df_standardized = standardize_chr_column(
+        chr_filter.prefix,
+        chr_col,
+        df.astype({chr_col: str}),
+    )
+    return sort_bed_numerically(
+        filter_chromosomes(
+            chr_filter.indices,
+            df_standardized,
+        )
+    )
 
 
 def merge_and_apply_stats(
-    merge_stats: List[str],
-    bed_cols: Dict[str, str],
-    prefix: str,
+    bed_cols: cfg.BedIndex,
+    fconf: cfg.MergedFeatureGroup[T],
     bed_df: pd.DataFrame,
-):
-    # import this here so we can import other functions in this module
-    # without pulling in bedtools
-    from pybedtools import BedTool as bt  # type: ignore
-
+) -> tuple[bt, list[str]]:
     # compute stats on all columns except the first 3
     drop_n = 3
     stat_cols = bed_df.columns.tolist()[drop_n:]
 
-    logging.info("Computing stats for columns: %s\n", ", ".join(stat_cols))
-    logging.info("Stats to compute: %s\n", ", ".join(merge_stats))
+    logging.info("Computing stats for columns: %s\n", stat_cols)
+    logging.info("Stats to compute: %s\n", [x.value for x in fconf.operations])
 
     cols, opts, headers = unzip(
-        (i + drop_n + 1, m, fmt_merged_feature(prefix, s, m))
-        for (i, s), m in product(enumerate(stat_cols), merge_stats)
+        (i + drop_n + 1, m.value, fconf.fmt_merged_feature(s, m))
+        for (i, s), m in product(enumerate(stat_cols), fconf.operations)
     )
 
     # just use one column for count since all columns will produce the same
@@ -103,8 +107,8 @@ def merge_and_apply_stats(
     full_opts = ["count", *opts]
     full_cols = [drop_n + 1, *cols]
     full_headers = [
-        *bed_cols_ordered(bed_cols),
-        fmt_count_feature(prefix),
+        *bed_cols.bed_cols_ordered(),
+        fconf.fmt_count_feature(),
         *headers,
     ]
 

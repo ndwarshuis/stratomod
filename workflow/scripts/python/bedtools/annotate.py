@@ -1,15 +1,16 @@
 from functools import reduce
-from typing import List
+import pandas as pd
+from typing import Any, cast
 import numpy as np
+from common.tsv import write_tsv
 from pybedtools import BedTool as bt  # type: ignore
-from common.tsv import read_tsv, write_tsv
 from common.cli import setup_logging
-from common.config import lookup_raw_index
+import common.config as cfg
 
-logger = setup_logging(snakemake.log[0])
+logger = setup_logging(snakemake.log[0])  # type: ignore
 
 
-def left_outer_intersect(left, path):
+def left_outer_intersect(left: pd.DataFrame, path: str) -> pd.DataFrame:
     logger.info("Adding annotations from %s", path)
 
     # Use bedtools to perform left-outer join of two bed/tsv files. Since
@@ -18,7 +19,7 @@ def left_outer_intersect(left, path):
     # input (chr, chrStart, chrEnd, which are redundant) can be dropped.
     left_cols = left.columns.tolist()
     left_width = len(left_cols)
-    right = read_tsv(path)
+    right = pd.read_table(path)
     # ASSUME the first three columns are the bed index columns
     right_cols = ["_" + c if i < 3 else c for i, c in enumerate(right.columns.tolist())]
     right_bed = bt.from_dataframe(right)
@@ -27,10 +28,11 @@ def left_outer_intersect(left, path):
     # convert "." to NaN since "." is a string/object which will make pandas run
     # slower than an actual panda
     na_vals = {c: "." for c in left_cols + right_cols[3:]}
-    new_df = (
+    new_df = cast(
+        pd.DataFrame,
         bt.from_dataframe(left)
         .intersect(right_bed, loj=True)
-        .to_dataframe(names=left_cols + right_cols, na_values=na_vals, dtype=dtypes)
+        .to_dataframe(names=left_cols + right_cols, na_values=na_vals, dtype=dtypes),
     )
     # Bedtools intersect will use -1 for NULL in the case of numeric columns. I
     # suppose this makes sense since any "real" bed columns (according to the
@@ -45,27 +47,32 @@ def left_outer_intersect(left, path):
         new_df[new_chr] != ".", np.nan
     )
 
-    logger.info("Annotations added: %s\n", ", ".join(new_data_cols))
+    logger.info("Annotations added: %s\n", ", ".join(new_data_cols.tolist()))
 
     return new_df.drop(columns=new_pky)
 
 
-def intersect_tsvs(ifile: str, ofile: str, tsv_paths: List[str]):
-    target_df = read_tsv(ifile)
+def intersect_tsvs(
+    config: cfg.StratoMod,
+    ifile: str,
+    ofile: str,
+    tsv_paths: list[str],
+) -> None:
+    target_df = pd.read_table(ifile)
     new_df = reduce(left_outer_intersect, tsv_paths, target_df)
     new_df.insert(
         loc=0,
-        column=lookup_raw_index(snakemake.config),
+        column=config.feature_names.raw_index,
         value=new_df.index,
     )
     write_tsv(ofile, new_df)
 
 
-def main() -> None:
-    tsvs = snakemake.input.annotations
-    vcf = snakemake.input.variants[0]
+def main(smk: Any, config: cfg.StratoMod) -> None:
+    tsvs = smk.input.annotations
+    vcf = smk.input.variants[0]
     logger.info("Adding annotations to %s\n", vcf)
-    intersect_tsvs(vcf, snakemake.output[0], tsvs)
+    intersect_tsvs(config, vcf, smk.output[0], tsvs)
 
 
-main()
+main(snakemake, snakemake.config)  # type: ignore
