@@ -1,8 +1,5 @@
 import scripts.python.common.config as cfg
 
-# wildcards shall not be used for multiple nodes in a filepath
-# TODO there are lots of characters that should be avoided to prevent ambiguity
-
 
 wildcard_constraints:
     **cfg._constraints,

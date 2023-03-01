@@ -233,28 +233,29 @@ def alternate_constraint(xs: list[str]) -> str:
     return f"({'|'.join(xs)})"
 
 
-# constraints should only have alphanum to avoid splitting on path slashes and
-# delimiters such as "_" and "-"
-KEY_CONSTR = "[a-zA-Z][a-za-z0-9]+"
+# constraints should only have alphanum or underscore to avoid splitting on path
+# delimitors ("/"), file extensions ("."), or filename delimiters ("-" or
+# similar)
+KEY_CONSTR = "[A-Za-z][A-Za-z0-9_]+"
 
 _constraints: dict[str, str] = {
     # corresponds to a genome reference
-    "ref_key": "[^/]+",
+    "ref_key": KEY_CONSTR,
     # corresponds to a reference set (reference + chromosome filter + etc)
-    "refset_key": "[^/]+",
+    "refset_key": KEY_CONSTR,
     # corresponds to a testing vcf
-    "test_key": "[^/]+",
+    "test_key": KEY_CONSTR,
     # corresponds to a query vcf file (with or without a benchmark)
-    "query_key": "[^/]+",
-    "ul_query_key": "[^/]+",
-    "l_query_key": "[^/]+",
+    "query_key": KEY_CONSTR,
+    "ul_query_key": KEY_CONSTR,
+    "l_query_key": KEY_CONSTR,
     # refers to a collection of input data input to an ebm model configuration
     # (composed of multiple train/test keys + associated data)
-    "run_key": "[^/]+",
+    "run_key": KEY_CONSTR,
     # refers to a benchmark vcf (within the context of a given reference)
-    "bench_key": "[^/]+",
+    "bench_key": KEY_CONSTR,
     # refers to an EBM model and its parameters
-    "model_key": "[^/]+",
+    "model_key": KEY_CONSTR,
     # refers to the variant type (SNP or INDEL, for now)
     # TODO ...why "filter"? (I can't think of anything better)
     "filter_key": alternate_constraint(FilterKey.all()),
@@ -264,7 +265,7 @@ _constraints: dict[str, str] = {
     "base": alternate_constraint(Base.all()),
 }
 
-all_wildcards: dict[str, str] = {k: f"{{{k},{v}}}" for k, v in _constraints.items()}
+all_wildcards: dict[str, str] = {k: f"{{{k}}}" for k, v in _constraints.items()}
 
 
 def wildcard_ext(key: str, ext: str) -> str:
@@ -902,8 +903,16 @@ def assert_subset(xs: set[X], ys: set[X]) -> None:
     assert xs <= ys, f"not a subset - extra members: {xs - ys}"
 
 
+def assert_member(x: X, xs: Sequence[X]) -> None:
+    assert x in xs, f"'{x}' is not one of {xs}"
+
+
 def flatten_features(fs: dict[FeatureKey, Feature]) -> list[FeatureKey]:
     return [k if v.alt_name is None else v.alt_name for k, v in fs.items()]
+
+
+def assert_keypattern(x: str) -> None:
+    assert re.fullmatch(KEY_CONSTR, x), f"key '{x}' does not match {KEY_CONSTR}"
 
 
 class StratoMod(_BaseModel):
@@ -925,9 +934,8 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> Refset:
         try:
-            assert (
-                v.ref in values["references"]
-            ), f"'{v.ref}' does not refer to a valid reference"
+            assert_member(v.ref, values["references"])
+            assert_keypattern(v.ref)
         except KeyError:
             pass
         return v
@@ -939,9 +947,8 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> VCFQuery:
         try:
-            assert (
-                v.refset in values["reference_sets"]
-            ), f"'{v.refset}' does not refer to a valid reference set"
+            assert_member(v.refset, values["reference_sets"])
+            assert_keypattern(v.refset)
         except KeyError:
             pass
         return v
@@ -975,9 +982,8 @@ class StratoMod(_BaseModel):
         else:
             ref_key = refsets[v.refset].ref
             ref_benchmarks = refs[ref_key].benchmarks
-            assert (
-                v.benchmark in ref_benchmarks
-            ), f"'{v.benchmark}' does not refer to a valid benchmark"
+            assert_member(v.benchmark, ref_benchmarks)
+            assert_keypattern(v.benchmark)
         return v
 
     @validator("unlabeled_queries")
@@ -1039,7 +1045,9 @@ class StratoMod(_BaseModel):
     ) -> Model:
         try:
             train = [t for r in v.runs.values() for t in r.train]
-            assert_subset(set(train), set(values["inputs"]))
+            assert_subset(set(train), set(values["labeled_queries"]))
+            for t in train:
+                assert_keypattern(t)
         except KeyError:
             pass
         return v
@@ -1052,7 +1060,12 @@ class StratoMod(_BaseModel):
     ) -> Model:
         try:
             tests = [t.query_key for r in v.runs.values() for t in r.test.values()]
-            assert_subset(set(tests), set(values["inputs"]))
+            all_queries = set(values["labeled_queries"]) | set(
+                values["unlabeled_queries"]
+            )
+            assert_subset(set(tests), all_queries)
+            for t in tests:
+                assert_keypattern(t)
         except KeyError:
             pass
         return v
@@ -1084,6 +1097,23 @@ class StratoMod(_BaseModel):
             # assert_subset(set([p[0] for p in varpairs]), set(var_root.all_keys()))
             for varname, varval in varpairs:
                 var_root.validate_variable(varname, varval)
+        return v
+
+    @validator("models")
+    def models_keys_are_valid(
+        cls: Type[Self],
+        v: dict[ModelKey, Model],
+    ) -> dict[ModelKey, Model]:
+        for k in v:
+            assert_keypattern(k)
+        return v
+
+    @validator("models", each_item=True)
+    def run_and_test_keys_are_valid(cls: Type[Self], v: Model) -> Model:
+        for rk, r in v.runs.items():
+            assert_keypattern(rk)
+            for tk in r.test:
+                assert_keypattern(tk)
         return v
 
     # various mapping functions
