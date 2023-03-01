@@ -11,19 +11,11 @@ configfile: "config/static.yml"
 sys.path.extend(["./workflow/scripts/python"])
 from common.config import StratoMod
 
+# convert regular boring dict to super-awesome pydantic model
 config = StratoMod.parse_obj(config)
-
-################################################################################
-# Wildcards
 
 
 include: "rules/wildcards.smk"
-
-
-################################################################################
-# Import Subworkflows
-
-
 include: "rules/inputs.smk"
 include: "rules/annotations/main.smk"
 include: "rules/train_ebm.smk"

@@ -26,8 +26,6 @@ rule get_segdups:
         ensure(segdups_tsv / "segdups.tsv.gz", non_empty=True),
     conda:
         config.env_file("bedtools")
-    params:
-        filt=refsetkey_to_chr_indices_wc,
     log:
         segdups_log / "segdups.log",
     benchmark:

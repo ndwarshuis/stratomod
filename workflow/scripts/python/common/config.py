@@ -265,15 +265,18 @@ _constraints: dict[str, str] = {
     "base": alternate_constraint(Base.all()),
 }
 
-all_wildcards: dict[str, str] = {k: f"{{{k}}}" for k, v in _constraints.items()}
+
+def get_wildcard(x: str) -> str:
+    assert x in _constraints, f"invalid wildcard: {x}"
+    return f"{{{x}}}"
 
 
 def wildcard_ext(key: str, ext: str) -> str:
-    return f"{all_wildcards[key]}.{ext}"
+    return f"{get_wildcard(key)}.{ext}"
 
 
 def wildcard_format(format_str: str, *keys: str) -> str:
-    return format_str.format(*[all_wildcards[k] for k in keys])
+    return format_str.format(*[get_wildcard(k) for k in keys])
 
 
 def wildcard_format_ext(format_str: str, keys: str, ext: str) -> str:
@@ -1094,7 +1097,6 @@ class StratoMod(_BaseModel):
             assert set([p[0] for p in varpairs]) == set(
                 var_root.all_keys()
             ), "missing variables"
-            # assert_subset(set([p[0] for p in varpairs]), set(var_root.all_keys()))
             for varname, varval in varpairs:
                 var_root.validate_variable(varname, varval)
         return v
@@ -1238,14 +1240,14 @@ class StratoMod(_BaseModel):
 
     @property
     def ref_resource_dir(self) -> Path:
-        return self.paths.resources / "reference" / all_wildcards["ref_key"]
+        return self.paths.resources / "reference" / get_wildcard("ref_key")
 
     @property
     def bench_resource_dir(self) -> Path:
         return self.ref_resource_dir / "bench"
 
     def annotation_resource_dir(self, which: str) -> Path:
-        return self.paths.resources / "annotations" / all_wildcards["ref_key"] / which
+        return self.paths.resources / "annotations" / get_wildcard("ref_key") / which
 
     @property
     def tool_resource_dir(self) -> Path:
@@ -1261,30 +1263,30 @@ class StratoMod(_BaseModel):
         return (
             self._result_or_log_dir(log)
             / "bench"
-            / all_wildcards["refset_key"]
-            / all_wildcards["bench_key"]
+            / get_wildcard("refset_key")
+            / get_wildcard("bench_key")
         )
 
     def annotation_dir(self, which: str, log: bool) -> Path:
         return (
             self._result_or_log_dir(log)
             / "annotations"
-            / all_wildcards["refset_key"]
+            / get_wildcard("refset_key")
             / which
         )
 
     def _labeled_dir(self, labeled: bool) -> Path:
         return (
-            Path("labeled") / all_wildcards["l_query_key"]
+            Path("labeled") / get_wildcard("l_query_key")
             if labeled
-            else Path("unlabeled") / all_wildcards["ul_query_key"]
+            else Path("unlabeled") / get_wildcard("ul_query_key")
         )
 
     def _query_dir(self, labeled: bool, log: bool) -> Path:
         return (
             self._result_or_log_dir(log)
             / "query"
-            / all_wildcards["refset_key"]
+            / get_wildcard("refset_key")
             / self._labeled_dir(labeled)
         )
 
@@ -1298,7 +1300,7 @@ class StratoMod(_BaseModel):
         return self._query_dir(True, log) / "vcfeval"
 
     def refset_dir(self, log: bool) -> Path:
-        return self._result_or_log_dir(log) / "references" / all_wildcards["refset_key"]
+        return self._result_or_log_dir(log) / "references" / get_wildcard("refset_key")
 
     def annotated_dir(self, labeled: bool, log: bool) -> Path:
         return self._result_or_log_dir(log) / "annotated" / self._labeled_dir(labeled)
@@ -1315,7 +1317,7 @@ class StratoMod(_BaseModel):
             self.model_train_dir(log)
             / "test"
             / ("labeled" if labeled else "unlabeled")
-            / all_wildcards["test_key"]
+            / get_wildcard("test_key")
         )
 
     # wildcard expansion

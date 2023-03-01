@@ -1,4 +1,4 @@
-from scripts.python.common.config import attempt_mem_gb
+from scripts.python.common.config import attempt_mem_gb, wildcard_format_ext
 
 hp_dir = "homopolymers"
 hp_res = config.annotation_dir(hp_dir, log=False)

@@ -32,8 +32,6 @@ rule get_tandem_repeats:
         ),
     conda:
         config.env_file("bedtools")
-    params:
-        filt=refsetkey_to_chr_indices_wc,
     log:
         config.annotation_dir(tr_dir, log=True) / tr_dir / "tandem_repeats.log",
     benchmark:

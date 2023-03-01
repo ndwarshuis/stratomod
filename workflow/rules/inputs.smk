@@ -20,6 +20,10 @@ def expand_benchmark_path(path, wildcards):
     )
 
 
+def rule_output_suffix(rulename, suffix):
+    return f"{getattr(rules, rulename).output[0]}.{suffix}"
+
+
 ################################################################################
 # reference
 
@@ -109,7 +113,7 @@ rule download_mhc_strat:
 
 rule download_labeled_query_vcf:
     output:
-        config.labeled_query_resource_dir / wildcard_ext("l_query_key", "vcf.gz"),
+        config.labeled_query_resource_dir / cfg.wildcard_ext("l_query_key", "vcf.gz"),
     params:
         url=lambda wildcards: config.labeled_queries[wildcards.l_query_key].url,
     conda:
@@ -120,7 +124,7 @@ rule download_labeled_query_vcf:
 
 use rule download_labeled_query_vcf as download_unlabeled_query_vcf with:
     output:
-        config.unlabeled_query_resource_dir / wildcard_ext("ul_query_key", "vcf.gz"),
+        config.unlabeled_query_resource_dir / cfg.wildcard_ext("ul_query_key", "vcf.gz"),
     params:
         url=lambda wildcards: config.unlabeled_queries[wildcards.ul_query_key].url,
 
@@ -203,7 +207,7 @@ rule generate_query_tbi:
 
 rule download_bench_vcf:
     output:
-        config.bench_resource_dir / wildcard_ext("bench_key", "vcf.gz"),
+        config.bench_resource_dir / cfg.wildcard_ext("bench_key", "vcf.gz"),
     params:
         url=lambda wildcards: config.references[wildcards.ref_key]
         .benchmarks[wildcards.bench_key]
@@ -220,7 +224,9 @@ use rule filter_labeled_query_vcf as filter_bench_vcf with:
     output:
         config.bench_dir(log=False) / "filtered.vcf",
     params:
-        chr_prefix=lambda wildcards: config.benchkey_to_chr_prefix(wildcards.refset_key, wildcards.bench_key)
+        chr_prefix=lambda wildcards: config.benchkey_to_chr_prefix(
+            wildcards.refset_key, wildcards.bench_key
+        ),
 
 
 # NOTE: this avoids an error caused by vcfeval where it will strip out any
@@ -262,7 +268,7 @@ use rule generate_query_tbi as generate_bench_tbi with:
 
 rule download_bench_bed:
     output:
-        config.bench_resource_dir / wildcard_ext("bench_key", "bed"),
+        config.bench_resource_dir / cfg.wildcard_ext("bench_key", "bed"),
     params:
         url=lambda wildcards: config.references[wildcards.ref_key]
         .benchmarks[wildcards.bench_key]
@@ -279,7 +285,9 @@ rule filter_bench_bed:
     output:
         config.bench_dir(log=False) / "filtered.bed",
     params:
-        chr_prefix=lambda wildcards: config.benchkey_to_chr_prefix(wildcards.refset_key, wildcards.bench_key)
+        chr_prefix=lambda wildcards: config.benchkey_to_chr_prefix(
+            wildcards.refset_key, wildcards.bench_key
+        ),
     conda:
         config.env_file("bedtools")
     script:
@@ -292,7 +300,9 @@ rule standardize_mhc_strat:
     output:
         config.bench_dir(log=False) / "strats" / "mhc_standardized.bed.gz",
     params:
-        chr_prefix=lambda wildcards: config.benchkey_to_chr_prefix(wildcards.refset_key, wildcards.bench_key)
+        chr_prefix=lambda wildcards: config.benchkey_to_chr_prefix(
+            wildcards.refset_key, wildcards.bench_key
+        ),
     conda:
         config.env_file("bedtools")
     script:
@@ -386,12 +396,12 @@ rule label_vcf:
 
 
 def labeled_file(ext):
-    return wildcard_format_ext(f"{{}}_{{}}", ["filter_key", "label"], ext)
+    return cfg.wildcard_format_ext(f"{{}}_{{}}", ["filter_key", "label"], ext)
 
 
 rule parse_labeled_vcf:
     input:
-        config.vcfeval_dir(log=False) / wildcard_ext("label", "vcf.gz"),
+        config.vcfeval_dir(log=False) / cfg.wildcard_ext("label", "vcf.gz"),
     output:
         config.query_parsed_dir(labeled=True, log=False) / labeled_file("tsv.gz"),
     log:
@@ -401,7 +411,7 @@ rule parse_labeled_vcf:
     conda:
         config.env_file("bedtools")
     params:
-        query_key = lambda wildcards: wildcards.l_query_key
+        query_key=lambda wildcards: wildcards.l_query_key,
     resources:
         mem_mb=cfg.attempt_mem_gb(2),
     script:
@@ -418,13 +428,13 @@ rule concat_labeled_tsvs:
     output:
         ensure(
             config.query_parsed_dir(labeled=True, log=False)
-            / wildcard_format("{}_labeled.tsv.gz", "filter_key"),
+            / cfg.wildcard_format("{}_labeled.tsv.gz", "filter_key"),
             non_empty=True,
         ),
     conda:
         config.env_file("bedtools")
     benchmark:
-        config.query_parsed_dir(labeled=True, log=True) / wildcard_format(
+        config.query_parsed_dir(labeled=True, log=True) / cfg.wildcard_format(
             "{}_concat.bench", "filter_key"
         )
     resources:
@@ -438,7 +448,7 @@ rule concat_labeled_tsvs:
 
 
 def unlabeled_file(ext):
-    return wildcard_ext("filter_key", ext)
+    return cfg.wildcard_ext("filter_key", ext)
 
 
 use rule parse_labeled_vcf as parse_unlabeled_vcf with:
@@ -453,7 +463,7 @@ use rule parse_labeled_vcf as parse_unlabeled_vcf with:
     log:
         config.query_parsed_dir(labeled=False, log=True) / unlabeled_file("log"),
     params:
-        query_key = lambda wildcards: wildcards.ul_query_key
+        query_key=lambda wildcards: wildcards.ul_query_key,
     resources:
         mem_mb=cfg.attempt_mem_gb(2),
     benchmark:

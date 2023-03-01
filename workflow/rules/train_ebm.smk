@@ -10,9 +10,9 @@ import scripts.python.common.config as cfg
 # add annotations
 
 
-annotated_tsv = wildcard_ext("filter_key", "tsv.gz")
-annotated_log = wildcard_ext("filter_key", "log")
-annotated_bench = wildcard_ext("filter_key", "bench")
+annotated_tsv = cfg.wildcard_ext("filter_key", "tsv.gz")
+annotated_log = cfg.wildcard_ext("filter_key", "log")
+annotated_bench = cfg.wildcard_ext("filter_key", "bench")
 
 
 def annotation_input(tsv_path, query_key):
@@ -83,8 +83,8 @@ use rule annotate_labeled_tsv as annotate_unlabeled_tsv with:
 ################################################################################
 # summarize annotated input
 
-summary_output = wildcard_format("{}_summary.html", "filter_key")
-summary_bench = wildcard_format("{}_summary.bench", "filter_key")
+summary_output = cfg.wildcard_format("{}_summary.html", "filter_key")
+summary_bench = cfg.wildcard_format("{}_summary.bench", "filter_key")
 
 
 rule summarize_labeled_input:
