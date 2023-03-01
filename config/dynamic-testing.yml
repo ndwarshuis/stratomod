@@ -41,12 +41,7 @@ unlabeled_queries:
     url: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/archive_2.0/2022/clinvar_20220812.vcf.gz
     # isn't genomics wonderful?
     chr_prefix: ''
-    format_fields: {}
-    # There are some super long variants in clinvar. Filter these out
-    # because a) they would overlap with so many annotations that a new
-    # universe would spawn into existance and b) they are outside what a
-    # trained model would be good at testing anyways (until we incorporate
-    # structural variants)
+    # don't include any of these fields since they are not defined in clinvar
     format_fields:
       vaf: null
       dp: null

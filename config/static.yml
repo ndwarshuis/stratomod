@@ -166,6 +166,11 @@ tools:
   repseq: https://github.com/ndwarshuis/repseq/archive/refs/tags/v1.0.0.tar.gz
 
 # TODO some of these feature names might be reference-dependent
+#
+# TODO it makes more sense for alot of this to be moved to config.py as a
+# static, hardcoded data structure (effectively a gigantic constant) since any
+# changes to the layout of these input files will require zillions of changes
+# that aren't worth exposing in a user-configurable fashion
 feature_names:
   label: label
 
