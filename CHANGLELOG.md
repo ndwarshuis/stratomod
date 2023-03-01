@@ -1,6 +1,12 @@
 # 7.0.0
 
 - add support for GRCh37
+- add support for assigning variables to individual vcfs
+- fix lots of bugs
+- use pydantic for config validation (and end-user error messages)
+- CI/CD improvements (linting)
+- cleaner config syntax (split labeled and unlabeled queries, use reference
+- sets for filtering, etc)
 
 # 6.2.0
 
