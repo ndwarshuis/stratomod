@@ -1,3 +1,7 @@
+# 7.0.1
+
+- fix chromosome X/Y name bugs
+
 # 7.0.0
 
 - add support for GRCh37
