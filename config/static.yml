@@ -4,43 +4,94 @@ paths:
   results: "results"
   log: "log"
 
-# paths/urls for files to be downloaded for processing the inputs
+# Data specific to a reference fasta file, including benchmarks, feature context
+# data, and other metadata.
 references:
+  # A unique key for this reference (which should probably correspond to the
+  # the commonly used name for the reference.
   GRCh37:
+
+    # The source for the reference itself. NOTE, this is an SDF as defined by
+    # vcftools and not a fasta.
     sdf:
+      # The location of the referenece
       url: https://s3.amazonaws.com/rtg-datasets/references/1000g_v37_phase2.sdf.zip
+
+      # The prefix used for chromosomes in this sdf.
       chr_prefix: ""
+
+    # TODO this isn't necessary as the genome can be derived from an index file.
     genome:
       url: https://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/chromInfo.txt.gz
       chr_prefix: chr
+
+    # Any GIAB stratifications pertinant to this reference which will be used
+    # for filtering out invalid variants
     strats:
+
+      # The MHC regions
       mhc:
         url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.1/GRCh37/OtherDifficult/GRCh37_MHC.bed.gz
         chr_prefix: ""
+
+    # Data used for feature generation.
     annotations:
+
+      # Data used for creating difficult-to-map features. These are actually
+      # GIAB stratification files.
       mappability:
+
+        # Low stringency mappability file
         low:
           url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.0/GRCh37/mappability/GRCh37_lowmappabilityall.bed.gz
           chr_prefix: ""
+
+        # High stringency mappability file
         high:
           url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.0/GRCh37/mappability/GRCh37_nonunique_l250_m0_e0.bed.gz
           chr_prefix: ""
+
+      # Data used for creating the segmental duplications features. Assumes file
+      # from the UCSC superdups database
       superdups:
         url: https://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/genomicSuperDups.txt.gz
         chr_prefix: chr
+
+      # Data used for making tandem repeats feaures. Expects a UCSC simple
+      # repeats-like database file
       simreps:
         url: https://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/simpleRepeat.txt.gz
         chr_prefix: chr
+
+      # Data used for making transposable element features. Expects a repeat-masker
+      # output file.
       repeat_masker:
         url: https://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/rmsk.txt.gz
         chr_prefix: chr
+
+    # A list of valid benchmarks
     benchmarks:
+      # Unique key for this benchmark
       HG002_v421:
+
+        # where to obtain the vcf
         vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh37/HG002_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
+
+        # where to obtain the bed file
         bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh37/HG002_GRCh37_1_22_v4.2.1_benchmark_noinconsistent.bed
+
+        # the chromosome prefix in this benchmark (assumed to be the same in the
+        # vcf and bed)
         chr_prefix: ""
+
+        # corrections to be made to the vcf
         corrections:
+
+          # in some VCF files, there is an IPS FORMAT fields that causes vcfeval
+          # to format the output weirdly. Set this to true to activate a
+          # workaround.
           strip_IPS: false
+
       HG003_v421:
         vcf_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG003_NA24149_father/NISTv4.2.1/GRCh37/HG003_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
         bed_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG003_NA24149_father/NISTv4.2.1/GRCh37/HG003_GRCh37_1_22_v4.2.1_benchmark_noinconsistent.bed
