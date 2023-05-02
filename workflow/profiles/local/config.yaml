@@ -1,5 +1,0 @@
-restart-times: 3
-rerun-incomplete: True
-printshellcmds: False
-use-conda: True
-cores: 4
