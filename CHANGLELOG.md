@@ -1,3 +1,9 @@
+# 7.1.0
+
+- clean up repository and present it more as a tool
+- add lots of documentation
+- remove all domain specific references to NIST-specific infrastructure
+
 # 7.0.1
 
 - fix chromosome X/Y name bugs
