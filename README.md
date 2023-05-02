@@ -1,169 +1,109 @@
-# giab-ai-ebm
+# StratoMod
 
-The main pipeline to run EBM experiments using `snakemake` and `dvc`.
+A model-based tool to quantify the difficulty of calling a variant given genomic
+context.
 
-## Workflow
+## Background
 
-### Snakemake
+Intuitively we understand that acurately calling variants in a genome can be
+more or less difficult depending on the context of that variant. For example,
+many sequencing technologies have higher error rates in homopolymers, and this
+error rate generally increases as homopolymers get longer. However, precisely
+quantifying the relationship between these errors, the length of the
+homopolymer, and the impact on the resulting variant call remain challenging.
+Analogous arguments can be drawn for other "repetitive" regions in the genome,
+such as tandem repeats, segmental duplications, transposable elements, and
+diffitult-to-map regions.
 
-Each experiment is 'built' using `snakemake` which runs all commands to retrieve
-data, wrangle the input dataframes, and train the models.
+The solution we present here is to use an interpretable modeling framework
+called [explainable boosting machines](https://github.com/interpretml/interpret)
+to predict variant calling errors as a function of genomic features (eg, whether
+or not the variant in a tandem repeat, homopolymer, etc). The interpretability
+of the model is important for allowing end users to understand the relationship
+each feature has to the prediction, which facilitates understanding (for
+example) at what lengths of homopolymers the likelihood of incorrectly calling a
+variant drastically increases. This precision is an improvement over [existing
+methods](https://github.com/ndwarshuis/giab-strats-smk) we have developed for
+statifying the genome by difficulty into discrete bins. Furthermore, this
+modeling framework allows understanding of interactions between different
+genomic contexts, which is important as many repetative characterstics do not
+exist in isolation.
 
-This repo is designed such that (for the most part) the only flags required to
-run `snakemake` are `--configfile` and `--profile`. This enables the experiement
-configuration and runtime respectively to be tracked in git and easily
-implemented in higher-level frameworks if needed.
+We anticipate `StratoMod` would be useful for both method developers and
+clinicians who wish to better understand variant calling error modalities. In
+the case of method development, `StratoMod` can be used to accurately compare
+the error modalities of different sequencing technologies. For clinicians, this
+can be used for determining in which regions/genes (which may be clinically
+interesting for a given study) variant errors are likely to occur, which may in
+turn inform which technologies should be employed and/or other mitigation
+strategies should be used.
 
-### Profiles
+Further information can be found in our
+[preprint](https://www.biorxiv.org/content/10.1101/2023.01.20.524401v1).
 
-In order to have snakemake run reproducibly on many different
-machines/architectures, several profiles are provided at
-`workflow/profiles/<profile_name`.
+## User Guide
 
-For now, there are two profiles:
-- nisaba: for running on the NIST Nisaba cluster (specifically with slurm)
-- local: for running on a local machine
+### Pipeline steps
 
-### Configurations
+1. Compare user-supplied query vcf with GIAB benchmark vcf to produce labels
+   (true positive, false positive, false negative). The labels comprise the
+   dependent variable used in model training downstream.
 
-Each experiment is configured using `config/dynamic.yml`. By convention, this
-file is not tracked in any branch except for experiment branches (see below)
-and needs to be created and tracked for each individual experiment.
+2. Intersect comparison output labels with genomic features to produce the
+   featurs (independent variables) used in model training.
 
-The file at `config/dynamic-testing.yml` is a small-scale "experiment" used for
-testing.
+3. Train the EBM model with random holdout for testing
 
-### DVC
+4. If desired, test the model on other query vcfs (which may or may not also be
+   labelled with a benchmark comparison).
+   
+5. Inspect the output features (plots showing the profile of each feature and
+   its effect on the label).
+   
+NOTE: currently only two labels can be compared at once given that we used a
+binary classifier. This means either one of the three labels must be omitted or
+two need to be combined into one label.
 
-While `snakemake` is used to run the actual experiments, `dvc` is deployed as a
-wrapper around `snakemake` to store the results in a (hopefully) sane manner.
-Note that `dvc` is only necessary/useful in the context of running experiments;
-for testing and development it is easier to simply run `snakemake` directly.
+### Data Inputs
 
-The `dvc` 'pipeline' (see `dvc.yaml`) consistes of one stage whose sole purpose
-is to run `snakemake`. Generally `dvc.yaml` doesn't need to be edited.
+The only mandatory user-supplied data requrired to run is a query vcf.
+Optionally one can supply other vcfs for testing the model.
 
-The behavior of `dvc` is controlled using `config/dvc-params.yml`. Here the
-configuration file and the profile for `snakemake` (as described above) can be
-set. This should be modified for each experiment.
+Unless one is using esoteric references or benchmarks, the pipeline is
+preconfigured to retrieve commonly-used data defined by flags in the
+configuration. This includes:
+- a GIAB benchmark, including the vcf, bed, and reference fasta
+- reference-specific bed files which will provide "contextual" features for each
+  variant call, including:
+  - difficult-to-map regions (GIAB stratification bed file)
+  - segmental duplications (UCSC superdups database)
+  - tandem repeats (UCSC simple repeats database)
+  - transposable elements (USCS Repeat Masker)
 
-Upon running `dvc repro` (see below) the `dvc.lock` file will link the
-config/profile paramaters, the configuration file itself, and model results to a
-specific git commit. These can then be pushed to an external data store (S3)
-using `dvc push` and then imported somewhere else using `dvc import` and the
-desired git commit which holds the `dvc.lock` data.
+### Installation
 
-## Deployment
+This assumes the user has a working `conda` or `mamba` installation.
 
-Install the environment to run in snakemake by running this command at the root
-of this repo:
+Run the following to set up the runtime environment.
 
 ```
 mamba env create -f env.yml
 ```
 
-## Running the Pipeline
+### Configuration
 
-### Adding an Experiment
+A sample configuration file may be found in `config/dynamic-testing.yml` which
+may be copies as a starting point. This file is heavily annotated to explain all
+the options/flags and their purpose.
 
-Experiments are added by branching off master using a specific revision. By
-convention, experiment branches should be prefixed with `x_`.
+### Running
 
-```
-git checkout master
-git branch x_examine_penguin_genes
-git checkout x_examine_penguin_genes
-```
+Execute the pipeline using snakemake:
 
-The only modification to make on these branches is creating/editing the
-`config/dynamic.yml` file which holds the configuration for the experiment. Once
-this is modified to the desired state, commit it and run the pipeline as
-described below.
-
-If the master branch is updated to a new version, either merge that tag into the
-experiment branch or create an entirely new experiment.
-
-Don't merge any experiment branches back into master.
-
-### Auto (dvc + snakemake)
-
-Edit the dvc params with your favorite text editor to change the profile and
-config as desired. If running on Nisaba, set the profile to "nisaba" (otherwise
-local):
 
 ```
-notepad config/dvc-params.yml
+snakemake --use-conda -c <num_cores> --rerun-incomplete --configfile=config/<confname.yml> all
 ```
-
-Run the entire pipeline and store results in the cloud:
-
-```
-dvc repro
-dvc push
-```
-
-`dvc repro` will block the terminal so it is recommended to run it in the
-background with `&` or use your favorite multiplexer (which is `tmux`).
-
-### Manual (snakemake only)
-
-Run the entire pipeline via `snakemake` with the following (substitute any
-options as desired in the place of `--profile`):
-
-```
-snakemake --profile workflow/profiles/<profname> --configfile=config/<confname.yml>
-```
-
-Store results in the cloud:
-
-```
-dvc commit
-dvc push
-```
-
-### Manual on Nisaba (snakemake only)
-
-Use the nisaba profile:
-
-```
-snakemake --configfile config/dynamic.yml --profile workflow/profiles/nisaba
-```
-
-See the [profile](workflow/profiles/nisaba/config.yaml) for slurm/snakemake
-options that are set.
-
-The slurm logs will be found in `cluster_logs`, partitioned by each rule.
-
-Note that this command will block the terminal so it is recommended to run it in
-the background with `&` or use a multiplexer like `tmux`.
-
-Commit and push as desired:
-
-```
-dvc commit
-dvc push
-```
-
-## Retrieving Results
-
-Assuming that `dvc commit/push` was properly invoked on the results in question,
-data can be accessed for any given commit/tag. To list the files for a given
-tag:
-
-```
-dvc list --rev <tag> https://gitlab.nist.gov/gitlab/njd2/giab-ai-ebm.git --dvc-only -R
-```
-
-To pull the data from the `results/ebm` folder (eg the model output) from a
-given tag/commit to a local file path:
-
-```
-dvc get --rev <tag> https://gitlab.nist.gov/gitlab/njd2/giab-ai-ebm.git results/ebm -o <local_path>
-```
-
-To track in a local `dvc` repo (eg for rigorous analysis) use `import` instead
-of `get` in the above command (must be done in a `dvc` repo, which can be
-initialized with `git init && dvc init`)
 
 ## Pipeline Output
 
@@ -179,17 +119,7 @@ Within the run directory will also be a `test` directory which will contain all
 test runs (eg the results of the model test and the input data used for the
 test).
 
-## Configuring the Pipeline
-
-The configuration is split into [static](config/static.yml) and
-[dynamic](config/dynamic.yml) components. The former is for downloaded resources
-and parameters used to generate the annotated dataframes.
-
-The latter is for selecting various features within the annotated dataframes,
-applying transformations, and selecting hyperparameters when training the EBM
-models.
-
-## Development
+## Developer Guide
 
 "Development" refers to adding features/altering code. For configuring and
 committing experiments, see above.
