@@ -1,5 +1,0 @@
-# update this to change which config is loaded
-config: dynamic-testing.yml
-
-# update this to change the which profile is used (local, nisaba, etc)
-profile: local
