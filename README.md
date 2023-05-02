@@ -5,7 +5,7 @@ context.
 
 ## Background
 
-Intuitively we understand that acurately calling variants in a genome can be
+Intuitively we understand that accurately calling variants in a genome can be
 more or less difficult depending on the context of that variant. For example,
 many sequencing technologies have higher error rates in homopolymers, and this
 error rate generally increases as homopolymers get longer. However, precisely
@@ -13,7 +13,7 @@ quantifying the relationship between these errors, the length of the
 homopolymer, and the impact on the resulting variant call remain challenging.
 Analogous arguments can be drawn for other "repetitive" regions in the genome,
 such as tandem repeats, segmental duplications, transposable elements, and
-diffitult-to-map regions.
+difficult-to-map regions.
 
 The solution we present here is to use an interpretable modeling framework
 called [explainable boosting machines](https://github.com/interpretml/interpret)
@@ -24,9 +24,9 @@ each feature has to the prediction, which facilitates understanding (for
 example) at what lengths of homopolymers the likelihood of incorrectly calling a
 variant drastically increases. This precision is an improvement over [existing
 methods](https://github.com/ndwarshuis/giab-strats-smk) we have developed for
-statifying the genome by difficulty into discrete bins. Furthermore, this
+stratifying the genome by difficulty into discrete bins. Furthermore, this
 modeling framework allows understanding of interactions between different
-genomic contexts, which is important as many repetative characterstics do not
+genomic contexts, which is important as many repetitive characteristics do not
 exist in isolation.
 
 We anticipate `StratoMod` would be useful for both method developers and
@@ -50,12 +50,12 @@ Further information can be found in our
    dependent variable used in model training downstream.
 
 2. Intersect comparison output labels with genomic features to produce the
-   featurs (independent variables) used in model training.
+   features (independent variables) used in model training.
 
 3. Train the EBM model with random holdout for testing
 
 4. If desired, test the model on other query vcfs (which may or may not also be
-   labelled with a benchmark comparison).
+   labeled with a benchmark comparison).
    
 5. Inspect the output features (plots showing the profile of each feature and
    its effect on the label).
@@ -66,7 +66,7 @@ two need to be combined into one label.
 
 ### Data Inputs
 
-The only mandatory user-supplied data requrired to run is a query vcf.
+The only mandatory user-supplied data required to run is a query vcf.
 Optionally one can supply other vcfs for testing the model.
 
 Unless one is using esoteric references or benchmarks, the pipeline is
@@ -78,7 +78,7 @@ configuration. This includes:
   - difficult-to-map regions (GIAB stratification bed file)
   - segmental duplications (UCSC superdups database)
   - tandem repeats (UCSC simple repeats database)
-  - transposable elements (USCS Repeat Masker)
+  - transposable elements (UCSC Repeat Masker)
 
 ### Installation
 
@@ -124,7 +124,7 @@ config.
 ### Train/test data
 
 All raw data for the models will be saved alongside the model report (see
-above). This includs the input tsv of data used to train the EBM, a config yml
+above). This includes the input tsv of data used to train the EBM, a config yml
 file with all settings used to train the EBM for reference, and python pickles
 for the X/Y train/test datasets as well as a pickle for the final model itself.
 
