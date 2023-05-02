@@ -93,36 +93,58 @@ mamba env create -f env.yml
 ### Configuration
 
 A sample configuration file may be found in `config/dynamic-testing.yml` which
-may be copies as a starting point. This file is heavily annotated to explain all
-the options/flags and their purpose.
+may be copied as a starting point and modified to one's liking. This file is
+heavily annotated to explain all the options/flags and their purpose.
+
+For a list of hardcoded features which may be used, see `FEATURES.md`.
 
 ### Running
 
 Execute the pipeline using snakemake:
 
-
 ```
 snakemake --use-conda -c <num_cores> --rerun-incomplete --configfile=config/<confname.yml> all
 ```
 
-## Pipeline Output
+## Output
 
-Each entry under `ebm_runs` in the dynamic config corresponds to one EBM run
-with its corresponding features and settings to be used. After running the
-pipeline, each run should have a directory under `results/model`.
+### Report
 
-Each directory will contain the input tsv of data used to train the EBM, a
-config yml file with all settings used to train the EBM, and python pickles for
-the X/Y train/test datasets as well as a pickle for the final model itself.
+Each model has a report at
+`results/model/<model_key>-<filter_key>-<run_key>/summary.html` which contains
+model performance curves and feature plots (the latter which allows model
+interpretation).
+
+Here `<model_key>` is the key under the `models` section in the config,
+`<filter_key` is either `SNV` or `INDEL` depending on what was requested, and
+`<run_key>` is the key under the `models -> <model_key> -> runs` section in the
+config.
+
+
+### Train/test data
+
+All raw data for the models will be saved alongside the model report (see
+above). This includs the input tsv of data used to train the EBM, a config yml
+file with all settings used to train the EBM for reference, and python pickles
+for the X/Y train/test datasets as well as a pickle for the final model itself.
 
 Within the run directory will also be a `test` directory which will contain all
 test runs (eg the results of the model test and the input data used for the
 test).
 
-## Developer Guide
+### Raw input data
 
-"Development" refers to adding features/altering code. For configuring and
-committing experiments, see above.
+In addition to the model data itself, the raw input data (that is the master
+dataframe with all features for each query vcf prior to
+filtering/transformation) can be found in
+`results/annotated/{unlabeled,labeled}/<query_key>` where `query_key` is the key
+under either `labeled_queries` or `unlabeled_queries` in the config.
+
+Each of these directories contains the raw dataframe itself (both both SNVs and
+INDELs) as well as an HTML report summarizing the dataframe (statistics for each
+feature, distributions, correlations, etc)
+
+## Developer Guide
 
 ### Environments
 
