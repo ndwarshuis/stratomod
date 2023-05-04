@@ -115,6 +115,9 @@ class ChrIndex(Enum):
     def chr_name_full(self, prefix: str) -> str:
         return f"{prefix}{self.chr_name}"
 
+    def __lt__(self, other: Self) -> bool:
+        return cast(bool, self.value < other.value)
+
 
 class FilterKey(_ListEnum):
     SNV = "SNV"
@@ -178,10 +181,12 @@ class ChrFilter(NamedTuple):
     Set of chromosomes and a prefix.
 
     Together these fully specify the desired chromosomes in a bed/ref.
+
+    The indices are assumed to be ordered.
     """
 
     prefix: ChrPrefix
-    indices: set[ChrIndex]
+    indices: list[ChrIndex]
 
 
 class RunKeyCombo(NamedTuple):
@@ -493,7 +498,7 @@ class Annotations(_BaseModel):
 class Reference(_BaseModel):
     "A genome reference, including all associated bed/benchmark files"
     sdf: BedFile
-    genome: BedFile
+    # genome: BedFile
     strats: Strats
     annotations: Annotations
     benchmarks: dict[BenchKey, Benchmark]
@@ -1113,9 +1118,9 @@ class StratoMod(_BaseModel):
     def refsetkey_to_refkey(self, key: RefsetKey) -> RefKey:
         return self.refsetkey_to_refset(key).ref
 
-    def refsetkey_to_chr_indices(self, key: RefsetKey) -> set[ChrIndex]:
+    def refsetkey_to_chr_indices(self, key: RefsetKey) -> list[ChrIndex]:
         f = self.refsetkey_to_refset(key).chr_filter
-        return set(x for x in ChrIndex) if len(f) == 0 else f
+        return sorted([x for x in ChrIndex] if len(f) == 0 else list(f))
 
     def refsetkey_to_chr_filter(
         self,
@@ -1126,9 +1131,9 @@ class StratoMod(_BaseModel):
         prefix = get_prefix(self.refsetkey_to_ref(key))
         return ChrFilter(prefix, indices)
 
-    def refsetkey_to_sdf_chr_filter(self, key: RefsetKey) -> set[str]:
+    def refsetkey_to_sdf_chr_filter(self, key: RefsetKey) -> list[str]:
         prefix, indices = self.refsetkey_to_chr_filter(lambda r: r.sdf.chr_prefix, key)
-        return set(i.chr_name_full(prefix) for i in indices)
+        return list(i.chr_name_full(prefix) for i in indices)
 
     def benchkey_to_chr_prefix(self, rkey: RefsetKey, bkey: BenchKey) -> str:
         return self.refsetkey_to_ref(rkey).benchmarks[bkey].chr_prefix

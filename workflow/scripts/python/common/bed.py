@@ -11,7 +11,7 @@ T = TypeVar("T")
 
 
 def filter_chromosomes(
-    chr_indices: set[cfg.ChrIndex], df: pd.DataFrame
+    chr_indices: list[cfg.ChrIndex], df: pd.DataFrame
 ) -> pd.DataFrame:
     cs = [x.value for x in chr_indices]
     if len(cs) > 0:

@@ -41,13 +41,13 @@ rule build_repseq:
         "make -C {input} > {log} && mv {input}/repseq {output}"
 
 
-# ASSUME the FASTA input to this is already standardized and filtered
+# ASSUME the FASTA input to this is already standardized/filtered/sorted
 rule find_simple_repeats:
     input:
         ref=partial(expand_refkey_from_refsetkey, rules.sdf_to_fasta.output),
         bin=rules.build_repseq.output,
     output:
-        hp_res / "simple_repeats_p3.bed",
+        hp_res / "simple_repeats_p3.bed.gz",
     benchmark:
         hp_log / "find_regions.bench"
     log:
@@ -56,10 +56,10 @@ rule find_simple_repeats:
         mem_mb=attempt_mem_gb(4),
     shell:
         """
-        {input.bin} 1 4 {input.ref} 2> {log} | \
+        gunzip -c {input.ref} | \
+        {input.bin} 1 4 - 2> {log} | \
         sed '/^#/d' | \
-        sort -k 1,1n -k 2,2n -k 3,3n \
-        > {output}
+        gzip -c > {output}
         """
 
 

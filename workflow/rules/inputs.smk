@@ -49,7 +49,7 @@ rule sdf_to_fasta:
     input:
         partial(expand_refkey_from_refsetkey, rules.download_ref_sdf.output),
     output:
-        config.refset_dir(log=False) / "standardized_ref.fa",
+        config.refset_dir(log=False) / "standardized_ref.fa.gz",
     params:
         filt=lambda wildcards: " ".join(
             config.refsetkey_to_sdf_chr_filter(wildcards.refset_key)
@@ -63,13 +63,11 @@ rule sdf_to_fasta:
         config.refset_dir(log=True) / "ref_standardized.bench"
     shell:
         """
-        rtg sdf2fasta \
-        -Z --line-length=70 -n \
-        -i {input} \
-        -o {output} {params.filt} && \
-        sed -i 's/>{params.prefix}/>/' {output} && \
-        sed -i 's/>X/>23/' {output} && \
-        sed -i 's/>Y/>24/' {output}
+        rtg sdf2fasta -Z --line-length=70 -n -i {input} -o - {params.filt} | \
+        sed 's/^>{params.prefix}/>/' | \
+        sed 's/^>X/>23/' | \
+        sed 's/^>Y/>24/' |
+        bgzip -c > {output}
         """
 
 
