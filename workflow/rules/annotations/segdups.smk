@@ -6,17 +6,12 @@ segdups_tsv = config.annotation_dir(segdups_dir, log=True)
 segdups_log = config.annotation_dir(segdups_dir, log=False)
 
 
-rule download_superdups:
+use rule download_labeled_query_vcf as download_superdups with:
     output:
         segdups_src / "superdups.txt.gz",
     params:
-        url=lambda wildcards: config.refkey_to_annotations(
-            wildcards.ref_key
-        ).superdups.url,
-    conda:
-        config.env_file("utils")
-    shell:
-        "curl -sS -L -o {output} {params.url}"
+        src=lambda w: config.refkey_to_annotations(w.ref_key).superdups.src,
+    localrule: True
 
 
 rule get_segdups:

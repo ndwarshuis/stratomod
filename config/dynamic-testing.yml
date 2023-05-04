@@ -32,7 +32,8 @@ labeled_queries:
     chr_prefix: ""
 
     # The location from which to retrieve this query vcf
-    url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh37/SupplementaryFiles/inputvcfsandbeds/HG002_GRCh37_1_22_PacBio_HiFi_DeepVariant.vcf.gz
+    src:
+      url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh37/SupplementaryFiles/inputvcfsandbeds/HG002_GRCh37_1_22_PacBio_HiFi_DeepVariant.vcf.gz
 
     # The benchmark that should be applied to this vcf to produce labels. For
     # valid keys, see static.yml. It is assumed that the user will make a sane
@@ -79,7 +80,8 @@ labeled_queries:
   HG002_Illumina_DV:
     refset: GRCh38_test
     chr_prefix: chr
-    url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG002.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
+    src:
+      url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG002.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
     benchmark: HG002_v421
     variables:
       coverage: 40
@@ -88,7 +90,8 @@ labeled_queries:
   HG005_Hifi_DV:
     refset: GRCh37_test
     chr_prefix: ""
-    url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh37/SupplementaryFiles/inputvcfsandbeds/HG005_GRCh37_1_22_PacBio_HiFi_DeepVariant.vcf.gz
+    src:
+      url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh37/SupplementaryFiles/inputvcfsandbeds/HG005_GRCh37_1_22_PacBio_HiFi_DeepVariant.vcf.gz
     benchmark: HG005_v421
     variables:
       coverage: 40
@@ -101,7 +104,8 @@ labeled_queries:
 unlabeled_queries:
   Clinvar:
     refset: GRCh38_test
-    url: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/archive_2.0/2022/clinvar_20220812.vcf.gz
+    src:
+      url: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/archive_2.0/2022/clinvar_20220812.vcf.gz
     chr_prefix: '' # isn't genomics wonderful?
     # don't include any of these fields since they are not defined in clinvar
     format_fields:

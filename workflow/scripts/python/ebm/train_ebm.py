@@ -5,7 +5,7 @@ from more_itertools import flatten
 from sklearn.model_selection import train_test_split  # type: ignore
 from interpret.glassbox import ExplainableBoostingClassifier  # type: ignore
 from common.tsv import write_tsv
-from common.cli import setup_logging
+from common.io import setup_logging
 from common.ebm import write_model
 import common.config as cfg
 

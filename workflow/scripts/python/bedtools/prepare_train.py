@@ -2,7 +2,7 @@ import pandas as pd
 import common.config as cfg
 from typing import Any
 from common.tsv import write_tsv
-from common.cli import setup_logging
+from common.io import setup_logging
 from common.prepare import process_labeled_data
 
 logger = setup_logging(snakemake.log[0])  # type: ignore

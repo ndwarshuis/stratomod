@@ -7,17 +7,12 @@ rmsk_res = config.annotation_dir(rmsk_dir, log=False)
 rmsk_log = config.annotation_dir(rmsk_dir, log=True)
 
 
-rule download_repeat_masker:
+use rule download_labeled_query_vcf as download_repeat_masker with:
     output:
         config.annotation_resource_dir(rmsk_dir) / "repeat_masker.txt.gz",
     params:
-        url=lambda wildcards: config.refkey_to_annotations(
-            wildcards.ref_key
-        ).repeat_masker.url,
-    conda:
-        config.env_file("utils")
-    shell:
-        "curl -sS -L -o {output} {params.url}"
+        src=lambda w: config.refkey_to_annotations(w.ref_key).repeat_masker.src,
+    localrule: True
 
 
 # use keyed outputs to allow easier parsing in the script

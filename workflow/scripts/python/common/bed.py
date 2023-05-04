@@ -1,10 +1,13 @@
 import logging
+import csv
+from pathlib import Path
 from typing import TypeVar
 from itertools import product
 from more_itertools import unzip
 import pandas as pd
 import common.config as cfg
 from pybedtools import BedTool as bt  # type: ignore
+from Bio import bgzf  # type: ignore
 
 
 T = TypeVar("T")
@@ -83,6 +86,17 @@ def read_bed_df(
             df_standardized,
         )
     )
+
+
+def write_bed(path: Path, df: pd.DataFrame) -> None:
+    """Write a bed file in bgzip format from a dataframe.
+
+    Dataframe is not checked to make sure it is a "real" bed file.
+    """
+    with bgzf.open(path, "w") as f:
+        w = csv.writer(f, delimiter="\t")
+        for r in df.itertuples(index=False):
+            w.writerow(r)
 
 
 def merge_and_apply_stats(

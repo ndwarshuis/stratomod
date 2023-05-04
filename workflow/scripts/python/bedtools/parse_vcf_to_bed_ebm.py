@@ -5,7 +5,7 @@ import common.config as cfg
 from functools import partial
 from more_itertools import partition
 from common.tsv import write_tsv
-from common.cli import setup_logging
+from common.io import setup_logging
 
 logger = setup_logging(snakemake.log[0])  # type: ignore
 

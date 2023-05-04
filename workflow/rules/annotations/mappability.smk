@@ -6,26 +6,20 @@ map_res = config.annotation_dir(map_dir, log=False)
 map_log = config.annotation_dir(map_dir, log=True)
 
 
-def map_lookup(wildcards):
-    return config.refkey_to_annotations(wildcards.ref_key).mappability
-
-
-rule download_mappability_high:
+use rule download_labeled_query_vcf as download_mappability_high with:
     output:
         map_src / "high.bed.gz",
     params:
-        url=lambda wildcards: map_lookup(wildcards).high.url,
-    conda:
-        config.env_file("utils")
-    shell:
-        "curl -sS -L -o {output} {params.url}"
+        src=lambda w: config.references[w.ref_key].annotations.mappability.high.src,
+    localrule: True
 
 
-use rule download_mappability_high as download_mappability_low with:
+use rule download_labeled_query_vcf as download_mappability_low with:
     output:
         map_src / "low.bed.gz",
     params:
-        url=lambda wildcards: map_lookup(wildcards).low.url,
+        src=lambda w: config.references[w.ref_key].annotations.mappability.low.src,
+    localrule: True
 
 
 rule get_mappability:

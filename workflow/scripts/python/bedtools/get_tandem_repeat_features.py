@@ -3,7 +3,7 @@ from typing import Any, cast
 import common.config as cfg
 from common.tsv import write_tsv
 from common.bed import read_bed_df, merge_and_apply_stats
-from common.cli import setup_logging
+from common.io import setup_logging
 
 # Input dataframe documented here:
 # https://genome.ucsc.edu/cgi-bin/hgTables?db=hg38&hgta_group=rep&hgta_track=simpleRepeat&hgta_table=simpleRepeat&hgta_doSchema=describe+table+schema

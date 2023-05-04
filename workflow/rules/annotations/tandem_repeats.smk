@@ -3,18 +3,12 @@ from scripts.python.common.config import attempt_mem_gb
 tr_dir = "tandem_repeats"
 
 
-# download this entire table as-is, we will select the right columns in a script
-rule download_tandem_repeats:
+use rule download_labeled_query_vcf as download_tandem_repeats with:
     output:
         config.annotation_resource_dir(tr_dir) / "simple_repeats.txt.gz",
     params:
-        url=lambda wildcards: config.refkey_to_annotations(
-            wildcards.ref_key
-        ).simreps.url,
-    conda:
-        config.env_file("utils")
-    shell:
-        "curl -sS -L -o {output} {params.url}"
+        src=lambda w: config.references[w.ref_key].annotations.simreps.src,
+    localrule: True
 
 
 # NOTE sorting is done internally by the script

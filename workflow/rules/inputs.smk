@@ -32,7 +32,7 @@ rule download_ref_sdf:
     output:
         directory(config.ref_resource_dir / "sdf"),
     params:
-        url=lambda wildcards: config.references[wildcards.ref_key].sdf.url,
+        url=lambda wildcards: config.references[wildcards.ref_key].sdf.src.url,
     conda:
         config.env_file("utils")
     shell:
@@ -94,15 +94,17 @@ rule fasta_to_sdf:
 # produce automatic FPs
 
 
-rule download_mhc_strat:
+# TODO don't download anything here...this strat is 1 line long
+rule write_mhc_strat:
     output:
         config.ref_resource_dir / "strats" / "mhc.bed.gz",
     params:
-        url=lambda wildcards: config.references[wildcards.ref_key].strats.mhc.url,
+        regions=lambda w: config.references[w.ref_key].strats.mhc,
+    localrule: True
     conda:
-        config.env_file("utils")
-    shell:
-        "curl -sS -L -o {output} {params.url}"
+        config.env_file("bedtools")
+    script:
+        config.python_script("bedtools/write_bed.py")
 
 
 ################################################################################
@@ -113,18 +115,19 @@ rule download_labeled_query_vcf:
     output:
         config.labeled_query_resource_dir / cfg.wildcard_ext("l_query_key", "vcf.gz"),
     params:
-        url=lambda wildcards: config.labeled_queries[wildcards.l_query_key].url,
+        src=lambda w: config.labeled_queries[w.l_query_key].src,
     conda:
         config.env_file("utils")
-    shell:
-        "curl -sS -L -o {output} {params.url}"
+    localrule: True
+    script:
+        config.python_script("bedtools/get_file.py")
 
 
 use rule download_labeled_query_vcf as download_unlabeled_query_vcf with:
     output:
         config.unlabeled_query_resource_dir / cfg.wildcard_ext("ul_query_key", "vcf.gz"),
     params:
-        url=lambda wildcards: config.unlabeled_queries[wildcards.ul_query_key].url,
+        src=lambda w: config.unlabeled_queries[w.ul_query_key].src,
 
 
 rule filter_labeled_query_vcf:
@@ -203,17 +206,12 @@ rule generate_query_tbi:
 # benchmark vcf
 
 
-rule download_bench_vcf:
+use rule download_labeled_query_vcf as download_bench_vcf with:
     output:
         config.bench_resource_dir / cfg.wildcard_ext("bench_key", "vcf.gz"),
     params:
-        url=lambda wildcards: config.references[wildcards.ref_key]
-        .benchmarks[wildcards.bench_key]
-        .vcf_url,
-    conda:
-        config.env_file("utils")
-    shell:
-        "curl -sS -L -o {output} {params.url}"
+        src=lambda w: config.references[w.ref_key].benchmarks[w.bench_key].vcf.src,
+    localrule: True
 
 
 use rule filter_labeled_query_vcf as filter_bench_vcf with:
@@ -222,7 +220,7 @@ use rule filter_labeled_query_vcf as filter_bench_vcf with:
     output:
         config.bench_dir(log=False) / "filtered.vcf",
     params:
-        chr_prefix=lambda wildcards: config.benchkey_to_chr_prefix(
+        chr_prefix=lambda wildcards: config.benchkey_to_bed_chr_prefix(
             wildcards.refset_key, wildcards.bench_key
         ),
 
@@ -264,17 +262,12 @@ use rule generate_query_tbi as generate_bench_tbi with:
 # benchmark bed
 
 
-rule download_bench_bed:
+use rule download_labeled_query_vcf as download_bench_bed with:
     output:
-        config.bench_resource_dir / cfg.wildcard_ext("bench_key", "bed"),
+        config.bench_resource_dir / cfg.wildcard_ext("bench_key", "bed.gz"),
     params:
-        url=lambda wildcards: config.references[wildcards.ref_key]
-        .benchmarks[wildcards.bench_key]
-        .bed_url,
-    conda:
-        config.env_file("utils")
-    shell:
-        "curl -sS -L -o {output} {params.url}"
+        src=lambda w: config.references[w.ref_key].benchmarks[w.bench_key].bed.src,
+    localrule: True
 
 
 rule filter_bench_bed:
@@ -283,22 +276,7 @@ rule filter_bench_bed:
     output:
         config.bench_dir(log=False) / "filtered.bed",
     params:
-        chr_prefix=lambda wildcards: config.benchkey_to_chr_prefix(
-            wildcards.refset_key, wildcards.bench_key
-        ),
-    conda:
-        config.env_file("bedtools")
-    script:
-        config.python_script("bedtools/standardize_bed.py")
-
-
-rule standardize_mhc_strat:
-    input:
-        partial(expand_refkey_from_refsetkey, rules.download_mhc_strat.output),
-    output:
-        config.bench_dir(log=False) / "strats" / "mhc_standardized.bed.gz",
-    params:
-        chr_prefix=lambda wildcards: config.benchkey_to_chr_prefix(
+        chr_prefix=lambda wildcards: config.benchkey_to_bed_chr_prefix(
             wildcards.refset_key, wildcards.bench_key
         ),
     conda:
@@ -310,7 +288,7 @@ rule standardize_mhc_strat:
 rule subtract_mhc_bench_bed:
     input:
         bed=rules.filter_bench_bed.output,
-        mhc=partial(expand_refkey_from_refsetkey, rules.standardize_mhc_strat.output),
+        mhc=partial(expand_refkey_from_refsetkey, rules.write_mhc_strat.output),
     output:
         config.bench_dir(log=False) / "noMHC.bed",
     conda:

@@ -3,7 +3,7 @@ from typing import Optional, Any
 import common.config as cfg
 from pybedtools import BedTool as bt  # type: ignore
 from common.tsv import write_tsv
-from common.cli import setup_logging
+from common.io import setup_logging
 from common.bed import read_bed_df
 
 # The repeat masker database is documented here:

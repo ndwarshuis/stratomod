@@ -33,7 +33,6 @@ from typing import (
     Sequence,
     Collection,
     Callable,
-    Optional,
     NamedTuple,
     NewType,
     Any,
@@ -46,7 +45,7 @@ from itertools import product
 from .functional import maybe
 from snakemake.io import expand, InputFiles  # type: ignore
 from pydantic import BaseModel as PydanticBaseModel
-from pydantic import validator, HttpUrl, PositiveFloat, NonNegativeInt, Field
+from pydantic import validator, HttpUrl, PositiveFloat, NonNegativeInt, Field, FilePath
 from enum import Enum, unique
 
 
@@ -278,15 +277,15 @@ class _BaseModel(PydanticBaseModel):
 
 class _Range(_BaseModel):
     "Superclass for things with a lower and upper bound."
-    lower: Optional[float] = None
-    upper: Optional[float] = None
+    lower: float | None = None
+    upper: float | None = None
 
     @validator("upper")
     def lower_less_than_upper(
         cls,
-        v: Optional[float],
+        v: float | None,
         values: dict[str, Any],
-    ) -> Optional[float]:
+    ) -> float | None:
         lower = values["lower"]
         if v is not None and values["lower"] is not None:
             assert lower <= v
@@ -335,13 +334,13 @@ class ModelRun(_BaseModel):
 
 class EBMMiscParams(_BaseModel):
     "EBM parameters that aren't specified in the classifier object"
-    downsample: Optional[Fraction] = None
+    downsample: Fraction | None = None
 
 
 class EBMSplitParams(_BaseModel):
     "Parameters for the EBM train/test split"
     test_size: Fraction = 0.2
-    random_state: Optional[int] = random.randrange(0, 420420)
+    random_state: int | None = random.randrange(0, 420420)
 
 
 class EBMClassifierParams(_BaseModel):
@@ -387,7 +386,7 @@ class Visualization(_BaseModel):
     "Specifies how to plot a feature in the final report"
     truncate: Truncation = Truncation()
     plot_type: PlotType = PlotType.STEP
-    split_missing: Optional[Fraction] = None
+    split_missing: Fraction | None = None
 
     # convert to R-friendly dict for use in rmarkdown scripts
     @property
@@ -398,10 +397,10 @@ class Visualization(_BaseModel):
 class Feature(_BaseModel):
     "A model feature"
     feature_type: FeatureType = FeatureType.CONTINUOUS
-    fill_na: Optional[float] = 0.0
-    alt_name: Optional[FeatureKey] = None
+    fill_na: float | None = 0.0
+    alt_name: FeatureKey | None = None
     visualization: Visualization = Visualization()
-    transform: Optional[Transform] = None
+    transform: Transform | None = None
 
     # convert to R-friendly dict for use in rmarkdown scripts
     @property
@@ -453,19 +452,69 @@ class Model(_BaseModel):
         return fs
 
 
+class HashedSrc(_BaseModel):
+    md5: str | None = None
+
+
+class LocalSrc(HashedSrc):
+    filepath: FilePath
+
+
+class HTTPSrc(HashedSrc):
+    url: HttpUrl
+
+
+FileSrc = LocalSrc | HTTPSrc
+
+
 class BedFile(_BaseModel):
     """A bed(like) file.
 
     'chr_prefix' must correspond to the prefix in the first column.
     """
 
-    url: Optional[HttpUrl]
-    chr_prefix: ChrPrefix
+    src: FileSrc
+    chr_prefix: ChrPrefix = ChrPrefix("chr")
+
+
+class RefFile(_BaseModel):
+    src: HTTPSrc
+    chr_prefix: ChrPrefix = ChrPrefix("chr")
+
+
+class BedRegion(_BaseModel):
+    chrom: ChrIndex
+    start: NonNegativeInt
+    end: NonNegativeInt
+
+    @validator("end")
+    def positive_region(cls, v: int, values: dict[Any, Any]) -> int:
+        try:
+            start = cast(BedRegion, values["feature_names"]).start
+        except KeyError:
+            pass
+        else:
+            assert v > start, "End must be greater than start"
+        return v
+
+    def fmt(self) -> str:
+        return "\t".join(map(str, [self.chrom.value, self.start, self.start]))
+
+    def __lt__(self, other: Self) -> bool:
+        return (
+            self.chrom,
+            self.start,
+            self.end,
+        ) < (
+            other.chrom,
+            other.start,
+            other.end,
+        )
 
 
 class Strats(_BaseModel):
     "Stratifications for a given reference"
-    mhc: BedFile
+    mhc: list[BedRegion]
 
 
 class BenchmarkCorrections(_BaseModel):
@@ -475,9 +524,8 @@ class BenchmarkCorrections(_BaseModel):
 
 class Benchmark(_BaseModel):
     "Benchmark files for a given reference"
-    vcf_url: Optional[HttpUrl]
-    bed_url: Optional[HttpUrl]
-    chr_prefix: ChrPrefix
+    vcf: BedFile
+    bed: BedFile
     corrections: BenchmarkCorrections
 
 
@@ -497,8 +545,7 @@ class Annotations(_BaseModel):
 
 class Reference(_BaseModel):
     "A genome reference, including all associated bed/benchmark files"
-    sdf: BedFile
-    # genome: BedFile
+    sdf: RefFile
     strats: Strats
     annotations: Annotations
     benchmarks: dict[BenchKey, Benchmark]
@@ -625,14 +672,14 @@ class RMSKGroup(_FeatureGroup):
     def fmt_name(
         self,
         grp: str,
-        fam: Optional[str],
+        fam: str | None,
     ) -> PandasColumn:
         assert grp in self.classes, f"{grp} not a valid RMSK class"
         rest = maybe(grp, lambda f: f"{grp}_{fam}", fam)
         return PandasColumn(self.fmt_feature(f"{rest}_length"))
 
     def feature_names(self) -> list[FeatureKey]:
-        def fmt(grp: str, fam: Optional[str]) -> FeatureKey:
+        def fmt(grp: str, fam: str | None) -> FeatureKey:
             return FeatureKey(self.fmt_name(grp, fam))
 
         return [
@@ -786,12 +833,12 @@ class VariableGroup(_FeatureGroup):
 
 class FormatFields(_BaseModel):
     "Specifies the names of fields in the FORMAT column of a VCF file"
-    vaf: Optional[str] = "VAF"
-    dp: Optional[str] = "DP"
-    gt: Optional[str] = "GT"
-    gq: Optional[str] = "GQ"
+    vaf: str | None = "VAF"
+    dp: str | None = "DP"
+    gt: str | None = "GT"
+    gq: str | None = "GQ"
 
-    def vcf_fields(self, vcf: VCFGroup) -> dict[PandasColumn, Optional[str]]:
+    def vcf_fields(self, vcf: VCFGroup) -> dict[PandasColumn, str | None]:
         return {
             PandasColumn(vcf.fmt_name(f)): v
             for f, v in [
@@ -803,11 +850,9 @@ class FormatFields(_BaseModel):
         }
 
 
-class UnlabeledVCFQuery(_BaseModel):
+class UnlabeledVCFQuery(BedFile):
     "A vcf to be used as the query for a model without labels."
     refset: RefsetKey
-    chr_prefix: ChrPrefix
-    url: Optional[HttpUrl]
     variables: dict[VarKey, VarVal]
     format_fields: FormatFields = FormatFields()
     max_ref: Annotated[int, Field(ge=0)] = 50
@@ -1135,8 +1180,11 @@ class StratoMod(_BaseModel):
         prefix, indices = self.refsetkey_to_chr_filter(lambda r: r.sdf.chr_prefix, key)
         return list(i.chr_name_full(prefix) for i in indices)
 
-    def benchkey_to_chr_prefix(self, rkey: RefsetKey, bkey: BenchKey) -> str:
-        return self.refsetkey_to_ref(rkey).benchmarks[bkey].chr_prefix
+    def benchkey_to_vcf_chr_prefix(self, rkey: RefsetKey, bkey: BenchKey) -> str:
+        return self.refsetkey_to_ref(rkey).benchmarks[bkey].vcf.chr_prefix
+
+    def benchkey_to_bed_chr_prefix(self, rkey: RefsetKey, bkey: BenchKey) -> str:
+        return self.refsetkey_to_ref(rkey).benchmarks[bkey].bed.chr_prefix
 
     def refkey_to_annotations(self, key: RefKey) -> Annotations:
         return self.references[key].annotations
@@ -1193,6 +1241,30 @@ class StratoMod(_BaseModel):
         tkey: TestKey,
     ) -> QueryKey:
         return self.models[mkey].runs[rkey].test[tkey].query_key
+
+    # src getters
+
+    def benchkey_to_vcf_src(self, rk: RefKey, bk: BenchKey) -> FileSrc:
+        return self.references[rk].benchmarks[bk].vcf.src
+
+    def benchkey_to_bed_src(self, rk: RefKey, bk: BenchKey) -> FileSrc:
+        return self.references[rk].benchmarks[bk].bed.src
+
+    def refkey_to_mappability_src(self, rk: RefKey, high: bool) -> FileSrc:
+        return (
+            self.references[rk].annotations.mappability.high.src
+            if high
+            else self.references[rk].annotations.mappability.low.src
+        )
+
+    def refkey_to_segdups_src(self, rk: RefKey) -> FileSrc:
+        return self.references[rk].annotations.superdups.src
+
+    def refkey_to_simreps_src(self, rk: RefKey) -> FileSrc:
+        return self.references[rk].annotations.simreps.src
+
+    def refkey_to_rmsk_src(self, rk: RefKey) -> FileSrc:
+        return self.references[rk].annotations.repeat_masker.src
 
     # path expansion
 

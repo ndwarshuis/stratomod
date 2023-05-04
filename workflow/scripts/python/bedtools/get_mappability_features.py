@@ -4,7 +4,7 @@ from typing import Any
 from pybedtools import BedTool as bt  # type: ignore
 from common.tsv import write_tsv
 from common.bed import standardize_chr_column
-from common.cli import setup_logging
+from common.io import setup_logging
 
 
 logger = setup_logging(snakemake.log[0])  # type: ignore

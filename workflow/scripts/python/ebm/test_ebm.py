@@ -1,6 +1,6 @@
 import pandas as pd
 from typing import Any
-from common.cli import setup_logging
+from common.io import setup_logging
 from common.tsv import write_tsv
 from common.ebm import read_model
 import common.config as cfg

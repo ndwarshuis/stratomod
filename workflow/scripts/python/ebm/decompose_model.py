@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from numpy.typing import NDArray
 from typing import Any, Hashable, cast, TypedDict
-from common.cli import setup_logging
+from common.io import setup_logging
 from common.ebm import read_model
 from common.tsv import write_tsv
 import common.config as cfg
