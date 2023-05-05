@@ -172,6 +172,21 @@ class Transform(Enum):
     BINARY = "binary"
 
 
+# constants
+
+BED_CHROM = "chrom"
+BED_START = "chromStart"
+BED_END = "chromEnd"
+VAR_IDX = "variant_index"
+
+BED_COLS = [BED_CHROM, BED_START, BED_END]
+IDX_COLS = [VAR_IDX, *BED_COLS]
+
+
+def bed_cols_indexed(indices: tuple[int, int, int]) -> dict[int, str]:
+    return dict(zip(indices, BED_COLS))
+
+
 # useful data bundles
 
 
@@ -467,14 +482,125 @@ class HTTPSrc(HashedSrc):
 FileSrc = LocalSrc | HTTPSrc
 
 
-class BedFile(_BaseModel):
-    """A bed(like) file.
+class BedColumns(_BaseModel):
+    """Denotes coordinate columns in a bed file (0-indexed)."""
+
+    chrom: NonNegativeInt = 0
+    start: NonNegativeInt = 1
+    end: NonNegativeInt = 2
+
+    @validator("start")
+    def start_different(
+        cls,
+        v: NonNegativeInt,
+        values: dict[str, int],
+    ) -> NonNegativeInt:
+        try:
+            assert values["chr"] != v, "Bed columns must be different"
+        except KeyError:
+            pass
+        return v
+
+    @validator("end")
+    def end_different(
+        cls,
+        v: NonNegativeInt,
+        values: dict[str, int],
+    ) -> NonNegativeInt:
+        try:
+            assert (
+                values["chr"] != v and values["start"] != v
+            ), "Bed columns must be different"
+        except KeyError:
+            pass
+        return v
+
+    def assert_different(self, x: int) -> None:
+        assert (
+            self.chrom != x and self.start != x and self.end != x
+        ), "Column must be different index"
+
+    @property
+    def typed(self) -> dict[int, Type[int | str]]:
+        return {self.chrom: str, self.start: int, self.end: int}
+
+    @property
+    def indexed(self) -> dict[int, str]:
+        return bed_cols_indexed((self.chrom, self.start, self.end))
+
+
+class VCFFile(_BaseModel):
+    """A VCF file.
 
     'chr_prefix' must correspond to the prefix in the first column.
     """
 
     src: FileSrc
     chr_prefix: ChrPrefix = ChrPrefix("chr")
+
+
+class BedFileParams(_BaseModel):
+    """Parameters decribing how to parse a bed-like file.
+
+    Members:
+    chr_prefix - the prefix on the chromosomes
+    bed_cols - the columns for the bed coordinates
+    skip_lines - how many input lines to skip
+    sep - column separator regexp (for "beds" with spaces instead of tabs)
+    """
+
+    chr_prefix: ChrPrefix = ChrPrefix("chr")
+    bed_cols: BedColumns = BedColumns()
+    skip_lines: NonNegativeInt = 0
+    sep: str = "\t"
+
+
+class BedFile(_BaseModel):
+    """A bed(like) file."""
+
+    src: FileSrc
+    params: BedFileParams = BedFileParams()
+
+
+class TRFColumns(_BaseModel):
+    period: NonNegativeInt = 5
+    copy_num: NonNegativeInt = 6
+    per_match: NonNegativeInt = 8
+    per_indel: NonNegativeInt = 9
+    score: NonNegativeInt = 10
+    per_A: NonNegativeInt = 11
+    per_C: NonNegativeInt = 12
+    per_G: NonNegativeInt = 13
+    per_T: NonNegativeInt = 14
+
+
+class TandemRepeatsFile(BedFile):
+    """A tandem-repeat-finder output file (or similar)"""
+
+    other_cols: TRFColumns = TRFColumns()
+
+
+class SegdupsColumns(_BaseModel):
+    align_L: NonNegativeInt = 18
+    frac_match_indel: NonNegativeInt = 27
+
+
+class SegdupsFile(BedFile):
+    """A superdups-like file"""
+
+    other_cols: SegdupsColumns = SegdupsColumns()
+
+
+class RMSKColumns(_BaseModel):
+    cls: NonNegativeInt = 11
+    family: NonNegativeInt = 12
+
+
+class RMSKFile(BedFile):
+    """A repeat-masker-like output file"""
+
+    other_cols: RMSKColumns = RMSKColumns()
+    class_families: dict[str, list[str]]
 
 
 class RefFile(_BaseModel):
@@ -524,7 +650,7 @@ class BenchmarkCorrections(_BaseModel):
 
 class Benchmark(_BaseModel):
     "Benchmark files for a given reference"
-    vcf: BedFile
+    vcf: VCFFile
     bed: BedFile
     corrections: BenchmarkCorrections
 
@@ -538,9 +664,9 @@ class Mappability(_BaseModel):
 class Annotations(_BaseModel):
     "Bed files for feature generation"
     mappability: Mappability
-    superdups: BedFile
-    simreps: BedFile
-    repeat_masker: BedFile
+    superdups: SegdupsFile
+    simreps: TandemRepeatsFile
+    repeat_masker: RMSKFile
 
 
 class Reference(_BaseModel):
@@ -554,19 +680,22 @@ class Reference(_BaseModel):
 FeaturePrefix = Annotated[str, Field(regex="^[A-Z]+$")]
 
 
-class BedIndex(_BaseModel):
-    "Metadata to track the first three columns of bed(like) dataframes"
-    chr: PandasColumn
-    start: PandasColumn
-    end: PandasColumn
+# class BedIndex(_BaseModel):
+#     "Metadata to track the first three columns of bed(like) dataframes"
+#     chr: PandasColumn
+#     start: PandasColumn
+#     end: PandasColumn
 
-    def bed_cols_ordered(self) -> list[PandasColumn]:
-        return [self.chr, self.start, self.end]
+#     def bed_cols_ordered(self) -> list[PandasColumn]:
+#         return [self.chr, self.start, self.end]
 
-    def bed_cols_indexed(
-        self, indices: tuple[int, int, int]
-    ) -> dict[int, PandasColumn]:
-        return dict(zip(indices, self.bed_cols_ordered()))
+#     def bed_cols_indexed(
+#         self, indices: tuple[int, int, int]
+#     ) -> dict[int, PandasColumn]:
+#         return dict(zip(indices, self.bed_cols_ordered()))
+
+#     def bed_cols(self, cols: BedColumns) -> dict[int, PandasColumn]:
+#         return self.bed_cols_indexed((cols.chr, cols.start, cols.end))
 
 
 class _FeatureGroup(_BaseModel):
@@ -850,7 +979,7 @@ class FormatFields(_BaseModel):
         }
 
 
-class UnlabeledVCFQuery(BedFile):
+class UnlabeledVCFQuery(VCFFile):
     "A vcf to be used as the query for a model without labels."
     refset: RefsetKey
     variables: dict[VarKey, VarVal]
@@ -870,8 +999,6 @@ VCFQuery = UnlabeledVCFQuery | LabeledVCFQuery
 class FeatureNames(_BaseModel):
     "Defines valid feature names to be specified in models"
     label: NonEmptyStr
-    raw_index: NonEmptyStr
-    bed_index: BedIndex
     vcf: VCFGroup
     mappability: MapGroup
     homopolymers: HomopolyGroup
@@ -884,8 +1011,8 @@ class FeatureNames(_BaseModel):
     def label_name(self: Self) -> PandasColumn:
         return PandasColumn(self.label)
 
-    def all_index_cols(self) -> list[PandasColumn]:
-        return [PandasColumn(self.raw_index), *self.bed_index.bed_cols_ordered()]
+    # def all_index_cols(self) -> list[PandasColumn]:
+    #     return [PandasColumn(self.raw_index), *self.bed_index.bed_cols_ordered()]
 
     def all_feature_names(self) -> set[FeatureKey]:
         return set(
@@ -902,7 +1029,7 @@ class FeatureNames(_BaseModel):
 
     @property
     def non_summary_cols(self) -> list[PandasColumn]:
-        return self.all_index_cols() + [
+        return [PandasColumn(c) for c in BED_COLS] + [
             PandasColumn(x) for x in self.vcf.str_feature_names
         ]
 
@@ -1184,7 +1311,7 @@ class StratoMod(_BaseModel):
         return self.refsetkey_to_ref(rkey).benchmarks[bkey].vcf.chr_prefix
 
     def benchkey_to_bed_chr_prefix(self, rkey: RefsetKey, bkey: BenchKey) -> str:
-        return self.refsetkey_to_ref(rkey).benchmarks[bkey].bed.chr_prefix
+        return self.refsetkey_to_ref(rkey).benchmarks[bkey].bed.params.chr_prefix
 
     def refkey_to_annotations(self, key: RefKey) -> Annotations:
         return self.references[key].annotations

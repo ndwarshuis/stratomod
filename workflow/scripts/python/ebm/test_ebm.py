@@ -25,9 +25,7 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
     sin = smk.input
     sout = smk.output
     ebm = read_model(sin["model"])
-    predict_x = pd.read_table(sin["test_x"]).drop(
-        columns=sconf.feature_names.all_index_cols()
-    )
+    predict_x = pd.read_table(sin["test_x"]).drop(columns=cfg.IDX_COLS)
     ps, xs = predict_from_x(ebm, predict_x)
     _write_tsv(sout["predictions"], ps)
     _write_tsv(sout["explanations"], xs)

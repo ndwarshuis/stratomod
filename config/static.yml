@@ -38,34 +38,47 @@ references:
         low:
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.0/GRCh37/mappability/GRCh37_lowmappabilityall.bed.gz
-          chr_prefix: ""
+          params:
+            chr_prefix: ""
 
         # High stringency mappability file
         high:
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.0/GRCh37/mappability/GRCh37_nonunique_l250_m0_e0.bed.gz
-          chr_prefix: ""
+          params:
+            chr_prefix: ""
 
       # Data used for creating the segmental duplications features. Assumes file
       # from the UCSC superdups database
       superdups:
         src:
           url: https://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/genomicSuperDups.txt.gz
-        chr_prefix: chr
+        params:
+          bed_cols: {chrom: 1, start: 2, end: 3}
+        other_cols:
+          align_L: 18
+          frac_match_indel: 27
 
       # Data used for making tandem repeats feaures. Expects a UCSC simple
       # repeats-like database file
       simreps:
         src:
           url: https://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/simpleRepeat.txt.gz
-        chr_prefix: chr
+        params:
+          bed_cols: {chrom: 1, start: 2, end: 3}
 
       # Data used for making transposable element features. Expects a repeat-masker
       # output file.
       repeat_masker:
         src:
           url: https://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/rmsk.txt.gz
-        chr_prefix: chr
+        params:
+          bed_cols: {chrom: 5, start: 6, end: 7}
+        class_families:
+          SINE: []
+          LINE: [L1, L2, CR1, RTE-BovB, Dong-R4]
+          LTR: []
+          Satellite: []
 
     # A list of valid benchmarks
     benchmarks:
@@ -82,7 +95,8 @@ references:
         bed:
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh37/HG002_GRCh37_1_22_v4.2.1_benchmark_noinconsistent.bed
-          chr_prefix: ""
+          params:
+            chr_prefix: ""
 
         # corrections to be made to the vcf
         corrections:
@@ -100,7 +114,8 @@ references:
         bed:
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG003_NA24149_father/NISTv4.2.1/GRCh37/HG003_GRCh37_1_22_v4.2.1_benchmark_noinconsistent.bed
-          chr_prefix: ""
+          params:
+            chr_prefix: ""
         corrections:
           strip_IPS: false
       HG004_v421:
@@ -111,40 +126,44 @@ references:
         bed:
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG004_NA24143_mother/NISTv4.2.1/GRCh37/HG004_GRCh37_1_22_v4.2.1_benchmark_noinconsistent.bed
-          chr_prefix: ""
+          params:
+            chr_prefix: ""
         corrections:
           strip_IPS: false
       HG005_v421:
         vcf:
-          chr_prefix: ""
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh37/HG005_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
-        bed:
           chr_prefix: ""
+        bed:
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh37/HG005_GRCh37_1_22_v4.2.1_benchmark.bed
+          params:
+            chr_prefix: ""
         corrections:
           strip_IPS: true
       HG006_v421:
         vcf:
-          chr_prefix: ""
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG006_NA24694_father/NISTv4.2.1/GRCh37/HG006_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
-        bed:
           chr_prefix: ""
+        bed:
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG006_NA24694_father/NISTv4.2.1/GRCh37/HG006_GRCh37_1_22_v4.2.1_benchmark.bed
+          params:
+            chr_prefix: ""
         corrections:
           strip_IPS: false
       HG007_v421:
         vcf:
-          chr_prefix: ""
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG007_NA24695_mother/NISTv4.2.1/GRCh37/HG007_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
-        bed:
           chr_prefix: ""
+        bed:
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG007_NA24695_mother/NISTv4.2.1/GRCh37/HG007_GRCh37_1_22_v4.2.1_benchmark.bed
+          params:
+            chr_prefix: ""
         corrections:
           strip_IPS: false
       # draft_v0.005:
@@ -178,12 +197,23 @@ references:
       superdups:
         src:
           url: https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz
+        params:
+          bed_cols: {chrom: 1, start: 2, end: 3}
       simreps:
         src:
           url: https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/simpleRepeat.txt.gz
+        params:
+          bed_cols: {chrom: 1, start: 2, end: 3}
       repeat_masker:
         src:
           url: https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/rmsk.txt.gz
+        params:
+          bed_cols: {chrom: 5, start: 6, end: 7}
+        class_families:
+          SINE: []
+          LINE: [L1, L2, CR1, RTE-BovB, Dong-R4]
+          LTR: []
+          Satellite: []
     benchmarks:
       HG002_v421:
         vcf:
@@ -251,7 +281,6 @@ references:
       # draft_v27_xy:
       #   vcf_url: null
       #   bed_url: null
-      #   chr_prefix: chr
       #   corrections:
       #     strip_IPS: false
 
@@ -266,13 +295,6 @@ tools:
 # that aren't worth exposing in a user-configurable fashion
 feature_names:
   label: label
-
-  raw_index: variant_index
-
-  bed_index:
-    chr: chrom
-    start: chromStart
-    end: chromEnd
 
   vcf:
     prefix: VCF

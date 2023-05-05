@@ -60,11 +60,7 @@ def intersect_tsvs(
 ) -> None:
     target_df = pd.read_table(ifile)
     new_df = reduce(left_outer_intersect, tsv_paths, target_df)
-    new_df.insert(
-        loc=0,
-        column=config.feature_names.raw_index,
-        value=new_df.index,
-    )
+    new_df.insert(loc=0, column=cfg.VAR_IDX, value=new_df.index)
     write_tsv(ofile, new_df)
 
 

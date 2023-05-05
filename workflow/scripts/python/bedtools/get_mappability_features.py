@@ -1,40 +1,29 @@
+from pathlib import Path
 import pandas as pd
 import common.config as cfg
 from typing import Any
 from pybedtools import BedTool as bt  # type: ignore
 from common.tsv import write_tsv
-from common.bed import standardize_chr_column
+from common.bed import read_bed
 from common.io import setup_logging
-
 
 logger = setup_logging(snakemake.log[0])  # type: ignore
 
 
-# TODO apply chr filter to these
-def read_bed(
-    config: cfg.StratoMod,
-    bedconf: cfg.BedFile,
-    path: str,
-    col: str,
-) -> pd.DataFrame:
-    logger.info("Reading mappability feature: %s", col)
-    # these are just plain bed files with no extra columns
-    bed_index = config.feature_names.bed_index
-    bed_cols = bed_index.bed_cols_ordered()
-    df = pd.read_table(path, comment="#", names=[str(x) for x in bed_cols])
-    # add a new column with all '1' (this will be a binary feature)
-    df[col] = 1
-    return standardize_chr_column(bedconf.chr_prefix, bed_index.chr, df)
-
-
 def main(smk: Any, config: cfg.StratoMod) -> None:
-    mapconf = config.refsetkey_to_ref(
-        cfg.RefsetKey(smk.wildcards["refset_key"])
-    ).annotations.mappability
+    rsk = cfg.RefsetKey(smk.wildcards["refset_key"])
+    cs = config.refsetkey_to_chr_indices(rsk)
+    mapconf = config.refsetkey_to_ref(rsk).annotations.mappability
     mapmeta = config.feature_names.mappability
 
-    high = read_bed(config, mapconf.high, smk.input["high"][0], mapmeta.high)
-    low = read_bed(config, mapconf.low, smk.input["low"][0], mapmeta.low)
+    def read_map_bed(p: Path, ps: cfg.BedFileParams, col: str) -> pd.DataFrame:
+        logger.info("Reading mappability feature: %s", col)
+        df = read_bed(p, ps, {}, cs)
+        df[col] = 1
+        return df
+
+    high = read_map_bed(smk.input["high"][0], mapconf.high.params, mapmeta.high)
+    low = read_map_bed(smk.input["low"][0], mapconf.low.params, mapmeta.low)
     # subtract high from low (since the former is a subset of the latter)
     new_low = (
         bt.from_dataframe(low)

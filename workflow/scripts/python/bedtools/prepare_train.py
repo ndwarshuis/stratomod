@@ -31,7 +31,7 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
         rconf.features,
         rconf.error_labels,
         rconf.filtered_are_candidates,
-        [cfg.FeatureKey(x) for x in fconf.all_index_cols()],
+        [cfg.FeatureKey(c) for c in cfg.IDX_COLS],
         cfg.FeatureKey(fconf.vcf.fmt_name(lambda x: x.filter)),
         cfg.FeatureKey(fconf.label_name),
         raw_df,

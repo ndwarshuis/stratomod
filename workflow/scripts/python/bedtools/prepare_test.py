@@ -21,7 +21,7 @@ def write_labeled(
         rconf.features,
         rconf.error_labels,
         rconf.filtered_are_candidates,
-        [cfg.FeatureKey(x) for x in sconf.feature_names.all_index_cols()],
+        [cfg.FeatureKey(c) for c in cfg.IDX_COLS],
         filter_col,
         cfg.FeatureKey(label_col),
         df,
@@ -38,7 +38,7 @@ def write_unlabeled(
 ) -> None:
     processed = process_unlabeled_data(
         rconf.features,
-        [cfg.FeatureKey(x) for x in sconf.feature_names.all_index_cols()],
+        [cfg.FeatureKey(c) for c in cfg.IDX_COLS],
         df,
     )
     write_tsv(xpath, processed)

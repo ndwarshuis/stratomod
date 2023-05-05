@@ -53,8 +53,6 @@ def lookup_maybe(k: str, d: dict[str, float]) -> float:
 
 
 def assign_format_sample_fields(
-    chrom: str,
-    start: str,
     fields: dict[cfg.PandasColumn, Optional[str]],
     df: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -103,7 +101,7 @@ def assign_format_sample_fields(
 
     cfg.assert_empty(
         [
-            f"{r[chrom]}@{r[start]}"
+            f"{r[cfg.BED_CHROM]}@{r[cfg.BED_START]}"
             for r in df[~eqlen & present].to_dict(orient="records")
         ],
         "Lines where FORMAT/SAMPLE have different cardinality",
@@ -144,8 +142,6 @@ def get_filter_mask(
 # ASSUME there are no NaNs in alt at this point
 def add_length_and_filter(
     indel_len_col: str,
-    start_col: str,
-    end_col: str,
     filter_key: cfg.FilterKey,
     max_ref: int,
     max_alt: int,
@@ -181,10 +177,10 @@ def add_length_and_filter(
     log_removed(filter_mask, len_mask, f"REF > {max_ref} or ALT > {max_alt}")
 
     # make the output 0-based instead of 1-based (like a real bed file)
-    df[start_col] = df[start_col] - 1
+    df[cfg.BED_START] = df[cfg.BED_START] - 1
 
     df[indel_len_col] = alt_len - ref_len
-    df[end_col] = df[start_col] + ref_len
+    df[cfg.BED_END] = df[cfg.BED_START] + ref_len
 
     # NOTE: the main reason why all these crazy filters are in one function
     # because we get weird slice warnings unless I copy after the filter step
@@ -220,22 +216,18 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
     wildcards = smk.wildcards
     fconf = sconf.feature_names
     iconf = sconf._querykey_to_input(smk.params.query_key)
-    idx = fconf.bed_index
 
     def fmt(f: Callable[[cfg.VCFColumns], str]) -> cfg.PandasColumn:
         return cfg.PandasColumn(fconf.vcf.fmt_name(f))
 
-    chrom = idx.chr
-    pos = idx.start
-    end = idx.end
     qual = fmt(lambda x: x.qual)
     info = fmt(lambda x: x.info)
     filt = fmt(lambda x: x.filter)
     indel_length = fmt(lambda x: x.len)
 
     input_cols: dict[cfg.PandasColumn, InputCol] = {
-        chrom: InputCol(str, None),
-        pos: InputCol(int, None),
+        cfg.PandasColumn(cfg.BED_CHROM): InputCol(str, None),
+        cfg.PandasColumn(cfg.BED_START): InputCol(int, None),
         ID: InputCol(str, "."),
         REF: InputCol(str, None),
         ALT: InputCol(str, "."),
@@ -246,7 +238,13 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
         SAMPLE: InputCol(str, "."),
     }
 
-    non_field_cols = [chrom, pos, end, indel_length, qual, filt, info]
+    non_field_cols = [
+        *map(cfg.PandasColumn, cfg.BED_COLS),
+        indel_length,
+        qual,
+        filt,
+        info,
+    ]
 
     fields = iconf.format_fields.vcf_fields(fconf.vcf)
     label = get_label(wildcards)
@@ -259,13 +257,9 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
         fconf.label_name,
         label,
         assign_format_sample_fields(
-            chrom,
-            pos,
             fields,
             add_length_and_filter(
                 indel_length,
-                pos,
-                end,
                 cfg.FilterKey(wildcards.filter_key),
                 iconf.max_ref,
                 iconf.max_alt,

@@ -48,7 +48,7 @@ def train_ebm(
     label = sconf.feature_names.label
 
     def strip_coords(df: pd.DataFrame) -> pd.DataFrame:
-        return df.drop(columns=sconf.feature_names.all_index_cols())
+        return df.drop(columns=cfg.IDX_COLS)
 
     features = rconf.features
     feature_names = [

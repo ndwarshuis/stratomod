@@ -136,9 +136,7 @@ rule filter_labeled_query_vcf:
     output:
         config.query_prepare_dir(log=False, labeled=True) / "filtered.vcf",
     params:
-        chr_prefix=lambda wildcards: config.querykey_to_chr_prefix(
-            wildcards.l_query_key
-        ),
+        chr_prefix=lambda w: config.querykey_to_chr_prefix(w.l_query_key),
     conda:
         config.env_file("bedtools")
     script:
@@ -151,9 +149,7 @@ use rule filter_labeled_query_vcf as filter_unlabeled_query_vcf with:
     output:
         config.query_prepare_dir(log=False, labeled=False) / "filtered.vcf",
     params:
-        chr_prefix=lambda wildcards: config.querykey_to_chr_prefix(
-            wildcards.ul_query_key
-        ),
+        chr_prefix=lambda w: config.querykey_to_chr_prefix(w.ul_query_key),
 
 
 # TODO this is (probably) just for DV VCFs

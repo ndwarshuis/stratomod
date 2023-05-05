@@ -241,10 +241,9 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
     write_model_json(sout["model"], ebm)
 
     label = sconf.feature_names.label
-    bed_cols = sconf.feature_names.all_index_cols()
 
     def write_predictions(xpath: str, ypath: str, out_path: str) -> None:
-        X = pd.read_table(xpath).drop(columns=bed_cols)
+        X = pd.read_table(xpath).drop(columns=cfg.IDX_COLS)
         y = pd.read_table(ypath)
         y_pred = pd.DataFrame(
             {

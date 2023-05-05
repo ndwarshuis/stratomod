@@ -1,8 +1,9 @@
+from pathlib import Path
 import pandas as pd
 from typing import Any, cast
 import common.config as cfg
 from common.tsv import write_tsv
-from common.bed import read_bed_df, merge_and_apply_stats
+from common.bed import read_bed, merge_and_apply_stats
 from common.io import setup_logging
 
 # Input dataframe documented here:
@@ -20,11 +21,14 @@ SLOP = 5
 
 def read_tandem_repeats(
     smk: Any,
-    path: str,
+    path: Path,
     fconf: cfg.TandemRepeatGroup,
-    bed_cols: cfg.BedIndex,
     sconf: cfg.StratoMod,
 ) -> pd.DataFrame:
+    rsk = cfg.RefsetKey(smk.wildcards["refset_key"])
+    rk = sconf.refsetkey_to_refkey(rsk)
+    ss = sconf.references[rk].annotations.simreps
+    ocs = ss.other_cols
     fmt_base = fconf.fmt_base_col
     fmt_col = fconf.fmt_col
     perc_a_col = fmt_base(cfg.Base.A)
@@ -32,23 +36,19 @@ def read_tandem_repeats(
     perc_c_col = fmt_base(cfg.Base.C)
     perc_g_col = fmt_base(cfg.Base.G)
     unit_size_col = fmt_col(lambda x: x.period)
-    feature_cols: dict[int, cfg.PandasColumn] = {
-        5: unit_size_col,
-        6: fmt_col(lambda x: x.copyNum),
-        8: fmt_col(lambda x: x.perMatch),
-        9: fmt_col(lambda x: x.perIndel),
-        10: fmt_col(lambda x: x.score),
-        11: perc_a_col,
-        12: perc_c_col,
-        13: perc_g_col,
-        14: perc_t_col,
+    feature_cols = {
+        ocs.period: unit_size_col,
+        ocs.copy_num: fmt_col(lambda x: x.copyNum),
+        ocs.per_match: fmt_col(lambda x: x.perMatch),
+        ocs.per_indel: fmt_col(lambda x: x.perIndel),
+        ocs.score: fmt_col(lambda x: x.score),
+        ocs.per_A: perc_a_col,
+        ocs.per_C: perc_c_col,
+        ocs.per_G: perc_g_col,
+        ocs.per_T: perc_t_col,
     }
-    bed_mapping = bed_cols.bed_cols_indexed((1, 2, 3))
-    chr_filter = sconf.refsetkey_to_chr_filter(
-        lambda r: r.annotations.simreps.chr_prefix,
-        cfg.RefsetKey(smk.wildcards["refset_key"]),
-    )
-    df = read_bed_df(path, bed_mapping, feature_cols, chr_filter)
+    cs = sconf.refsetkey_to_chr_indices(rsk)
+    df = read_bed(path, ss.params, feature_cols, cs)
     base_groups = [
         (fconf.AT_name, perc_a_col, perc_t_col),
         (fconf.AG_name, perc_a_col, perc_g_col),
@@ -70,21 +70,19 @@ def merge_tandem_repeats(
     gfile: str,
     df: pd.DataFrame,
     fconf: cfg.TandemRepeatGroup,
-    bed_cols: cfg.BedIndex,
 ) -> pd.DataFrame:
-    bed, names = merge_and_apply_stats(bed_cols, fconf, df)
+    bed, names = merge_and_apply_stats(fconf, df)
     merged_df = cast(pd.DataFrame, bed.slop(b=SLOP, g=gfile).to_dataframe(names=names))
     len_col = fconf.length_name
-    merged_df[len_col] = merged_df[bed_cols.end] - merged_df[bed_cols.start] - SLOP * 2
+    merged_df[len_col] = merged_df[cfg.BED_END] - merged_df[cfg.BED_START] - SLOP * 2
     return merged_df
 
 
 def main(smk: Any, sconf: cfg.StratoMod) -> None:
     i = smk.input
-    bed_cols = sconf.feature_names.bed_index
     fconf = sconf.feature_names.tandem_repeats
-    repeat_df = read_tandem_repeats(smk, i.src[0], fconf, bed_cols, sconf)
-    merged_df = merge_tandem_repeats(i.genome[0], repeat_df, fconf, bed_cols)
+    repeat_df = read_tandem_repeats(smk, Path(i.src[0]), fconf, sconf)
+    merged_df = merge_tandem_repeats(i.genome[0], repeat_df, fconf)
     write_tsv(smk.output[0], merged_df, header=True)
 
 
