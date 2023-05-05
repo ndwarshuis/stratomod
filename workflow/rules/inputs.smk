@@ -32,17 +32,12 @@ rule download_ref_sdf:
     output:
         directory(config.ref_resource_dir / "sdf"),
     params:
-        url=lambda wildcards: config.references[wildcards.ref_key].sdf.src.url,
+        src=lambda w: config.references[w.ref_key].sdf.src,
     conda:
         config.env_file("utils")
-    shell:
-        """
-        mkdir {output} && \
-        curl -Ss {params.url} | \
-        bsdtar -xf - \
-        --directory {output} \
-        --strip-components=1
-        """
+    localrule: True
+    script:
+        config.python_script("bedtools/download_ref.py")
 
 
 rule sdf_to_fasta:

@@ -9,3 +9,4 @@ dependencies:
   - samtools=1.14
   - gzip=1.12
   - sed=4.8
+  - biopython=1.81

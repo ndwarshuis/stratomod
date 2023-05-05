@@ -2,9 +2,10 @@ import gzip
 import hashlib
 from pathlib import Path
 from logging import Logger
+from Bio import bgzf  # type: ignore
 
 
-def get_md5(path: str) -> str:
+def get_md5(path: Path) -> str:
     h = hashlib.md5()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
@@ -22,15 +23,15 @@ def is_gzip(p: Path) -> bool:
             return False
 
 
-# def is_bgzip(p: Path) -> bool:
-#     # since bgzip is in blocks (vs gzip), determine if in bgzip by
-#     # attempting to seek first block
-#     with open(p, "rb") as f:
-#         try:
-#             next(bgzf.BgzfBlocks(f), None)
-#             return True
-#         except ValueError:
-#             return False
+def is_bgzip(p: Path) -> bool:
+    # since bgzip is in blocks (vs gzip), determine if in bgzip by
+    # attempting to seek first block
+    with open(p, "rb") as f:
+        try:
+            next(bgzf.BgzfBlocks(f), None)
+            return True
+        except ValueError:
+            return False
 
 
 # set up basic logger that prints to both console and a file (the log directive

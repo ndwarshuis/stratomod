@@ -604,7 +604,7 @@ class RMSKFile(BedFile):
 
 
 class RefFile(_BaseModel):
-    src: HTTPSrc
+    src: FileSrc
     chr_prefix: ChrPrefix = ChrPrefix("chr")
 
 
