@@ -13,6 +13,17 @@ from Bio import bgzf  # type: ignore
 T = TypeVar("T")
 
 
+def is_bgzip(p: Path) -> bool:
+    # since bgzip is in blocks (vs gzip), determine if in bgzip by
+    # attempting to seek first block
+    with open(p, "rb") as f:
+        try:
+            next(bgzf.BgzfBlocks(f), None)
+            return True
+        except ValueError:
+            return False
+
+
 def read_bed(
     path: Path,
     b: cfg.BedFileParams = cfg.BedFileParams(),
@@ -56,10 +67,9 @@ def write_bed(path: Path, df: pd.DataFrame) -> None:
             w.writerow(r)
 
 
-def filter_sort_bed(cfilt: cfg.ChrFilter, df: pd.DataFrame) -> pd.DataFrame:
-    """Filter and sort a bed file from a dataframe."""
+def filter_sort_bed(cfilt: cfg.ChrFilter, df: pd.DataFrame, n: int = 3) -> pd.DataFrame:
     from_map = {i.chr_name_full(cfilt.prefix): i.value for i in cfilt.indices}
-    return filter_sort_bed_inner(from_map, df)
+    return filter_sort_bed_inner(from_map, df, n)
 
 
 def filter_sort_bed_inner(
@@ -67,20 +77,6 @@ def filter_sort_bed_inner(
     df: pd.DataFrame,
     n: int = 3,
 ) -> pd.DataFrame:
-    """Filter and sort a bed file.
-
-    Arguments:
-    from_map - dict containing chr name -> int mappings (int = order)
-    to_map - dict containing int -> chr name mappings
-    df - dataframe to sort
-
-    Assumes the first three columns correspond to the coordinates of a bed
-    file.
-
-    Any chr name not specified in 'from_map' will be removed (hence the filter).
-    Furthermore, 'to_map' should contain at least all corresponding entries
-    from 'from_map', otherwise the final df will have NaNs.
-    """
     chr_col = df.columns.tolist()[0]
     df[chr_col] = df[chr_col].map(from_map)
     df = df.dropna(subset=[chr_col]).astype({chr_col: int})

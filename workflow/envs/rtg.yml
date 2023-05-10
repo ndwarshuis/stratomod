@@ -1,6 +1,0 @@
-channels:
-  - conda-forge
-  - bioconda
-dependencies:
-  - rtg-tools=3.12.1
-  - samtools=1.14

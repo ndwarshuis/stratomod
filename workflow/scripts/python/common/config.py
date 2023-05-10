@@ -605,6 +605,7 @@ class RMSKFile(BedFile):
 
 class RefFile(_BaseModel):
     src: FileSrc
+    is_fasta: bool
     chr_prefix: ChrPrefix = ChrPrefix("chr")
 
 
@@ -1294,6 +1295,14 @@ class StratoMod(_BaseModel):
         f = self.refsetkey_to_refset(key).chr_filter
         return sorted([x for x in ChrIndex] if len(f) == 0 else list(f))
 
+    def refsetkey_to_chr_name_mapper(
+        self,
+        k: RefsetKey,
+        p: ChrPrefix,
+    ) -> dict[str, int]:
+        cs = self.refsetkey_to_chr_indices(k)
+        return {c.chr_name_full(p): c.value for c in cs}
+
     def refsetkey_to_chr_filter(
         self,
         get_prefix: Callable[[Reference], ChrPrefix],
@@ -1393,76 +1402,21 @@ class StratoMod(_BaseModel):
     def refkey_to_rmsk_src(self, rk: RefKey) -> FileSrc:
         return self.references[rk].annotations.repeat_masker.src
 
-    # path expansion
-
-    def _workflow_path(self, components: list[str]) -> Path:
-        p = Path(*components).resolve()
-        assert p.exists(), f"{p} does not exist"
-        return p
-
-    def env_file(self, envname: str) -> Path:
-        return self._workflow_path(["workflow/envs", f"{envname}.yml"])
-
-    def _scripts_dir(self, rest: list[str]) -> Path:
-        return self._workflow_path(["workflow/scripts", *rest])
-
-    def python_script(self, basename: str) -> Path:
-        return self._scripts_dir(["python", basename])
-
-    def rmd_script(self, basename: str) -> Path:
-        return self._scripts_dir(["rmarkdown", basename])
+    # paths
 
     @property
-    def labeled_query_resource_dir(self) -> Path:
-        return self.paths.resources / "labeled_queries"
+    def _log_dir(self) -> Path:
+        return self.paths.results / "log"
 
-    @property
-    def unlabeled_query_resource_dir(self) -> Path:
-        return self.paths.resources / "unlabeled_queries"
-
-    @property
-    def ref_resource_dir(self) -> Path:
-        return self.paths.resources / "reference" / get_wildcard("ref_key")
-
-    @property
-    def bench_resource_dir(self) -> Path:
-        return self.ref_resource_dir / "bench"
-
-    def annotation_resource_dir(self, which: str) -> Path:
-        return self.paths.resources / "annotations" / get_wildcard("ref_key") / which
-
-    @property
-    def tool_resource_dir(self) -> Path:
-        return self.paths.resources / "tools"
-
-    def tool_dir(self, log: bool) -> Path:
-        return self._result_or_log_dir(log) / "tools"
+    def _resource_or_log_dir(self, log: bool) -> Path:
+        return self._log_dir / "resource" if log else self.paths.resources
 
     def _result_or_log_dir(self, log: bool) -> Path:
-        return self.paths.results / self.paths.log if log else self.paths.results
-
-    def bench_dir(self, log: bool) -> Path:
-        return (
-            self._result_or_log_dir(log)
-            / "bench"
-            / get_wildcard("refset_key")
-            / get_wildcard("bench_key")
-        )
-
-    def annotation_dir(self, which: str, log: bool) -> Path:
-        return (
-            self._result_or_log_dir(log)
-            / "annotations"
-            / get_wildcard("refset_key")
-            / which
-        )
+        return self._log_dir / "results" if log else self.paths.results
 
     def _labeled_dir(self, labeled: bool) -> Path:
-        return (
-            Path("labeled") / get_wildcard("l_query_key")
-            if labeled
-            else Path("unlabeled") / get_wildcard("ul_query_key")
-        )
+        d, w = ("labeled", "l_query_key") if labeled else ("unlabeled", "ul_query_key")
+        return Path(d) / get_wildcard(w)
 
     def _query_dir(self, labeled: bool, log: bool) -> Path:
         return (
@@ -1472,31 +1426,60 @@ class StratoMod(_BaseModel):
             / self._labeled_dir(labeled)
         )
 
-    def query_prepare_dir(self, labeled: bool, log: bool) -> Path:
+    def query_src_dir(self, labeled: bool, log: bool) -> Path:
+        return self._resource_or_log_dir(log) / "queries" / self._labeled_dir(labeled)
+
+    def ref_src_dir(self, log: bool) -> Path:
+        return self._resource_or_log_dir(log) / "reference" / get_wildcard("ref_key")
+
+    def bench_src_dir(self, log: bool) -> Path:
+        return self.ref_src_dir(log) / "bench" / get_wildcard("bench_key")
+
+    def annotation_src_dir(self, log: bool) -> Path:
+        return self.ref_src_dir(log) / "annotations"
+
+    def tool_src_dir(self, log: bool) -> Path:
+        return self._resource_or_log_dir(log) / "tools"
+
+    def tool_res_dir(self, log: bool) -> Path:
+        return self._result_or_log_dir(log) / "tools"
+
+    def bench_res_dir(self, log: bool) -> Path:
+        return (
+            self._result_or_log_dir(log)
+            / "bench"
+            / get_wildcard("refset_key")
+            / get_wildcard("bench_key")
+        )
+
+    def annotation_res_dir(self, log: bool) -> Path:
+        return self._result_or_log_dir(log) / "annotations" / get_wildcard("refset_key")
+
+    def query_prepare_res_dir(self, labeled: bool, log: bool) -> Path:
         return self._query_dir(labeled, log) / "prepare"
 
-    def query_parsed_dir(self, labeled: bool, log: bool) -> Path:
+    def query_parsed_res_dir(self, labeled: bool, log: bool) -> Path:
         return self._query_dir(labeled, log) / "parsed"
 
-    def vcfeval_dir(self, log: bool) -> Path:
+    def vcfeval_res_dir(self, log: bool) -> Path:
         return self._query_dir(True, log) / "vcfeval"
 
-    def refset_dir(self, log: bool) -> Path:
+    def refset_res_dir(self, log: bool) -> Path:
         return self._result_or_log_dir(log) / "references" / get_wildcard("refset_key")
 
-    def annotated_dir(self, labeled: bool, log: bool) -> Path:
+    def annotated_res_dir(self, labeled: bool, log: bool) -> Path:
         return self._result_or_log_dir(log) / "annotated" / self._labeled_dir(labeled)
 
-    def model_train_dir(self, log: bool) -> Path:
+    def model_train_res_dir(self, log: bool) -> Path:
         return (
             self._result_or_log_dir(log)
             / "model"
             / wildcard_format("{}-{}-{}", "model_key", "filter_key", "run_key")
         )
 
-    def model_test_dir(self, labeled: bool, log: bool) -> Path:
+    def model_test_res_dir(self, labeled: bool, log: bool) -> Path:
         return (
-            self.model_train_dir(log)
+            self.model_train_res_dir(log)
             / "test"
             / ("labeled" if labeled else "unlabeled")
             / get_wildcard("test_key")

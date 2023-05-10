@@ -1,14 +1,14 @@
 from scripts.python.common.config import attempt_mem_gb
 
 segdups_dir = "segdups"
-segdups_src = config.annotation_resource_dir(segdups_dir)
-segdups_tsv = config.annotation_dir(segdups_dir, log=True)
-segdups_log = config.annotation_dir(segdups_dir, log=False)
+segdups_log = config.annotation_res_dir(log=False) / segdups_dir
 
 
-use rule download_labeled_query_vcf as download_superdups with:
+use rule download_mappability_high as download_superdups with:
     output:
-        segdups_src / "superdups.txt.gz",
+        config.annotation_src_dir(log=False) / segdups_dir / "superdups.txt.gz",
+    log:
+        config.annotation_src_dir(log=True) / segdups_dir / "download.log",
     params:
         src=lambda w: config.refkey_to_annotations(w.ref_key).superdups.src,
     localrule: True
@@ -18,9 +18,12 @@ rule get_segdups:
     input:
         partial(expand_refkey_from_refsetkey, rules.download_superdups.output),
     output:
-        ensure(segdups_tsv / "segdups.tsv.gz", non_empty=True),
+        ensure(
+            config.annotation_res_dir(log=False) / segdups_dir / "segdups.tsv.gz",
+            non_empty=True,
+        ),
     conda:
-        config.env_file("bedtools")
+        "../../envs/bio.yml"
     log:
         segdups_log / "segdups.log",
     benchmark:
@@ -28,4 +31,4 @@ rule get_segdups:
     resources:
         mem_mb=attempt_mem_gb(1),
     script:
-        config.python_script("bedtools/get_segdup_features.py")
+        "../../scripts/python/bio/get_segdup_features.py"

@@ -2,7 +2,6 @@ import gzip
 import hashlib
 from pathlib import Path
 from logging import Logger
-from Bio import bgzf  # type: ignore
 
 
 def get_md5(path: Path) -> str:
@@ -13,6 +12,34 @@ def get_md5(path: Path) -> str:
     return h.hexdigest()
 
 
+def get_md5_dir(path: Path) -> str:
+    """Get the "MD5" of a directory.
+
+    This is equivalent to the following bash command:
+
+    find <dir> -type f -exec md5sum {} \\; | \\
+        grep -v snakemake_timestamp | \\
+        LC_COLLATE=C sort -k 2 | \\
+        cut -d' ' -f1 | \\
+        tr -d '\n' | \\
+        md5sum
+
+    Will only get the md5 of the first layer of files (eg not recursive). This
+    is appropriate for SDF files which have this property.
+    """
+    h = hashlib.md5()
+    ps = sorted(
+        [
+            p
+            for p in path.iterdir()
+            if p.is_file() and "snakemake_timestamp" not in p.name
+        ]
+    )
+    for p in ps:
+        h.update(get_md5(p).encode())
+    return h.hexdigest()
+
+
 def is_gzip(p: Path) -> bool:
     # test if gzip by trying to read first byte
     with gzip.open(p, "r") as f:
@@ -20,17 +47,6 @@ def is_gzip(p: Path) -> bool:
             f.read(1)
             return True
         except gzip.BadGzipFile:
-            return False
-
-
-def is_bgzip(p: Path) -> bool:
-    # since bgzip is in blocks (vs gzip), determine if in bgzip by
-    # attempting to seek first block
-    with open(p, "rb") as f:
-        try:
-            next(bgzf.BgzfBlocks(f), None)
-            return True
-        except ValueError:
             return False
 
 

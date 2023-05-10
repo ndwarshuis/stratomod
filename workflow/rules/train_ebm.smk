@@ -14,6 +14,8 @@ annotated_tsv = cfg.wildcard_ext("filter_key", "tsv.gz")
 annotated_log = cfg.wildcard_ext("filter_key", "log")
 annotated_bench = cfg.wildcard_ext("filter_key", "bench")
 
+print(rules.get_homopolymers.output)
+
 
 def annotation_input(tsv_path, query_key):
     return {
@@ -47,22 +49,20 @@ def annotation_input(tsv_path, query_key):
 rule annotate_labeled_tsv:
     input:
         unpack(
-            lambda wildcards: annotation_input(
-                rules.concat_labeled_tsvs.output, wildcards.l_query_key
-            )
+            lambda w: annotation_input(rules.concat_labeled_tsvs.output, w.l_query_key)
         ),
     output:
-        config.annotated_dir(labeled=True, log=False) / annotated_tsv,
+        config.annotated_res_dir(labeled=True, log=False) / annotated_tsv,
     conda:
-        config.env_file("bedtools")
+        "../envs/bio.yml"
     log:
-        config.annotated_dir(labeled=True, log=True) / annotated_log,
+        config.annotated_res_dir(labeled=True, log=True) / annotated_log,
     benchmark:
-        config.annotated_dir(labeled=True, log=True) / annotated_bench
+        config.annotated_res_dir(labeled=True, log=True) / annotated_bench
     resources:
         mem_mb=cfg.attempt_mem_gb(32),
     script:
-        config.python_script("bedtools/annotate.py")
+        "../scripts/python/bio/annotate.py"
 
 
 use rule annotate_labeled_tsv as annotate_unlabeled_tsv with:
@@ -73,11 +73,11 @@ use rule annotate_labeled_tsv as annotate_unlabeled_tsv with:
             )
         ),
     output:
-        config.annotated_dir(labeled=False, log=False) / annotated_tsv,
+        config.annotated_res_dir(labeled=False, log=False) / annotated_tsv,
     log:
-        config.annotated_dir(labeled=False, log=True) / annotated_log,
+        config.annotated_res_dir(labeled=False, log=True) / annotated_log,
     benchmark:
-        config.annotated_dir(labeled=False, log=True) / annotated_bench
+        config.annotated_res_dir(labeled=False, log=True) / annotated_bench
 
 
 ################################################################################
@@ -91,27 +91,27 @@ rule summarize_labeled_input:
     input:
         rules.annotate_labeled_tsv.output,
     output:
-        config.annotated_dir(labeled=True, log=False) / summary_output,
+        config.annotated_res_dir(labeled=True, log=False) / summary_output,
     conda:
-        config.env_file("summary")
+        "../envs/summary.yml"
     benchmark:
-        config.annotated_dir(labeled=True, log=True) / summary_bench
+        config.annotated_res_dir(labeled=True, log=True) / summary_bench
     resources:
         mem_mb=cfg.attempt_mem_gb(16),
     params:
         label_col=config.feature_names.label,
         columns=config.feature_names.non_summary_cols,
     script:
-        config.rmd_script("summary/input_summary.Rmd")
+        "../scripts/rmarkdown/summary/input_summary.Rmd"
 
 
 use rule summarize_labeled_input as summarize_unlabeled_input with:
     input:
         rules.annotate_unlabeled_tsv.output,
     output:
-        config.annotated_dir(labeled=False, log=False) / summary_output,
+        config.annotated_res_dir(labeled=False, log=False) / summary_output,
     benchmark:
-        config.annotated_dir(labeled=False, log=True) / summary_bench
+        config.annotated_res_dir(labeled=False, log=True) / summary_bench
     params:
         label_col=None,
         columns=config.feature_names.non_summary_cols,
@@ -142,17 +142,17 @@ rule prepare_train_data:
             }
         ),
     output:
-        df=config.model_train_dir(log=False) / "train.tsv.gz",
+        df=config.model_train_res_dir(log=False) / "train.tsv.gz",
     log:
-        config.model_train_dir(log=True) / "prepare.log",
+        config.model_train_res_dir(log=True) / "prepare.log",
     benchmark:
-        config.model_train_dir(log=True) / "prepare.bench"
+        config.model_train_res_dir(log=True) / "prepare.bench"
     resources:
         mem_mb=cfg.attempt_mem_gb(8),
     conda:
-        config.env_file("bedtools")
+        "../envs/bio.yml"
     script:
-        config.python_script("bedtools/prepare_train.py")
+        "../scripts/python/bio/prepare_train.py"
 
 
 rule train_model:
@@ -160,7 +160,7 @@ rule train_model:
         rules.prepare_train_data.output,
     output:
         **{
-            n: str((config.model_train_dir(log=False) / n).with_suffix(".tsv.gz"))
+            n: str((config.model_train_res_dir(log=False) / n).with_suffix(".tsv.gz"))
             for n in [
                 "train_x",
                 "train_y",
@@ -168,38 +168,39 @@ rule train_model:
                 "test_y",
             ]
         },
-        model=config.model_train_dir(log=False) / "model.pickle",
-        config=config.model_train_dir(log=False) / "config.yml",
+        model=config.model_train_res_dir(log=False) / "model.pickle",
+        config=config.model_train_res_dir(log=False) / "config.yml",
     conda:
-        config.env_file("ebm")
+        "../envs/ebm.yml"
     log:
-        config.model_train_dir(log=True) / "model.log",
+        config.model_train_res_dir(log=True) / "model.log",
     threads: 1
     # ASSUME total memory is proportional the number of EBMs that are trained in
     # parallel (see outer_bags parameter in the EBM function call)
     resources:
         mem_mb=lambda wildcards, threads, attempt: 16000 * threads * 2 ** (attempt - 1),
     benchmark:
-        config.model_train_dir(log=True) / "model.bench"
+        config.model_train_res_dir(log=True) / "model.bench"
     script:
-        config.python_script("ebm/train_ebm.py")
+        "../scripts/python/ebm/train_ebm.py"
 
 
 rule decompose_model:
     input:
         **rules.train_model.output,
     output:
-        model=config.model_train_dir(log=False) / "model.json",
-        predictions=config.model_train_dir(log=False) / "predictions.tsv.gz",
-        train_predictions=config.model_train_dir(log=False) / "train_predictions.tsv.gz",
+        model=config.model_train_res_dir(log=False) / "model.json",
+        predictions=config.model_train_res_dir(log=False) / "predictions.tsv.gz",
+        train_predictions=config.model_train_res_dir(log=False)
+        / "train_predictions.tsv.gz",
     conda:
-        config.env_file("ebm")
+        "../envs/ebm.yml"
     log:
-        config.model_train_dir(log=True) / "decompose.log",
+        config.model_train_res_dir(log=True) / "decompose.log",
     resources:
         mem_mb=cfg.attempt_mem_gb(2),
     script:
-        config.python_script("ebm/decompose_model.py")
+        "../scripts/python/ebm/decompose_model.py"
 
 
 rule summarize_model:
@@ -208,11 +209,11 @@ rule summarize_model:
         train_x=rules.train_model.output.train_x,
         train_y=rules.train_model.output.train_y,
     output:
-        config.model_train_dir(log=False) / "summary.html",
+        config.model_train_res_dir(log=False) / "summary.html",
     conda:
-        config.env_file("summary")
+        "../envs/summary.yml"
     benchmark:
-        config.model_train_dir(log=True) / "summary.bench"
+        config.model_train_res_dir(log=True) / "summary.bench"
     resources:
         mem_mb=cfg.attempt_mem_gb(8),
     params:
@@ -224,7 +225,7 @@ rule summarize_model:
             x.value for x in config.models[wildcards.model_key].error_labels
         ],
     script:
-        config.rmd_script("summary/train_summary.Rmd")
+        "../scripts/rmarkdown/summary/train_summary.Rmd"
 
 
 ################################################################################
@@ -263,18 +264,18 @@ rule prepare_labeled_test_data:
             )
         ),
     output:
-        test_x=config.model_test_dir(labeled=True, log=False) / prepare_x_file,
-        test_y=config.model_test_dir(labeled=True, log=False) / "test_y.tsv.gz",
+        test_x=config.model_test_res_dir(labeled=True, log=False) / prepare_x_file,
+        test_y=config.model_test_res_dir(labeled=True, log=False) / "test_y.tsv.gz",
     log:
-        config.model_test_dir(labeled=True, log=True) / prepare_log_file,
+        config.model_test_res_dir(labeled=True, log=True) / prepare_log_file,
     benchmark:
-        config.model_test_dir(labeled=True, log=True) / prepare_bench_file
+        config.model_test_res_dir(labeled=True, log=True) / prepare_bench_file
     resources:
         mem_mb=cfg.attempt_mem_gb(8),
     conda:
-        config.env_file("bedtools")
+        "../envs/bio.yml"
     script:
-        config.python_script("bedtools/prepare_test.py")
+        "../scripts/python/bio/prepare_test.py"
 
 
 use rule prepare_labeled_test_data as prepare_unlabeled_test_data with:
@@ -287,11 +288,11 @@ use rule prepare_labeled_test_data as prepare_unlabeled_test_data with:
             )
         ),
     output:
-        test_x=config.model_test_dir(labeled=False, log=False) / prepare_x_file,
+        test_x=config.model_test_res_dir(labeled=False, log=False) / prepare_x_file,
     log:
-        config.model_test_dir(labeled=False, log=True) / prepare_log_file,
+        config.model_test_res_dir(labeled=False, log=True) / prepare_log_file,
     benchmark:
-        config.model_test_dir(labeled=False, log=True) / prepare_bench_file
+        config.model_test_res_dir(labeled=False, log=True) / prepare_bench_file
 
 
 ################################################################################
@@ -317,28 +318,28 @@ rule test_labeled_ebm:
     input:
         **test_ebm_input(rules.prepare_labeled_test_data.output.test_x),
     output:
-        **test_ebm_output(config.model_test_dir(labeled=True, log=False)),
+        **test_ebm_output(config.model_test_res_dir(labeled=True, log=False)),
     conda:
-        config.env_file("ebm")
+        "../envs/ebm.yml"
     log:
-        config.model_test_dir(labeled=True, log=True) / test_log_file,
+        config.model_test_res_dir(labeled=True, log=True) / test_log_file,
     resources:
         mem_mb=cfg.attempt_mem_gb(2),
     benchmark:
-        config.model_test_dir(labeled=True, log=True) / test_bench_file
+        config.model_test_res_dir(labeled=True, log=True) / test_bench_file
     script:
-        config.python_script("ebm/test_ebm.py")
+        "../scripts/python/ebm/test_ebm.py"
 
 
 use rule test_labeled_ebm as test_unlabeled_ebm with:
     input:
         **test_ebm_input(rules.prepare_unlabeled_test_data.output.test_x),
     output:
-        **test_ebm_output(config.model_test_dir(labeled=False, log=False)),
+        **test_ebm_output(config.model_test_res_dir(labeled=False, log=False)),
     log:
-        config.model_test_dir(labeled=False, log=True) / test_log_file,
+        config.model_test_res_dir(labeled=False, log=True) / test_log_file,
     benchmark:
-        config.model_test_dir(labeled=False, log=True) / test_bench_file
+        config.model_test_res_dir(labeled=False, log=True) / test_bench_file
 
 
 ################################################################################
@@ -353,24 +354,24 @@ rule summarize_labeled_test:
         **rules.test_labeled_ebm.output,
         truth_y=rules.prepare_labeled_test_data.output.test_y,
     output:
-        config.model_test_dir(labeled=True, log=False) / test_summary_file,
+        config.model_test_res_dir(labeled=True, log=False) / test_summary_file,
     conda:
-        config.env_file("summary")
+        "../envs/summary.yml"
     benchmark:
-        config.model_test_dir(labeled=True, log=True) / test_summary_bench
+        config.model_test_res_dir(labeled=True, log=True) / test_summary_bench
     resources:
         mem_mb=cfg.attempt_mem_gb(8),
     script:
-        config.rmd_script("summary/test_summary.Rmd")
+        "../scripts/rmarkdown/summary/test_summary.Rmd"
 
 
 use rule summarize_labeled_test as summarize_unlabeled_test with:
     input:
         **rules.test_unlabeled_ebm.output,
     output:
-        config.model_test_dir(labeled=False, log=False) / test_summary_file,
+        config.model_test_res_dir(labeled=False, log=False) / test_summary_file,
     benchmark:
-        config.model_test_dir(labeled=False, log=True) / test_summary_bench
+        config.model_test_res_dir(labeled=False, log=True) / test_summary_bench
 
 
 ################################################################################

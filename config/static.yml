@@ -21,6 +21,10 @@ references:
       # The prefix used for chromosomes in this sdf.
       chr_prefix: ""
 
+      # If true, the src block refers to a FASTA file; else it refers to an
+      # SDF file as defined by rtg-tools
+      is_fasta: False
+
     # Any GIAB stratifications pertinant to this reference which will be used
     # for filtering out invalid variants
     strats:
@@ -184,6 +188,7 @@ references:
       src:
         url: https://s3.amazonaws.com/rtg-datasets/references/GRCh38.sdf.zip
       chr_prefix: chr
+      is_fasta: False
     strats:
       mhc: [{chrom: 6, start: 28510020, end: 33480577}]
     annotations:

@@ -4,23 +4,19 @@ from typing import Callable
 from typing_extensions import assert_never
 from tempfile import NamedTemporaryFile as Tmp
 import common.config as cfg
-
-# from common.io import get_md5, setup_logging, is_gzip
-from common.io import get_md5, is_gzip
+from common.io import get_md5, is_gzip, setup_logging
 
 # hacky curl/gzip wrapper; this exists because I got tired of writing
 # specialized rules to convert gzip/nozip files to bgzip and back :/
 # Solution: force bgzip for references and gzip for bed
 
-# log = setup_logging(snakemake.log[0])  # type: ignore
+log = setup_logging(snakemake.log[0])  # type: ignore
 
-# GUNZIP = ["gunzip", "-c"]
-# BGZIP = ["bgzip", "-c"]
 GZIP = ["gzip", "-c"]
 CURL = ["curl", "-Ss", "-L", "-q"]
 
 
-def main(opath: str, src: cfg.FileSrc | None) -> None:
+def main(opath: Path, src: cfg.FileSrc | None) -> None:
     if isinstance(src, cfg.LocalSrc):
         # ASSUME these are already tested via the pydantic class for the
         # proper file format
@@ -59,10 +55,8 @@ def main(opath: str, src: cfg.FileSrc | None) -> None:
         assert_never(src)
 
     if src.md5 is not None and src.md5 != (actual := get_md5(opath)):
-        # log.error("md5s don't match; wanted %s, actual %s", src.md5, actual)
-        # TODO actually log this
-        print("md5s don't match; wanted %s, actual %s" % (src.md5, actual))
+        log.error("md5s don't match; wanted %s, actual %s", src.md5, actual)
         exit(1)
 
 
-main(snakemake.output[0], snakemake.params.src)  # type: ignore
+main(Path(snakemake.output[0]), snakemake.params.src)  # type: ignore

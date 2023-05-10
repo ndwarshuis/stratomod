@@ -5,9 +5,8 @@
 # standardization. These are all dealt during the initial steps in processing.
 
 
-include: "genome.smk"
+include: "mappability.smk"
 include: "repeat_masker.smk"
 include: "homopolymers.smk"
-include: "mappability.smk"
 include: "tandem_repeats.smk"
 include: "segdups.smk"

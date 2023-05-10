@@ -3,13 +3,15 @@ from scripts.python.common.config import attempt_mem_gb
 rmsk_dir = "repeat_masker"
 rmsk_classes = config.feature_names.repeat_masker.classes
 
-rmsk_res = config.annotation_dir(rmsk_dir, log=False)
-rmsk_log = config.annotation_dir(rmsk_dir, log=True)
+rmsk_res = config.annotation_res_dir(log=False) / rmsk_dir
+rmsk_log = config.annotation_res_dir(log=True) / rmsk_dir
 
 
-use rule download_labeled_query_vcf as download_repeat_masker with:
+use rule download_mappability_high as download_repeat_masker with:
     output:
-        config.annotation_resource_dir(rmsk_dir) / "repeat_masker.txt.gz",
+        config.annotation_src_dir(log=False) / rmsk_dir / "repeat_masker.txt.gz",
+    log:
+        config.annotation_src_dir(log=True) / rmsk_dir / "download.log",
     params:
         src=lambda w: config.refkey_to_annotations(w.ref_key).repeat_masker.src,
     localrule: True
@@ -30,7 +32,7 @@ rule get_repeat_masker_classes:
             for fam in fams
         },
     conda:
-        config.env_file("bedtools")
+        "../../envs/bio.yml"
     log:
         rmsk_log / "rmsk.log",
     benchmark:
@@ -38,4 +40,4 @@ rule get_repeat_masker_classes:
     resources:
         mem_mb=attempt_mem_gb(2),
     script:
-        config.python_script("bedtools/get_repeat_masker_features.py")
+        "../../scripts/python/bio/get_repeat_masker_features.py"
