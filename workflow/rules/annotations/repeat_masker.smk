@@ -1,48 +1,46 @@
-from scripts.python.common.config import (
-    lookup_global_chr_filter,
-    lookup_annotations,
-    attempt_mem_gb,
-)
+from scripts.python.common.config import attempt_mem_gb
 
 rmsk_dir = "repeat_masker"
-rmsk_results_dir = annotations_tsv_dir / rmsk_dir
+rmsk_classes = config.feature_names.repeat_masker.classes
 
-rmsk_file_prefix = "repeat_masker"
-
-rmsk_classes = config["features"]["repeat_masker"]["classes"]
+rmsk_res = config.annotation_dir(rmsk_dir, log=False)
+rmsk_log = config.annotation_dir(rmsk_dir, log=True)
 
 
 rule download_repeat_masker:
     output:
-        annotations_src_dir / rmsk_dir / "repeat_masker.txt.gz",
+        config.annotation_resource_dir(rmsk_dir) / "repeat_masker.txt.gz",
     params:
-        url=lookup_annotations(config)["repeat_masker"],
+        url=lambda wildcards: config.refkey_to_annotations(
+            wildcards.ref_key
+        ).repeat_masker.url,
     conda:
-        envs_path("utils.yml")
+        config.env_file("utils")
     shell:
         "curl -sS -L -o {output} {params.url}"
 
 
+# use keyed outputs to allow easier parsing in the script
 rule get_repeat_masker_classes:
     input:
-        rules.download_repeat_masker.output,
+        partial(expand_refkey_from_refsetkey, rules.download_repeat_masker.output),
     output:
-        [rmsk_results_dir / (f"{rmsk_file_prefix}_{cls}.tsv.gz") for cls in rmsk_classes],
-        [
-            rmsk_results_dir / (f"{rmsk_file_prefix}_{cls}_{fam}.tsv.gz")
+        **{
+            cls: ensure(rmsk_res / (f"{cls}.tsv.gz"), non_empty=True)
+            for cls in rmsk_classes
+        },
+        **{
+            f"{cls}_{fam}": ensure(rmsk_res / (f"{cls}_{fam}.tsv.gz"), non_empty=True)
             for cls, fams in rmsk_classes.items()
             for fam in fams
-        ],
+        },
     conda:
-        envs_path("bedtools.yml")
+        config.env_file("bedtools")
     log:
-        annotations_log_dir / rmsk_dir / "rmsk.log",
-    params:
-        file_prefix=rmsk_file_prefix,
-        filt=lookup_global_chr_filter(config),
+        rmsk_log / "rmsk.log",
     benchmark:
-        rmsk_results_dir / "rmsk.bench"
+        rmsk_log / "rmsk.bench"
     resources:
         mem_mb=attempt_mem_gb(2),
     script:
-        python_path("get_repeat_masker_features.py")
+        config.python_script("bedtools/get_repeat_masker_features.py")

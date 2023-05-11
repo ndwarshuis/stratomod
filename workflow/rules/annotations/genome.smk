@@ -5,21 +5,26 @@ genome_dir = "genome"
 # rules). Use the first two columns of this table (chrom and length)
 rule download_genome:
     output:
-        annotations_src_dir / genome_dir / "chromInfo.txt.gz",
+        config.annotation_resource_dir(genome_dir) / "chromInfo.txt.gz",
     params:
-        url=config["resources"]["references"]["GRCh38"]["genome"],
+        url=lambda wildcards: config.references[wildcards.ref_key].genome.url,
     conda:
-        envs_path("utils.yml")
+        config.env_file("utils")
     shell:
         "curl -sS -L -o {output} {params.url}"
 
 
 rule get_genome:
     input:
-        rules.download_genome.output,
+        partial(expand_refkey_from_refsetkey, rules.download_genome.output),
     output:
-        annotations_tsv_dir / genome_dir / "genome.txt",
+        ensure(
+            config.annotation_dir(genome_dir, log=False) / "genome.txt",
+            non_empty=True,
+        ),
+    conda:
+        config.env_file("bedtools")
     log:
-        annotations_log_dir / genome_dir / "genome.log",
+        config.annotation_dir(genome_dir, log=True) / "genome.log",
     script:
-        python_path("get_genome.py")
+        config.python_script("bedtools/get_genome.py")

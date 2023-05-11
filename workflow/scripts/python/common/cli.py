@@ -1,8 +1,8 @@
-import sys
 import argparse
+from logging import Logger
 
 
-def add_input_arg(desc, parser):
+def add_input_arg(desc: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "-i",
         "--input",
@@ -13,7 +13,7 @@ def add_input_arg(desc, parser):
     )
 
 
-def add_output_arg(desc, parser):
+def add_output_arg(desc: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "-o",
         "--output",
@@ -24,7 +24,7 @@ def add_output_arg(desc, parser):
     )
 
 
-def add_config_arg(desc, parser):
+def add_config_arg(desc: str, parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "-c",
         "--config",
@@ -33,7 +33,7 @@ def add_config_arg(desc, parser):
     )
 
 
-def make_io_parser(desc, idesc, odesc):
+def make_io_parser(desc: str, idesc: str, odesc: str) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=desc)
     add_output_arg(odesc, parser)
     add_input_arg(idesc, parser)
@@ -42,7 +42,7 @@ def make_io_parser(desc, idesc, odesc):
 
 # set up basic logger that prints to both console and a file (the log directive
 # from snakemake) and captures warnings so those don't go unnoticed
-def setup_logging(path, console=False):
+def setup_logging(path: str, console: bool = False) -> Logger:
     import logging
 
     logging.basicConfig(filename=path, level=logging.INFO)
@@ -51,7 +51,3 @@ def setup_logging(path, console=False):
     if console:
         logger.addHandler(logging.StreamHandler())
     return logger
-
-
-def printerr(s):
-    print(s, file=sys.stderr)

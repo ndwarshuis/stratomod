@@ -2,20 +2,14 @@ library(tidyverse)
 
 ## Given boolean 'df' calculate the jaccard index between columns 'i' and 'j'. 
 .jaccard <- function(df, i, j) {
-    s <- summarize(df,
-                   union = sum(.data[[i]] | .data[[j]]),
-                   inter = sum(.data[[i]] & .data[[j]]))
-    s$inter / s$union
+    sum(df[[i]] & df[[j]]) / sum(df[[i]] | df[[j]])
 }
 
 ## Given boolean 'df' calculate the "asymmetric jaccard index" between columns
 ## 'i' and 'j'. The "asymmetric jaccard index" is like the jaccard index except
 ## the denominator is the cardinality of the set denoted by 'i'.
 .asymmetric_jaccard <- function(df, i, j) {
-    s <- summarize(df,
-                   total = sum(.data[[i]]),
-                   inter = sum(.data[[i]] & .data[[j]]))
-    s$inter / s$total
+    sum(df[[i]] & df[[j]]) / sum(df[[i]])
 }
 
 jaccard <- Vectorize(.jaccard, vectorize.args = c("i", "j"))

@@ -1,42 +1,53 @@
-from scripts.python.common.config import lookup_annotations, attempt_mem_gb
+from scripts.python.common.config import attempt_mem_gb
 
-mappability_dir = "mappability"
-mappability_src_dir = annotations_src_dir / mappability_dir
-mappability_results_dir = annotations_tsv_dir / mappability_dir
+map_dir = "mappability"
+map_src = config.annotation_resource_dir(map_dir)
+map_res = config.annotation_dir(map_dir, log=False)
+map_log = config.annotation_dir(map_dir, log=True)
 
-mappability_config = lookup_annotations(config)["mappability"]
+
+def map_lookup(wildcards):
+    return config.refkey_to_annotations(wildcards.ref_key).mappability
 
 
 rule download_mappability_high:
     output:
-        mappability_src_dir / "mappability_high.bed.gz",
+        map_src / "high.bed.gz",
     params:
-        url=mappability_config["high"],
+        url=lambda wildcards: map_lookup(wildcards).high.url,
     conda:
-        envs_path("utils.yml")
+        config.env_file("utils")
     shell:
         "curl -sS -L -o {output} {params.url}"
 
 
 use rule download_mappability_high as download_mappability_low with:
     output:
-        mappability_src_dir / "mappability_low.bed.gz",
+        map_src / "low.bed.gz",
     params:
-        url=mappability_config["low"],
+        url=lambda wildcards: map_lookup(wildcards).low.url,
 
 
 rule get_mappability:
     input:
-        low=rules.download_mappability_low.output[0],
-        high=rules.download_mappability_high.output[0],
+        low=partial(
+            expand_refkey_from_refsetkey,
+            rules.download_mappability_low.output[0],
+        ),
+        high=partial(
+            expand_refkey_from_refsetkey,
+            rules.download_mappability_high.output[0],
+        ),
     output:
-        high=mappability_results_dir / "mappability_high.tsv.gz",
-        low=mappability_results_dir / "mappability_low_no_high.tsv.gz",
+        high=ensure(map_res / "mappability_high.tsv.gz", non_empty=True),
+        low=ensure(map_res / "mappability_low_no_high.tsv.gz", non_empty=True),
     log:
-        annotations_log_dir / mappability_dir / "mappability.log",
+        map_log / "mappability.log",
+    log:
+        map_log / "mappability.bench",
     conda:
-        envs_path("bedtools.yml")
+        config.env_file("bedtools")
     resources:
         mem_mb=attempt_mem_gb(2),
     script:
-        python_path("get_mappability_features.py")
+        config.python_script("bedtools/get_mappability_features.py")

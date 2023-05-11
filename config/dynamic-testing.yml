@@ -1,60 +1,278 @@
-inputs:
-  HG002_Hifi_DV:
-    chr_filter: [21]
-    train:
-      url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh38/SupplementaryFiles/inputvcfsandbeds/HG002_GRCh38_1_22_PacBio_HiFi_DeepVariant.vcf.gz
-      ref: GRCh38
-      benchmark: HG002_v4.2.1
-    test:
-      HG005_Hifi_DV:
-        url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh38/SupplementaryFiles/inputvcfsandbeds/HG005_GRCh38_1_22_PacBio_HiFi_DeepVariant.vcf.gz
-        ref: GRCh38
-        benchmark: HG005_v4.2.1
-  HG002_Illumina_DV:
-    chr_filter: [21]
-    train:
-      url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG002.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
-      ref: GRCh38
-      benchmark: HG002_v4.2.1
-    test:
-      Clinvar_Illumina:
-        url: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/archive_2.0/2022/clinvar_20220812.vcf.gz
-        ref: GRCh38
-        # isn't genomics wonderful?
-        chr_prefix: ''
-        format_fields: {}
-        benchmark: null
-        # There are some super long variants in clinvar. Filter these out
-        # because a) they would overlap with so many annotations that a new
-        # universe would spawn into existance and b) they are outside what a
-        # trained model would be good at testing anyways (until we incorporate
-        # structural variants)
-        format_fields:
-          vaf: null
-          dp: null
-          gt: null
-          gq: null
+# Reference Set: a distinct combination of a reference and desired set of
+# chromosomes from said reference.
+reference_sets:
+  # Each key for this object should be a distinct identifier to be associated
+  # with each reference set.
+  GRCh37_test:
+    # A key denoting the reference to use. For valid keys, see static.yml
+    ref: GRCh37
 
-ebm_runs:
-  small_set_v3:
-    inputs:
-      - HG002_Hifi_DV: [HG005_Hifi_DV]
-        HG002_Illumina_DV: [Clinvar_Illumina]
-    filter: [SNP, INDEL]
+    # A list of chromosomes to include (X = 23, y = 24). Empty list means all
+    # chromosomes are included.
+    chr_filter: [21]
+
+  GRCh38_test:
+    ref: GRCh38
+    chr_filter: [21]
+
+# Labeled queries: input vcf files which have an associated benchmark (which
+# in turn gives them labels). Note: these may be used for either model traning
+# or testing.
+labeled_queries:
+  # Each key for this object should be unique and briefly convey the intent of
+  # this query
+  HG002_Hifi_DV:
+    # The reference set corresponding to this query vcf. The reference itself
+    # should correspond to that which was used to make the vcf itself (or
+    # weird stuff will ensue)
+    refset: GRCh37_test
+
+    # The chromosome prefix used in this vcf (which is likely the same as the
+    # reference and benchmark, but not guaranteed)
+    chr_prefix: ""
+
+    # The location from which to retrieve this query vcf
+    url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh37/SupplementaryFiles/inputvcfsandbeds/HG002_GRCh37_1_22_PacBio_HiFi_DeepVariant.vcf.gz
+
+    # The benchmark that should be applied to this vcf to produce labels. For
+    # valid keys, see static.yml. It is assumed that the user will make a sane
+    # choice here (eg the reference and genome will match)
+    benchmark: HG002_v421
+
+    # Additional variables to associated with this particular query (which may
+    # may be used as features during model training/testing). In effect, each
+    # key value pair here will produce a new column with a single value in the
+    # dataframe fed to the model fitting algorithm. This is only useful to distinguish
+    # between multiple vcfs when they are concatenated into one traning set. For
+    # example, we could use 'coverage' here to distinguish between different
+    # vcfs that were created identically except for coverage, and the variable
+    # here allows the model to take coverage into account during fitting.
+    #
+    # NOTE: the keys and value for this must conform to those set in static.yml
+    # -> feature_names -> variables
+    variables:
+      coverage: 40
+      seqtech: "PacBio HiFi"
+      variant_caller: "DeepVariant"
+
+    # The maximum allowed length in the REF and ALT fields. Both of these
+    # default to 50 which will remove structural variants (by de facto
+    # definition)
+    # max_ref: 50
+    # max_alt: 50
+
+    # The names of the fields in the FORMAT column in the vcf file. Some vcfs
+    # use wonky names to describe the same field that is represented elsewhere
+    # by a different name. The following are defaults and represent the names
+    # as given by DeepVariant. Change these as necessary. Set to null to skip
+    # retrieving this field (which also means it can't be used as a feature in
+    # the model)
+    #
+    # NOTE: VAF = variant allele fraction, DP = read depth, GT = genotype,
+    # GQ = genotype quality
+    # format_fields:
+      # vaf: VAF
+      # dp: DP
+      # gt: GT
+      # gq: GQ
+
+  HG002_Illumina_DV:
+    refset: GRCh38_test
+    chr_prefix: chr
+    url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG002.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
+    benchmark: HG002_v421
+    variables:
+      coverage: 40
+      seqtech: Illumina
+      variant_caller: "DeepVariant"
+  HG005_Hifi_DV:
+    refset: GRCh37_test
+    chr_prefix: ""
+    url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh37/SupplementaryFiles/inputvcfsandbeds/HG005_GRCh37_1_22_PacBio_HiFi_DeepVariant.vcf.gz
+    benchmark: HG005_v421
+    variables:
+      coverage: 40
+      seqtech: "PacBio HiFi"
+      variant_caller: "DeepVariant"
+
+# Unlabeled queries: These are like labeled queries (see immediately above)
+# except that they don't have a benchmark key, and consequently don't have
+# labels. This also precludes them from being used for model training.
+unlabeled_queries:
+  Clinvar:
+    refset: GRCh38_test
+    url: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/archive_2.0/2022/clinvar_20220812.vcf.gz
+    chr_prefix: '' # isn't genomics wonderful?
+    # don't include any of these fields since they are not defined in clinvar
+    format_fields:
+      vaf: null
+      dp: null
+      gt: null
+      gq: null
+    variables: {}
+
+# Model run specification. Each key represents a particular modul configuration.
+# More deeply nested keys encode the inputs (which utilize the data in the
+# previous sections) for each individual model run.
+models:
+  # Each key should be unique and briefly describe the intent of the model
+  # configuration.
+  test_model:
+    # Run = an input combination to be used for the model training/testing
+    # process.
+    runs:
+      # Each key should be unique and briefly describe the data inputs
+      test_inputs:
+        # A list of keys from either 'labeled_queries' or 'unlabeled_queries'
+        # above
+        train: [HG002_Hifi_DV, HG002_Illumina_DV]
+
+        # Test = an input combination (given a training input combination) to
+        # test a given model specification.
+        test:
+          # Each key should uniquely describe the testing data being used
+          Clinvar_Illumina:
+            # A key corresponding to one entry in 'unlabeld_queries' above
+            query_key: Clinvar
+
+            # A set of variables to use for this testing input. Any variables
+            # previously specified in the 'unlabeled_queries' section will be
+            # overriden. In this example, we are telling the model to regard
+            # this vcf "as if" it had been collected with 40x Illumina
+            # and called with DeepVariant (since it is a ClinVar vcf none of
+            # these things are actually true, but here we could test what the
+            # model predicts for this set of variants if they hypothetically
+            # were produced under these conditions)
+            variables:
+              coverage: 40
+              seqtech: "Illumina"
+              variant_caller: "DeepVariant"
+
+          HG005_Hifi_DV:
+            query_key: HG005_Hifi_DV
+            variables: {} # TODO default this out
+
+    # The type of variant to include. The only valid members are 'SNV' and
+    # 'INDEL' and this list must not be empty
+    filter: [SNV, INDEL]
+
+    # How the EBM model should be trained
     ebm_settings: &ebm_settings
+
+      # How the training data should be split when traning/testing
       split_parameters:
+        # The fraction of holdout data used for testing (a float b/t 0 and 1)
         test_size: 0.2
+
+        # The random seed for splitting. This defaults to a random value.
+        # Supply your own value to fix the splitting process.
+        # random_seed: 2112
+
+      # Parameters for the EBM classifier. Defaults are usually fine for
+      # first pass model training. For more information, consult the EBM
+      # documentation here: https://interpret.ml/docs/getting-started
+      # classifier_parameters
+        # max_bins: 256
+        # max_interaction_bins: 32
+        # binning: "quantile"
+        # outer_bags: 8
+        # inner_bags: 0
+        # learning_rate: 0.01
+        # validation_size: 0.15
+        # early_stopping_rounds: 50
+        # early_stopping_tolerance: 0.0001
+        # max_rounds: 5000
+        # min_samples_leaf: 2
+        # max_leaves: 3
+        # random_state: <random>
+
+      # Other parameters that affect the training process. These normally
+      # don't need to be changed except in advanced cases.
+      # misc_parameters:
+        # Downsample the data to the indicated fraction. Might be useful for
+        # ultra-large datasets where not all the data is desired. Set to
+        # 'null' to disable.
+        # downsample: null
+
+    # The labels to be regarded as the negative class. Usually this will either
+    # be 'fp' (false positives) or 'fn' (false negatives). However, one can
+    # combine these into one meta-error by specifying both. In all cases, the
+    # positive class is 'tp' (true positives).
     error_labels: [fp]
+
+    # Whether to regard filtered variants as candidate variant or not. If false,
+    # only variants with PASS as its filter result will be included in the
+    # model input. Otherwise, non-passing variants are also included.
     filtered_are_candidates: false
-    interactions:
-      - VCF_input
-      - [VCF_indel_length, HOMOPOL_A_length]
-      - [VCF_indel_length, HOMOPOL_T_length]
-      - [VCF_indel_length, HOMOPOL_G_length]
-      - [VCF_indel_length, HOMOPOL_C_length]
+
+    # A list of features to include. This only covers 1st order features;
+    # interactions are specified in the next section.
     features: &base_features
-      VCF_input:
+
+      # Each key in this section must correspond to a given feature supplied
+      # either by a variable or a hardcoded feature in the pipeline.
+      VAR_variant_caller:
+        # The type of feature: either 'categorical' or 'continuous'. In
+        # practice, the model is trained in the same way; this feature
+        # primarily makes visualization more appropriate.
+        #
+        # Default: continuous
         feature_type: categorical
+
+        # Value to use for missing values. In practice, missing values happen
+        # whenever a genomic context feature does not intersect with a variant.
+        # Example, many variants are not in homopolymers, so homopolymer length
+        # in this case will be missing. For many cases, it makes sense to set
+        # this value to 0, since the lower bound for many features is a positve
+        # integer. For others, this may not apply. This does not affect model
+        # training, as the only thing it understands is a matix of number ;)
+        #
+        # Default: 0
+        # fill_na: 0
+
+        # Alternative name for this feature. This can be useful for renaming
+        # features after a transformation, when the default name may be
+        # misleading (see below for several examples). Set to null to use
+        # the default name, which is the key for this object.
+        #
+        # Default: null
+        # alt_name: null
+
+        # Transform for this feature. For now, only two are supported:
+        #   log: natural log transform
+        #   binary: binary transform, where 0 is 0 and anything else is 1
+        #
+        # Default: null
+        # transform: null
+
+        # How to visualize the feature in the output report. All values in
+        # this section have defaults, so it need not be specified manually.
+        # visualization:
+
+          # How to truncate the visualization, which may be useful if the
+          # feature has very extreme values. Has an upper and lower bound, which
+          # may be any float so long as lower < upper. Each may be null to
+          # set its limit as infinity.
+          #
+          # Default: {lower: null, upper: null}
+          # truncate: {lower: null, upper: null}
+
+          # The type of plot to use for visualization:
+          #   step: a step plot (for continuous variables)
+          #   bar: a bar graph (for either discrete numberic variables or
+          #        categorical variables)
+          # 
+          # Default: step
+          # plot_type: step
+
+          # How to display missing values. If given, and value below this bound
+          # will be considered "missing" and will be displayed as a separate
+          # plot to the left of the main plot. Useful when "missingness" has a
+          # specific meaning.
+          #
+          # Default: null
+          # split_missing: null
+        
       VCF_VAF: {}
       VCF_DP:
         visualization:
@@ -114,3 +332,21 @@ ebm_runs:
         visualization:
           plot_type: bar
           truncate: {upper: 50}
+
+    # Interaction terms in the model. This may either be:
+    # - a number (which represents the upper bound of interactions the model
+    #   may include; the algorithm itself will determine which specific terms
+    #   are included)
+    # - list of either
+    #   - a single feature name, which will produce all interactions between
+    #     this feature and all other features
+    #   - a dict like {f1: <feature1>, f2: <feature2>} which will create a
+    #     single interaction b/t feature1 and feature2
+    #
+    # Default: 0
+    interactions:
+      - VAR_variant_caller
+      - {f1: VCF_indel_length, f2: HOMOPOL_A_length}
+      - {f1: VCF_indel_length, f2: HOMOPOL_T_length}
+      - {f1: VCF_indel_length, f2: HOMOPOL_G_length}
+      - {f1: VCF_indel_length, f2: HOMOPOL_C_length}

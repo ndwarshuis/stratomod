@@ -1,68 +1,85 @@
-from scripts.python.common.config import lookup_annotations, attempt_mem_gb
+from scripts.python.common.config import attempt_mem_gb, wildcard_format_ext
 
-homopolymers_dir = "homopolymers"
-homopolymers_src_dir = annotations_src_dir / homopolymers_dir
-homopolymers_results_dir = annotations_tsv_dir / homopolymers_dir
-homopolymers_log_dir = annotations_log_dir / homopolymers_dir
+hp_dir = "homopolymers"
+hp_res = config.annotation_dir(hp_dir, log=False)
+hp_log = config.annotation_dir(hp_dir, log=True)
 
 
-rule find_simple_repeats:
-    # TODO don't hardcode GRCh38 (when applicable)
-    input:
-        expand(rules.sdf_to_fasta.output, ref_key="GRCh38"),
+rule download_repseq:
     output:
-        homopolymers_results_dir / "simple_repeats_p3.bed",
+        config.tool_resource_dir / "repseq.tar.gz",
+    params:
+        url=config.tools.repseq,
     conda:
-        envs_path("find_simple_repeats.yml")
+        config.env_file("utils")
+    shell:
+        "curl -sS -L -o {output} {params.url}"
+
+
+rule unpack_repseq:
+    input:
+        rules.download_repseq.output,
+    output:
+        directory(config.tool_dir(log=False) / "make" / "repseq"),
+    shell:
+        """
+        mkdir {output} && \
+        tar xzf {input} --directory {output} --strip-components=1
+        """
+
+
+rule build_repseq:
+    input:
+        rules.unpack_repseq.output,
+    output:
+        config.tool_dir(log=False) / "bin" / "repseq",
+    conda:
+        config.env_file("build")
+    log:
+        config.tool_dir(log=True) / "repseq.log",
+    shell:
+        "make -C {input} > {log} && mv {input}/repseq {output}"
+
+
+# ASSUME the FASTA input to this is already standardized and filtered
+rule find_simple_repeats:
+    input:
+        ref=partial(expand_refkey_from_refsetkey, rules.sdf_to_fasta.output),
+        bin=rules.build_repseq.output,
+    output:
+        hp_res / "simple_repeats_p3.bed",
     benchmark:
-        homopolymers_results_dir / "find_regions.bench"
+        hp_log / "find_regions.bench"
+    log:
+        hp_log / "find_regions.log",
     resources:
         mem_mb=attempt_mem_gb(4),
     shell:
-        f"""
-        python {python_path("find_regions.py")} \
-        -p 3 -d 100000 -t 100000 -q 100000 \
-        {{input}} {{output}}
+        """
+        {input.bin} 1 4 {input.ref} 2> {log} | \
+        sed '/^#/d' | \
+        sort -k 1,1n -k 2,2n -k 3,3n \
+        > {output}
         """
 
 
-# This rule is here because I got tired of doing this step twice (once for AT
-# and once for GC)
-rule sort_and_filter_simple_repeats:
-    input:
-        rules.find_simple_repeats.output,
-    output:
-        homopolymers_results_dir / "simple_repeats_p3_sorted.bed.gz",
-    log:
-        homopolymers_log_dir / "sorted.log",
-    conda:
-        envs_path("bedtools.yml")
-    benchmark:
-        homopolymers_results_dir / "sorted.bench"
-    resources:
-        mem_mb=attempt_mem_gb(16),
-    shell:
-        f"""
-        cat {{input}} | \
-        python {python_path('sort_and_filter_bed.py')} -c "#" -s 0 2> {{log}} | \
-        gzip -c \
-        > {{output}}
-        """
+def homopolymer_file(ext):
+    return wildcard_format_ext("homopolymers_{}", ["base"], ext)
 
 
 rule get_homopolymers:
     input:
-        bed=rules.sort_and_filter_simple_repeats.output,
+        bed=rules.find_simple_repeats.output,
         genome=rules.get_genome.output,
     output:
-        homopolymers_results_dir / "homopolymers_{base}.tsv.gz",
+        ensure(hp_res / homopolymer_file("tsv.gz"), non_empty=True),
     conda:
-        envs_path("bedtools.yml")
+        config.env_file("bedtools")
     log:
-        homopolymers_log_dir / "homopolymers_{base}.log",
+        hp_log / homopolymer_file("log"),
     benchmark:
-        homopolymers_results_dir / "homopolymers_{base}.bench"
+        hp_log / homopolymer_file("bench")
     resources:
         mem_mb=attempt_mem_gb(16),
     script:
-        python_path("get_homopoly_features.py")
+        config.python_script("bedtools/get_homopoly_features.py")

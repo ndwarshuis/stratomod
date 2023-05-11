@@ -2,12 +2,14 @@
 # global pipeline config
 
 stages:
+  - lint
   - snakemake_global
   - snakemake_conda
   - test
 
 variables:
   ENV_DIR: ./this-env
+  LINT_DIR: ./lint
   TESTCONF: config/dynamic-testing.yml
   # speed up cache compression
   FF_USE_FASTZIP: "true"
@@ -48,6 +50,14 @@ image: condaforge/mambaforge:4.12.0-0
       - config/static.yml
       - config/dynamic-testing.yml
 
+.lint_cache: &lint_cache
+  paths:
+    - ./lint-*
+  key:
+    files:
+      - workflow/scripts/python/*/env.yml
+      - workflow/scripts/rmarkdown/*/env.yml
+
 .activate_smk: &activate_smk
   before_script:
     - eval "$(${CONDA_DIR}/bin/conda shell.bash hook 2> /dev/null)"
@@ -68,6 +78,26 @@ install_global_env:
       || mamba env create -f env.yml -p $ENV_DIR
   cache: 
     - <<: *smk_global_cache
+
+
+################################################################################
+# lint code
+
+install_lint_envs:
+  stage: lint
+  script: ./setup_dev.sh $LINT_DIR
+  cache:
+    - <<: *lint_cache
+
+run_linters:
+  stage: lint
+  script:
+    - echo $CONDA_EXE
+    - eval "$(${CONDA_DIR}/bin/conda shell.bash hook 2> /dev/null)"
+    - ./lint.sh $LINT_DIR
+  cache:
+    - <<: *lint_cache
+      policy: pull
 
 ################################################################################
 # set up snakemake rule conda environments

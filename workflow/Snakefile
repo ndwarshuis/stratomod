@@ -1,73 +1,22 @@
-from functools import partial
-from pathlib import Path
-from snakemake.utils import min_version, validate
-from scripts.python.common.config import (
-    input_set,
-    expand_rules,
-    validate_inputs,
-    validate_ebm_inputs,
-    validate_ebm_features,
-)
+from snakemake.utils import min_version
 
-min_version("6.12")
+min_version("7.20")
 
 
 configfile: "config/static.yml"
 
 
-validate(config, "schemas/config-schema.yml")
-validate_inputs(config)
-validate_ebm_features(config)
-validate_ebm_inputs(config)
+# TODO this is a hack (required for depickling to work when sending the config
+# to scripts)
+sys.path.extend(["./workflow/scripts/python"])
+from common.config import StratoMod
 
-################################################################################
-# Wildcards
-
-# wildcards shall not be used for multiple nodes in a filepath
-
-_constraints = {
-    "input_key": "[^/]+",
-    "input_keys": "[^/]+",
-    "bench_key": "[^/]+",
-    "filter_key": "[^/]+",
-    "run_key": "[^/]+",
-    "test_key": "[^/]+",
-    "label": "[^/]+",
-}
+# convert regular boring dict to super-awesome pydantic model
+config = StratoMod.parse_obj(config)
 
 
-wildcard_constraints:
-    **_constraints,
-
-
-all_wild = {k: f"{{{k}}}" for k in _constraints}
-
-
-################################################################################
-# Paths
-
-conf_paths = config["paths"]
-resources_dir = Path(conf_paths["resources"])
-results_dir = Path(conf_paths["results"])
-log_dir = results_dir / "log"
-scripts_root = Path("workflow/scripts")
-
-# this is necessary as envs/scripts are apparently resolved locally in each rule
-# file
-def build_abs_path(relpath, basename):
-    return str(relpath.resolve() / basename)
-
-
-envs_path = partial(build_abs_path, Path("workflow/envs"))
-python_path = partial(build_abs_path, scripts_root / "python")
-rmd_path = partial(build_abs_path, scripts_root / "rmarkdown")
-
-
-################################################################################
-# Import Subworkflows
-
-
-include: "rules/labels/inputs.smk"
+include: "rules/wildcards.smk"
+include: "rules/inputs.smk"
 include: "rules/annotations/main.smk"
 include: "rules/train_ebm.smk"
 
@@ -88,20 +37,32 @@ rule all:
 
 rule all_resources:
     input:
-        expand(rules.download_query_vcf.output, input_key=[*config["inputs"]]),
-        expand(rules.download_ref_sdf.output, ref_key=input_set(config, "ref")),
+        # query vcfs
         expand(
-            expand_rules(
-                rules,
-                ["download_bench_vcf", "download_bench_bed"],
-                "output",
-            ),
-            bench_key=input_set(config, "benchmark"),
+            rules.download_labeled_query_vcf.output,
+            l_query_key=[*config.all_labeled_querykeys],
         ),
-        # TODO all these implicitly depend on the reference
-        rules.download_genome.output,
-        rules.download_mappability_high.output,
-        rules.download_mappability_low.output,
-        rules.download_repeat_masker.output,
-        rules.download_superdups.output,
-        rules.download_tandem_repeats.output,
+        expand(
+            rules.download_unlabeled_query_vcf.output,
+            ul_query_key=[*config.all_unlabeled_querykeys],
+        ),
+        # benchmark vcfs/beds
+        config.bench_targets(
+            [
+                *rules.download_bench_vcf.output,
+                *rules.download_bench_bed.output,
+            ],
+        ),
+        # reference and reference-dependent annotation files
+        expand(
+            [
+                *rules.download_ref_sdf.output,
+                *rules.download_genome.output,
+                *rules.download_mappability_high.output,
+                *rules.download_mappability_low.output,
+                *rules.download_repeat_masker.output,
+                *rules.download_superdups.output,
+                *rules.download_tandem_repeats.output,
+            ],
+            ref_key=config.all_refkeys,
+        ),

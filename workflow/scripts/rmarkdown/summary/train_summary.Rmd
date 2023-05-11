@@ -1,0 +1,668 @@
+---
+title: "Model Summary"
+output: "html_document"
+---
+
+```{r, include=FALSE, message=FALSE}
+library(tidyverse)
+library(ggpubr)
+
+source("workflow/scripts/rmarkdown/common/plots.r")
+
+to_tibble <- function(lst) {
+    do.call(tibble, lst)
+}
+
+read_model <- function(path) {
+    jsonlite::read_json(path, simplifyVector = TRUE, simplifyDataFrame = FALSE)
+}
+
+read_predictions <- function(path) {
+    readr::read_tsv(path, col_types = cols(.default = "d"))
+}
+
+lookup_input_path <- function(mapping, k) {
+    pluck(mapping, as.character(as.integer(k)))
+}
+
+to_univariate <- function(model) {
+    model$univariate %>%
+        map(~ list(meta = .x[c("name", "vartype")], df = to_tibble(.x[["df"]])))
+}
+
+to_bivariate <- function(model) {
+    model$bivariate %>%
+        map(~ list(left = .x$left, right = .x$right, df = to_tibble(.x$df)))
+}
+
+run_features <- snakemake@params[["features"]]
+error_labels <- snakemake@params[["error_labels"]]
+
+mod <- read_model(snakemake@input[["model"]])
+test_pred <- read_predictions(snakemake@input[["predictions"]])
+train_pred <- read_predictions(snakemake@input[["train_predictions"]])
+
+train_x <- readr::read_tsv(snakemake@input[["train_x"]],
+                           col_types = cols(chrom = "-",
+                                            chromStart = "-",
+                                            chromEnd = "-",
+                                            variant_index = "-",
+                                            .default = "d"))
+train_y <- readr::read_tsv(snakemake@input[["train_y"]],
+                           col_types = cols(.default = "d"))
+
+threshold <- train_pred %>% pull(label) %>% mean()
+
+alltrain <- bind_cols(train_x, train_pred) %>%
+    mutate(pred = prob > threshold)
+
+VCF_input_name <- "VCF_input"
+
+global_df <- to_tibble(mod$global_scores)
+
+univariate <- to_univariate(mod)
+bivariate <- to_bivariate(mod)
+
+```
+
+# Model Overview
+
+* Variant Type: `r snakemake@wildcards$filter_key`
+* EBM Run Key: `r snakemake@wildcards$run_key`
+* Error Labels: `r str_c(error_labels, collapse = ", ")`
+
+# Model Statistics
+
+## Input file keys:
+
+```{r, echo = F, results = "asis"}
+
+cat("\n")
+
+```
+
+## Overview
+
+* N: `r nrow(test_pred)`
+* Perc. Pos: `r sum(test_pred$label)/nrow(test_pred)`
+
+## Prediction Distribution
+
+```{r, echo = FALSE, results = "asis", fig.width = 7, fig.height = 4}
+ggplot(test_pred, aes(prob, color = factor(label))) +
+    geom_density() +
+    xlab("probability") +
+    scale_color_discrete(name = "label")
+```
+
+## Calibration
+
+```{r, echo = FALSE, results = "asis", fig.width = 4, fig.height = 4}
+
+nbins <- 10
+
+test_pred %>%
+    mutate(bin = cut(prob, nbins, labels = FALSE) / nbins) %>%
+    group_by(bin) %>%
+    summarize(mean_pred = mean(prob), frac_pos = mean(label)) %>%
+    ggplot(aes(mean_pred, frac_pos)) +
+    geom_point() +
+    geom_line() +
+    geom_abline(linetype = "dotted", color = "red") +
+    xlim(0, 1) +
+    ylim(0, 1)
+
+```
+
+## ROC Curve
+
+```{r, include=FALSE}
+
+AllP <- sum(test_pred$label)
+AllN <- nrow(test_pred) - AllP
+
+roc <- test_pred %>%
+    arrange(prob) %>%
+    mutate(thresh_FN = cumsum(label),
+           thresh_TN = row_number() - thresh_FN,
+           thresh_TP = AllP - thresh_FN,
+           thresh_FP = AllN - thresh_TN,
+           TPR = thresh_TP / AllP,
+           TNR = thresh_TN / AllN,
+           FPR = 1 - TNR,
+           precision = thresh_TP / (thresh_TP + thresh_FP))
+
+```
+
+```{r, echo = FALSE, results = "asis", fig.width = 4, fig.height = 4}
+roc %>%
+    arrange(FPR, TPR) %>%
+    ggplot(aes(FPR, TPR)) +
+    geom_line()
+
+roc %>%
+    filter(!is.na(precision)) %>%
+    arrange(TPR, desc(precision)) %>%
+    ggplot(aes(TPR, precision)) +
+    geom_line()
+```
+
+# Global Score Plot
+
+Each bar is the mean of the absolute values of all scores for a given feature.
+
+Since the mean for the scores within a given features is set to 0 during model
+fitting, this is equivalent to average absolute deviation (AAD).
+
+```{r, echo = FALSE}
+ggplot(global_df, aes(score, reorder(variable, score))) +
+    geom_col() +
+    xlab("Score") +
+    ylab(NULL)
+```
+
+# Intercept
+
+Each feature in the EBM model is "centered" at 0 (meaning the mean prediction
+for each feature is 0). This means that the intercept is interpreted as the
+value the model will take if all features are "average" (which is in general not
+0 as it is with other linear models).
+
+```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 4}
+tibble(x = "intercept", y = mod$intercept) %>%
+    ggplot(aes(x, y)) +
+    geom_col() +
+    xlab(NULL) +
+    ylab("score")
+```
+
+# Univariate plots
+
+```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 4}
+
+get_truncation <- function(s) {
+    run_features[[s]][["visualization"]][["truncate"]]
+}
+
+get_split_missing <- function(s) {
+    run_features[[s]][["visualization"]][["split_missing"]]
+}
+
+get_fill_na <- function(s) {
+    run_features[[s]][["fill_na"]]
+}
+
+get_plot_type <- function(s) {
+    run_features[[s]][["visualization"]][["plot_type"]]
+}
+
+truncate_maybe <- function(df, name) {
+    t <- get_truncation(name)
+    lower <- t[["lower"]]
+    upper <- t[["upper"]]
+    caption <- if (!is.null(lower) && !is.null(upper)) {
+                   sprintf("Truncated from %d to %d", lower, upper)
+               } else if (!is.null(lower)) {
+                   sprintf("Truncated from %d to -Inf", lower)
+               } else if (!is.null(upper)) {
+                   sprintf("Truncated from -Inf to %d", upper)
+               }
+    .df <- if (is.null(lower) && is.null(upper)) {
+               df
+           } else {
+               .lower <- if (is.null(lower)) min(df$value) else lower
+               .upper <- if (is.null(upper)) max(df$value) else upper
+               filter(df, .lower <= value & value <= .upper)
+           }
+    list(df = .df, lower = lower, upper = upper, caption = caption)
+}
+
+null2alt <- function(default, x) {
+    if (is.null(x)) default else x
+}
+
+null2na <- function(x) {
+    null2alt(NA, x)
+}
+
+make_integer_plot <- function(df, name, lower = NULL, upper = NULL,
+                              ylab = "Score") {
+    fill_cols <- c("score", "stdev")
+    .lower <- null2alt(min(df$value), lower)
+    .upper <- null2alt(max(df$value), upper)
+    .join <- tibble(value = .lower:.upper)
+    mutate(df, value = ceiling(value)) %>%
+        right_join(.join, by = "value") %>%
+        arrange(value) %>%
+        fill(all_of(fill_cols), .direction = "downup") %>%
+        ggplot(aes(value, score)) +
+        geom_col() +
+        xlab(name) +
+        ylab(ylab) +
+        geom_errorbar(aes(ymin = score - stdev, ymax = score + stdev))
+}
+
+## TODO use inverse logit here?
+make_fraction_plot <- function(df) {
+    df %>%
+        group_by(value) %>%
+        summarize(frac = mean(label),
+                  stderr = sqrt(frac * (1 - frac) / n())) %>%
+        ggplot(aes(value, frac)) +
+        geom_point() +
+        geom_errorbar(aes(ymin = frac - stderr, ymax = frac + stderr),
+                      width = 0.1)
+}
+
+make_integer_fraction_plot <- function(df, name, lower = NULL, upper = NULL) {
+    .name <- sym(name)
+    df %>%
+        mutate(value = ceiling({{ .name }})) %>%
+        make_fraction_plot() +
+        xlab(name) +
+        ylab("Frac(TP)") +
+        coord_trans(xlim = c(null2na(lower), null2na(upper)))
+}
+
+make_continuous_plot <- function(df, name, ylab = "Score") {
+    ggplot(df, aes(value, score)) +
+        geom_step(aes(y = score + stdev), color = "red") +
+        geom_step(aes(y = score - stdev), color = "red") +
+        geom_step() +
+        xlab(name) +
+        ylab(ylab)
+}
+
+make_continuous_fraction_plot <- function(df, name) {
+    .name <- sym(name)
+    df %>%
+        ## TODO average the bin ends to make the axis cleaner
+        mutate(value = cut({{ .name }}, 20)) %>%
+        make_fraction_plot() +
+        xlab(name) +
+        ylab("Frac(TP)") +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+}
+
+make_categorical_plot <- function(df, name, ylab = "Score") {
+    df %>% 
+        ggplot(aes(factor(value), score)) +
+        geom_col() +
+        geom_errorbar(aes(ymin = score - stdev, ymax = score + stdev), width = 0.1) +
+        xlab(name) +
+        ylab(ylab)
+}
+
+make_categorical_fraction_plot <- function(df, name) {
+    .name <- sym(name)
+    df %>%
+        mutate(value = factor({{ .name }})) %>%
+        make_fraction_plot() +
+        xlab(name) +
+        ylab("Frac(TP)")
+}
+
+standardize_y_axes <- function(ps) {
+    lims <- map(ps, ~ layer_scales(.x)[["y"]]$get_limits()) %>%
+        do.call(cbind, .)
+    new <- c(min(lims[1, ]), max(lims[2, ]))
+    map(ps, ~ .x + ylim(new))
+}
+
+make_split_plot <- function(df, name, bound, fun) {
+    missing_val <- get_fill_na(name)
+    missing <- filter(df, value == missing_val) %>%
+        mutate(value = "Missing")
+    nonmissing <- filter(df, value != missing_val) %>%
+        mutate(value = if_else(value < bound, bound, value))
+    bar <- ggplot(missing, aes(factor(value), score)) +
+        geom_col() +
+        geom_errorbar(aes(ymax = score + stdev,
+                          ymin = score - stdev),
+                      width = 0.2) +
+        xlab(NULL)
+    step <- fun(nonmissing, NULL) +
+        ylab(NULL) +
+        theme(axis.text.y = element_blank(),
+              axis.ticks.y = element_blank())
+    list(bar, step) %>%
+        standardize_y_axes() %>%
+        ggarrange(plotlist = ., ncol = 2, widths = c(1, 5)) %>%
+        annotate_figure(bottom = text_grob(name))
+}
+
+make_split_fraction_plot <- function(df, name, bound, fun) {
+    .name <- sym(name)
+    missing_val <- get_fill_na(name)
+    missing <- filter(df, {{ .name }} == missing_val) %>%
+        mutate({{ .name }} := "Missing")
+    nonmissing <- filter(df, {{ .name }} != missing_val)
+    bar <- make_categorical_fraction_plot(missing, name) +
+        xlab(NULL)
+    step <- fun(nonmissing, name) +
+        xlab(NULL) +
+        ylab(NULL) +
+        theme(axis.text.y = element_blank(),
+              axis.ticks.y = element_blank())
+    list(bar, step) %>%
+        standardize_y_axes() %>%
+        ggarrange(plotlist = ., ncol = 2, widths = c(1, 5), align = "h") %>%
+        annotate_figure(bottom = text_grob(name))
+}
+
+wrap_split_maybe <- function(name, split_f, f) {
+    s <- get_split_missing(name)
+    if (is.null(s)) f else partial(split_f, fun = f, bound = s)
+}
+
+print_uv_plot <- function(vartype, df, name) {
+    r <- if (vartype == "continuous") {
+             tr <- truncate_maybe(df, name)
+             t <- get_plot_type(name)
+             fs <- if (t == "step") {
+                       list(
+                           make_continuous_plot,
+                           make_continuous_fraction_plot
+                       )
+                   } else if (t == "bar") {
+                       list(
+                           partial(
+                               make_integer_plot,
+                               lower = tr[["lower"]],
+                               upper = tr[["upper"]]
+                           ),
+                           partial(
+                               make_integer_fraction_plot,
+                               lower = tr[["lower"]],
+                               upper = tr[["upper"]]
+                           )
+                       )
+                   } else {
+                       stop(sprintf("wrong type, dummy; got %s", t))
+                   }
+             ## TODO only continuous plots can be split (for now)
+             list(
+                 feat_f = wrap_split_maybe(name, make_split_plot, fs[[1]]),
+                 frac_f = wrap_split_maybe(name, make_split_fraction_plot, fs[[2]]),
+                 df = tr[["df"]],
+                 caption = tr[["caption"]]
+             )
+         } else if (vartype == "categorical") {
+             list(
+                 feat_f = make_categorical_plot,
+                 frac_f = make_categorical_fraction_plot,
+                 df = df,
+                 caption = NULL
+             )
+         } else {
+             stop(sprintf("wrong plot type, dummy; got %s", vartype))
+         }
+    p0 <- r$feat_f(r$df, name)
+    p1 <- r$frac_f(alltrain, name)
+    cat(sprintf("## %s\n", name))
+    print(p0)
+    cat("\n\n")
+    print(p1)
+    cat("\n\n")
+    if (!is.null(r$caption)) {
+        cat(sprintf("%s\n\n", r$caption))
+    }
+}
+
+walk(univariate, ~ print_uv_plot(.x$meta$vartype, .x$df, .x$meta$name))
+
+```
+
+# Bivariate plots
+
+```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 4}
+
+cont_cont_plot <- function(df, yvar, left_name, right_name) {
+    # poor-mans 2d step heatmap plot thing
+    df %>%
+        group_by(right_value) %>%
+        mutate(left_upper = lead(left_value)) %>%
+        ungroup() %>%
+        group_by(left_value) %>%
+        mutate(right_upper = lead(right_value)) %>%
+        ungroup() %>%
+        filter(!is.na(left_upper)) %>%
+        filter(!is.na(right_upper)) %>%
+        ggplot() +
+        geom_rect(aes_string(xmin = "left_value",
+                             xmax = "left_upper",
+                             ymin = "right_value",
+                             ymax = "right_upper",
+                             fill = yvar)) +
+        xlab(left_name) +
+        ylab(right_name)
+}
+
+print_cont_cont_plot <- function(df, left_name, right_name) {
+    x_tr <- df %>%
+        rename(value = left_value) %>%
+        truncate_maybe(left_name)
+    y_tr <- df %>%
+        rename(value = right_value) %>%
+        truncate_maybe(right_name)
+    lims <- coord_trans(xlim = c(x_tr$lower, x_tr$upper),
+                        ylim = c(y_tr$lower, y_tr$upper))
+    if (!is.null(x_tr$caption)) {
+        cat(sprintf("%s: %s\n\n", left_name, x_tr$caption))
+    }
+    if (!is.null(y_tr$caption)) {
+        cat(sprintf("%s: %s\n\n", right_name, y_tr$caption))
+    }
+    cat("### Scores\n\n")
+    p0 <- cont_cont_plot(df, "score", left_name, right_name) +
+        scale_fill_gradient2(midpoint = 0) +
+        lims
+    print(p0)
+    cat("\n\n")
+    cat("### Stdevs\n\n")
+    p1 <- cont_cont_plot(df, "stdev", left_name, right_name) +
+        scale_fill_gradient() +
+        lims
+    print(p1)
+}
+
+print_cont_cat_plot_inner <- function(df, cat_name, cont_name) {
+    cat_val <- as.character(df$c[[1]])
+    tr <- truncate_maybe(df, cont_name)
+    t <- get_plot_type(cont_name)
+    f <- if (t == "step") {
+             partial(make_continuous_plot)
+         } else if (t == "bar") {
+             partial(make_integer_plot,
+                     lower = tr[["lower"]],
+                     upper = tr[["upper"]]
+                     )
+         } else {
+             stop(sprintf("wrong plot type: got %s", t))
+         }
+    p <- wrap_split_maybe(cont_name, make_split_plot, f)(tr[["df"]], cont_name)
+    cat(sprintf("### %s = %s\n\n", cat_name, cat_val))
+    cat(sprintf("%s\n\n", tr[["caption"]]))
+    print(p)
+    cat("\n\n")
+}
+
+print_cont_cat_plot <- function(df, cat, cont, cat_name, cont_name) {
+    ## this 'all_of' thing is needed to silence a weird warning about
+    ## using vectors to select things (I disagree with it, but whatever)
+    .df <- rename(df, value = all_of(cont), c = all_of(cat)) %>%
+        mutate(lower = score - stdev,
+               upper = score + stdev) %>%
+        group_split(c) %>%
+        walk(~ print_cont_cat_plot_inner(.x, cat_name, cont_name))
+}
+
+print_cat_cat_plot <- function(df, left_name, right_name) {
+    p <- ggplot(df, aes(factor(left_value),
+                         score,
+                         fill = factor(right_value)
+                         )) +
+        geom_col(position = "dodge") +
+        geom_errorbar(aes(ymin = score - stdev,
+                          ymax = score + stdev),
+                      width = 0.1,
+                      position = position_dodge(0.9)) +
+        xlab(left_name) +
+        scale_fill_discrete(name = right_name)
+    print(p)
+}
+
+print_bv_plot_inner <- function(L, R, df) {
+    if (L$type == "continuous" && R$type == "continuous") {
+        print_cont_cont_plot(df, L$name, R$name)
+    } else if (L$type == "categorical" && R$type == "continuous") {
+        print_cont_cat_plot(df, "left_value", "right_value", L$name, R$name)
+    } else if (L$type == "continuous" && R$type == "categorical") {
+        print_cont_cat_plot(df, "right_value", "left_value", R$name, L$name)
+    } else if (L$type == "categorical" && R$type == "categorical") {
+        print_cat_cat_plot(df, L$name, R$name)
+    } else {
+        sprintf("Types are wrong, dummy: %s and/or %s", L$type, R$type)
+    }
+}
+
+print_bv_plot <- function(L, R, df) {
+    cat(sprintf("## %s x %s\n\n", L$name, R$name))
+
+    print_bv_plot_inner(L, R, df)
+
+    cat("\n\n")
+}
+
+if (length(bivariate) == 0) {
+    cat("None\n\n")
+} else {
+    walk(bivariate, ~ print_bv_plot(.x$left, .x$right, .x$df))
+}
+
+```
+
+# Univariate Error profiles
+
+```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 4}
+
+logErr <- function(p) {
+    -log10(1 - p)
+}
+
+make_perf_df <- function(df) {
+    df %>%
+        group_by(value) %>%
+        summarize(precision = sum(label & pred) / sum(pred),
+                  recall = sum(label & pred) / sum(label),
+                  f1 = 2 * (precision * recall) / (precision + recall)) %>%
+        pivot_longer(cols = c(precision, recall, f1),
+                     names_to = "metric",
+                     values_to = "mvalue") %>%
+        mutate(mvalue = logErr(mvalue))
+        ## ggplot(aes(value, mvalue, color = metric)) +
+        ## labs(x = "Feature Value",
+        ##      y = "-log10(metric)")
+}
+
+make_perf_plot <- function(df) {
+    df %>%
+        group_by(value) %>%
+        summarize(precision = sum(label & pred) / sum(pred),
+                  recall = sum(label & pred) / sum(label),
+                  f1 = 2 * (precision * recall) / (precision + recall)) %>%
+        pivot_longer(cols = c(precision, recall, f1),
+                     names_to = "metric",
+                     values_to = "mvalue") %>%
+        mutate(mvalue = logErr(mvalue)) %>%
+        ggplot(aes(value, mvalue, color = metric)) +
+        xlab(NULL) +
+        ylab("-log10(metric)")
+}
+
+make_integer_perf_plot <- function(df, name, lower = NULL, upper = NULL) {
+    .n <- sym(name)
+    df %>%
+        mutate(value = ceiling({{ .n }})) %>%
+        make_perf_plot() +
+        geom_point() +
+        geom_line() +
+        coord_trans(xlim = c(null2na(lower), null2na(upper)))
+}
+
+make_continuous_perf_plot <- function(df, name) {
+    .n <- sym(name)
+    df %>%
+        mutate(value = cut({{ .n }}, 20)) %>%
+        make_perf_plot() +
+        geom_point() +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+}
+
+make_categorical_perf_plot <- function(df, name) {
+    .n <- sym(name)
+    df %>%
+        mutate(value = factor({{ .n }})) %>%
+        make_perf_plot() +
+        geom_col(position = "dodge", aes(fill = metric))
+}
+
+make_perf_split_plot <- function(df, name, bound, fun) {
+    .n <- sym(name)
+    missing_val <- get_fill_na(name)
+    missing <- filter(df, {{ .n }} == missing_val) %>%
+        mutate({{ .n }} := "Missing")
+    nonmissing <- filter(df, {{ .n }} != missing_val) %>%
+        mutate({{ .n }} := if_else({{ .n }} < bound, bound, {{ .n }}))
+    bar <- make_categorical_perf_plot(missing, name) +
+        xlab(NULL)
+    step <- fun(nonmissing, name) +
+        ylab(NULL) +
+        xlab(NULL) +
+        theme(axis.text.y = element_blank(),
+              axis.ticks.y = element_blank())
+    list(bar, step) %>%
+        standardize_y_axes() %>%
+        ggarrange(plotlist = ., ncol = 2, widths = c(1, 5),
+                  common.legend = TRUE, legend = "right", align = "h") %>%
+        annotate_figure(bottom = text_grob(name))
+}
+
+print_perf_profile_plot <- function(vartype, name) {
+    r <- if (vartype == "continuous") {
+             tr <- get_truncation(name)
+             t <- get_plot_type(name)
+             f <- if (t == "step") {
+                      make_continuous_perf_plot
+                  } else if (t == "bar") {
+                      partial(
+                          make_integer_perf_plot,
+                          lower = tr[["lower"]],
+                          upper = tr[["upper"]]
+                      )
+                  } else {
+                      stop(sprintf("wrong type, dummy; got %s", t))
+                  }
+             list(
+                 feat_f = wrap_split_maybe(name, make_perf_split_plot, f),
+                 caption = tr[["caption"]]
+             )
+         } else if (vartype == "categorical") {
+             list(
+                 feat_f = make_categorical_perf_plot,
+                 caption = NULL
+             )
+         } else {
+             stop(sprintf("wrong plot type, dummy; got %s", vartype))
+         }
+    cat(sprintf("## %s\n", name))
+    print(r$feat_f(alltrain, name))
+    cat("\n\n")
+    if (!is.null(r$caption)) {
+        cat(sprintf("%s\n\n", r$caption))
+    }
+}
+
+walk(univariate, ~ print_perf_profile_plot(.x$meta$vartype, .x$meta$name))
+
+```

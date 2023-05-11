@@ -1,0 +1,113 @@
+---
+title: "Model Summary"
+output: "html_document"
+---
+
+```{r, include=FALSE, message=FALSE}
+library(tidyverse)
+library(ggpubr)
+
+source("workflow/scripts/rmarkdown/common/plots.r")
+
+read_df <- function(path) {
+    readr::read_tsv(path, col_types = cols(.default = "d"))
+}
+
+has_label <- "truth_y" %in% names(snakemake@input)
+
+pred_y <- read_df(snakemake@input[["predictions"]])
+explain_x <- read_df(snakemake@input[["explanations"]])
+
+```
+
+```{r, include = FALSE, eval = has_label}
+truth_y <- readr::read_tsv(snakemake@input[["truth_y"]],
+                           col_types = cols(chrom = "-",
+                                            chromStart = "-",
+                                            chromEnd = "-",
+                                            variant_index = "-",
+                                            .default = "d"))
+y <- tibble(label = truth_y$label, prob = pred_y$`1`)
+```
+
+# Model Overview
+
+* Variant Type: `r snakemake@wildcards$filter_key`
+* Input Key: `r snakemake@wildcards$input_key`
+* Test Key: `r snakemake@wildcards$test_key`
+* EBM Run Key: `r snakemake@wildcards$run_key`
+
+# Model Statistics
+
+## Overview
+
+```{r, echo = FALSE, eval = has_label, results = "asis"}
+
+cat(sprintf("* N: %i\n", nrow(pred_y)))
+cat(sprintf("* Perc. Pos: %f\n\n", sum(y$label)/nrow(y)))
+
+```
+
+## Prediction Distribution
+
+```{r, echo = FALSE, results = "asis", fig.width = 7, fig.height = 4}
+if (has_label) {
+    ggplot(y, aes(prob, color = factor(label))) +
+        geom_density() +
+        xlab("probability") +
+        scale_color_discrete(name = "label")
+} else {
+    ggplot(pred_y, aes(x = `1`)) +
+        geom_density() +
+        xlab("probability")
+}
+```
+
+```{r, include=FALSE, eval = has_label}
+
+AllP <- sum(y$label)
+AllN <- nrow(y) - AllP
+
+roc <- y %>%
+    arrange(prob) %>%
+    mutate(thresh_FN = cumsum(label),
+           thresh_TN = row_number() - thresh_FN,
+           thresh_TP = AllP - thresh_FN,
+           thresh_FP = AllN - thresh_TN,
+           TPR = thresh_TP / AllP,
+           TNR = thresh_TN / AllN,
+           FPR = 1 - TNR,
+           precision = thresh_TP / (thresh_TP + thresh_FP))
+
+```
+
+```{r, echo = FALSE, results = "asis", fig.width = 4, fig.height = 4, eval = has_label}
+
+cat("## Calibration\n\n")
+
+nbins <- 10
+
+y %>%
+    mutate(bin = cut(prob, nbins, labels = FALSE) / nbins) %>%
+    group_by(bin) %>%
+    summarize(mean_pred = mean(prob), frac_pos = mean(label)) %>%
+    ggplot(aes(mean_pred, frac_pos)) +
+    geom_point() +
+    geom_line() +
+    geom_abline(linetype = "dotted", color = "red") +
+    xlim(0, 1) +
+    ylim(0, 1)
+
+cat("## ROC Curves\n\n")
+
+roc %>%
+    arrange(FPR, TPR) %>%
+    ggplot(aes(FPR, TPR)) +
+    geom_line()
+
+roc %>%
+    filter(!is.na(precision)) %>%
+    arrange(TPR, desc(precision)) %>%
+    ggplot(aes(TPR, precision)) +
+    geom_line()
+```

@@ -1,3 +1,23 @@
+# 7.1.0
+
+- clean up repository and present it more as a tool
+- add lots of documentation
+- remove all domain specific references to NIST-specific infrastructure
+
+# 7.0.1
+
+- fix chromosome X/Y name bugs
+
+# 7.0.0
+
+- add support for GRCh37
+- add support for assigning variables to individual vcfs
+- fix lots of bugs
+- use pydantic for config validation (and end-user error messages)
+- CI/CD improvements (linting)
+- cleaner config syntax (split labeled and unlabeled queries, use reference
+- sets for filtering, etc)
+
 # 6.2.0
 
 - remove tags from output dirs
