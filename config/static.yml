@@ -32,7 +32,7 @@ references:
       mhc: [{chrom: 6, start: 28477797, end: 33448354}]
 
     # Data used for feature generation.
-    annotations:
+    feature_data:
 
       # Data used for creating difficult-to-map features. These are actually
       # GIAB stratification files.
@@ -54,7 +54,7 @@ references:
 
       # Data used for creating the segmental duplications features. Assumes file
       # from the UCSC superdups database
-      superdups:
+      segdups:
         src:
           url: https://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/genomicSuperDups.txt.gz
         params:
@@ -65,7 +65,7 @@ references:
 
       # Data used for making tandem repeats feaures. Expects a UCSC simple
       # repeats-like database file
-      simreps:
+      tandem_repeats:
         src:
           url: https://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/simpleRepeat.txt.gz
         params:
@@ -191,7 +191,7 @@ references:
       is_fasta: False
     strats:
       mhc: [{chrom: 6, start: 28510020, end: 33480577}]
-    annotations:
+    feature_data:
       mappability:
         low:
           src:
@@ -199,12 +199,12 @@ references:
         high:
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.0/GRCh38/mappability/GRCh38_nonunique_l250_m0_e0.bed.gz
-      superdups:
+      segdups:
         src:
           url: https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz
         params:
           bed_cols: {chrom: 1, start: 2, end: 3}
-      simreps:
+      tandem_repeats:
         src:
           url: https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/simpleRepeat.txt.gz
         params:
@@ -328,12 +328,6 @@ feature_names:
 
   repeat_masker:
     prefix: REPMASK
-    classes:
-      SINE: []
-      # TODO make this configurable since not all refs have the same families
-      LINE: [L1, L2, CR1, RTE-BovB, Dong-R4]
-      LTR: []
-      Satellite: []
 
   segdups:
     prefix: SEGDUP

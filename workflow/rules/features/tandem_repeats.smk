@@ -5,11 +5,11 @@ tr_dir = "tandem_repeats"
 
 use rule download_mappability_high as download_tandem_repeats with:
     output:
-        config.annotation_src_dir(log=False) / tr_dir / "simple_repeats.txt.gz",
+        config.features_src_dir(log=False) / tr_dir / "simple_repeats.txt.gz",
     log:
-        config.annotation_src_dir(log=True) / tr_dir / "download.log",
+        config.features_src_dir(log=True) / tr_dir / "download.log",
     params:
-        src=lambda w: config.references[w.ref_key].annotations.simreps.src,
+        src=lambda w: config.references[w.ref_key].feature_data.tandem_repeats.src,
     localrule: True
 
 
@@ -23,15 +23,15 @@ rule get_tandem_repeats:
         genome=rules.fasta_to_genome.output,
     output:
         ensure(
-            config.annotation_res_dir(log=False) / tr_dir / "tandem_repeats.tsv.gz",
+            config.features_res_dir(log=False) / tr_dir / "tandem_repeats.tsv.gz",
             non_empty=True,
         ),
     conda:
         "../../envs/bio.yml"
     log:
-        config.annotation_res_dir(log=True) / tr_dir / "tandem_repeats.log",
+        config.features_res_dir(log=True) / tr_dir / "tandem_repeats.log",
     benchmark:
-        config.annotation_res_dir(log=True) / tr_dir / "tandem_repeats.bench"
+        config.features_res_dir(log=True) / tr_dir / "tandem_repeats.bench"
     resources:
         mem_mb=attempt_mem_gb(1),
     script:

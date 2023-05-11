@@ -17,7 +17,7 @@ config = StratoMod.parse_obj(config)
 
 include: "rules/wildcards.smk"
 include: "rules/inputs.smk"
-include: "rules/annotations/main.smk"
+include: "rules/features/main.smk"
 include: "rules/train_ebm.smk"
 
 
@@ -53,7 +53,7 @@ rule all_resources:
                 *rules.download_bench_bed.output,
             ],
         ),
-        # reference and reference-dependent annotation files
+        # reference and reference-dependent feature data
         expand(
             [
                 *rules.download_ref_sdf.output,

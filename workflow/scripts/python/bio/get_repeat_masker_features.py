@@ -20,7 +20,7 @@ FAMCOL = "_repFamily"
 def read_rmsk_df(smk: Any, config: cfg.StratoMod, path: Path) -> pd.DataFrame:
     rsk = cfg.RefsetKey(smk.wildcards["refset_key"])
     rk = config.refsetkey_to_refkey(rsk)
-    s = config.references[rk].annotations.repeat_masker
+    s = config.references[rk].feature_data.repeat_masker
     cs = config.refsetkey_to_chr_indices(rsk)
     cols = {
         11: cfg.PandasColumn(CLASSCOL),

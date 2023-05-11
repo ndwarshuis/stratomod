@@ -65,10 +65,10 @@ def intersect_tsvs(
 
 
 def main(smk: Any, config: cfg.StratoMod) -> None:
-    tsvs = smk.input.annotations
+    fs = smk.input.features
     vcf = smk.input.variants[0]
     logger.info("Adding annotations to %s\n", vcf)
-    intersect_tsvs(config, vcf, smk.output[0], tsvs)
+    intersect_tsvs(config, vcf, smk.output[0], fs)
 
 
 main(snakemake, snakemake.config)  # type: ignore

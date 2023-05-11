@@ -45,7 +45,7 @@ rule download_ref_sdf:
 
 use rule download_ref_sdf as download_ref_fasta with:
     output:
-        config.ref_src_dir(log=True) / "ref.fa.gz",
+        config.ref_src_dir(log=False) / "ref.fa.gz",
     params:
         src=lambda w: config.references[w.ref_key].sdf.src,
         is_fasta=True,
@@ -54,9 +54,14 @@ use rule download_ref_sdf as download_ref_fasta with:
 
 rule filter_sort_ref:
     input:
-        lambda w: rules.download_ref_fasta.output
-        if config.references[w.ref_key].sdf.is_fasta
-        else rules.download_ref_sdf.output,
+        lambda w: expand(
+            rules.download_ref_fasta.output
+            if config.references[
+                (rk := config.refsetkey_to_refkey(w.refset_key))
+            ].sdf.is_fasta
+            else rules.download_ref_sdf.output,
+            ref_key=rk,
+        ),
     output:
         config.refset_res_dir(log=False) / "ref.fasta",
     log:

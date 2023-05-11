@@ -13,7 +13,7 @@ logger = setup_logging(snakemake.log[0])  # type: ignore
 def main(smk: Any, config: cfg.StratoMod) -> None:
     rsk = cfg.RefsetKey(smk.wildcards["refset_key"])
     cs = config.refsetkey_to_chr_indices(rsk)
-    mapconf = config.refsetkey_to_ref(rsk).annotations.mappability
+    mapconf = config.refsetkey_to_ref(rsk).feature_data.mappability
     mapmeta = config.feature_names.mappability
 
     def read_map_bed(p: Path, ps: cfg.BedFileParams, col: str) -> pd.DataFrame:

@@ -1,8 +1,8 @@
 from scripts.python.common.config import attempt_mem_gb, wildcard_format_ext
 
 hp_dir = "homopolymers"
-hp_res = config.annotation_res_dir(log=False) / hp_dir
-hp_log = config.annotation_res_dir(log=True) / hp_dir
+hp_res = config.features_res_dir(log=False) / hp_dir
+hp_log = config.features_res_dir(log=True) / hp_dir
 
 
 rule download_repseq:

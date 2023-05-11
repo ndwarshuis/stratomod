@@ -7,14 +7,12 @@ import scripts.python.common.config as cfg
 
 
 ################################################################################
-# add annotations
+# annotate variants with features
 
 
 annotated_tsv = cfg.wildcard_ext("filter_key", "tsv.gz")
 annotated_log = cfg.wildcard_ext("filter_key", "log")
 annotated_bench = cfg.wildcard_ext("filter_key", "bench")
-
-print(rules.get_homopolymers.output)
 
 
 def annotation_input(tsv_path, query_key):
@@ -24,7 +22,7 @@ def annotation_input(tsv_path, query_key):
             allow_missing=True,
             refset_key=config.querykey_to_refsetkey(query_key),
         ),
-        "annotations": [
+        "features": [
             *expand(
                 [
                     *rules.get_repeat_masker_classes.output,
@@ -46,7 +44,7 @@ def annotation_input(tsv_path, query_key):
     }
 
 
-rule annotate_labeled_tsv:
+rule annotate_labeled_variants:
     input:
         unpack(
             lambda w: annotation_input(rules.concat_labeled_tsvs.output, w.l_query_key)
@@ -62,10 +60,10 @@ rule annotate_labeled_tsv:
     resources:
         mem_mb=cfg.attempt_mem_gb(32),
     script:
-        "../scripts/python/bio/annotate.py"
+        "../scripts/python/bio/annotate_variants.py"
 
 
-use rule annotate_labeled_tsv as annotate_unlabeled_tsv with:
+use rule annotate_labeled_variants as annotate_unlabeled_variants with:
     input:
         unpack(
             lambda wildcards: annotation_input(
@@ -87,9 +85,9 @@ summary_output = cfg.wildcard_format("{}_summary.html", "filter_key")
 summary_bench = cfg.wildcard_format("{}_summary.bench", "filter_key")
 
 
-rule summarize_labeled_input:
+rule summarize_labeled_annotated_variants:
     input:
-        rules.annotate_labeled_tsv.output,
+        rules.annotate_labeled_variants.output,
     output:
         config.annotated_res_dir(labeled=True, log=False) / summary_output,
     conda:
@@ -105,9 +103,9 @@ rule summarize_labeled_input:
         "../scripts/rmarkdown/summary/input_summary.Rmd"
 
 
-use rule summarize_labeled_input as summarize_unlabeled_input with:
+use rule summarize_labeled_annotated_variants as summarize_unlabeled_annotated_variants with:
     input:
-        rules.annotate_unlabeled_tsv.output,
+        rules.annotate_unlabeled_variants.output,
     output:
         config.annotated_res_dir(labeled=False, log=False) / summary_output,
     benchmark:
@@ -131,7 +129,7 @@ rule prepare_train_data:
         unpack(
             lambda wildcards: {
                 k: expand(
-                    rules.annotate_labeled_tsv.output,
+                    rules.annotate_labeled_variants.output,
                     allow_missing=True,
                     l_query_key=k,
                 )
@@ -259,7 +257,7 @@ rule prepare_labeled_test_data:
         unpack(
             partial(
                 test_data_input,
-                rules.annotate_labeled_tsv.output,
+                rules.annotate_labeled_variants.output,
                 "l_query_key",
             )
         ),
@@ -283,7 +281,7 @@ use rule prepare_labeled_test_data as prepare_unlabeled_test_data with:
         unpack(
             partial(
                 test_data_input,
-                rules.annotate_unlabeled_tsv.output,
+                rules.annotate_unlabeled_variants.output,
                 "ul_query_key",
             )
         ),
@@ -381,8 +379,8 @@ use rule summarize_labeled_test as summarize_unlabeled_test with:
 rule all_summary:
     input:
         config.summary_targets(
-            rules.summarize_labeled_input.output,
-            rules.summarize_unlabeled_input.output,
+            rules.summarize_labeled_annotated_variants.output,
+            rules.summarize_unlabeled_annotated_variants.output,
         ),
 
 

@@ -25,7 +25,7 @@ def read_segdups(
 ) -> pd.DataFrame:
     rsk = cfg.RefsetKey(smk.wildcards["refset_key"])
     rk = config.refsetkey_to_refkey(rsk)
-    s = config.references[rk].annotations.superdups
+    s = config.references[rk].feature_data.segdups
     ocs = s.other_cols
     feature_cols = {
         ocs.align_L: fconf.fmt_col(lambda x: x.alignL),

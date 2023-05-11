@@ -27,7 +27,7 @@ def read_tandem_repeats(
 ) -> pd.DataFrame:
     rsk = cfg.RefsetKey(smk.wildcards["refset_key"])
     rk = sconf.refsetkey_to_refkey(rsk)
-    ss = sconf.references[rk].annotations.simreps
+    ss = sconf.references[rk].feature_data.tandem_repeats
     ocs = ss.other_cols
     fmt_base = fconf.fmt_base_col
     fmt_col = fconf.fmt_col

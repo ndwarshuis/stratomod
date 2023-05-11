@@ -662,11 +662,11 @@ class Mappability(_BaseModel):
     high: BedFile
 
 
-class Annotations(_BaseModel):
+class FeatureData(_BaseModel):
     "Bed files for feature generation"
     mappability: Mappability
-    superdups: SegdupsFile
-    simreps: TandemRepeatsFile
+    segdups: SegdupsFile
+    tandem_repeats: TandemRepeatsFile
     repeat_masker: RMSKFile
 
 
@@ -674,7 +674,7 @@ class Reference(_BaseModel):
     "A genome reference, including all associated bed/benchmark files"
     sdf: RefFile
     strats: Strats
-    annotations: Annotations
+    feature_data: FeatureData
     benchmarks: dict[BenchKey, Benchmark]
 
 
@@ -1322,8 +1322,8 @@ class StratoMod(_BaseModel):
     def benchkey_to_bed_chr_prefix(self, rkey: RefsetKey, bkey: BenchKey) -> str:
         return self.refsetkey_to_ref(rkey).benchmarks[bkey].bed.params.chr_prefix
 
-    def refkey_to_annotations(self, key: RefKey) -> Annotations:
-        return self.references[key].annotations
+    def refkey_to_feature_data(self, key: RefKey) -> FeatureData:
+        return self.references[key].feature_data
 
     def querykey_to_refkey(self, key: QueryKey) -> RefKey:
         rk = self.querykey_to_refsetkey(key)
@@ -1388,19 +1388,19 @@ class StratoMod(_BaseModel):
 
     def refkey_to_mappability_src(self, rk: RefKey, high: bool) -> FileSrc:
         return (
-            self.references[rk].annotations.mappability.high.src
+            self.references[rk].feature_data.mappability.high.src
             if high
-            else self.references[rk].annotations.mappability.low.src
+            else self.references[rk].feature_data.mappability.low.src
         )
 
     def refkey_to_segdups_src(self, rk: RefKey) -> FileSrc:
-        return self.references[rk].annotations.superdups.src
+        return self.references[rk].feature_data.segdups.src
 
     def refkey_to_simreps_src(self, rk: RefKey) -> FileSrc:
-        return self.references[rk].annotations.simreps.src
+        return self.references[rk].feature_data.tandem_repeats.src
 
     def refkey_to_rmsk_src(self, rk: RefKey) -> FileSrc:
-        return self.references[rk].annotations.repeat_masker.src
+        return self.references[rk].feature_data.repeat_masker.src
 
     # paths
 
@@ -1435,8 +1435,8 @@ class StratoMod(_BaseModel):
     def bench_src_dir(self, log: bool) -> Path:
         return self.ref_src_dir(log) / "bench" / get_wildcard("bench_key")
 
-    def annotation_src_dir(self, log: bool) -> Path:
-        return self.ref_src_dir(log) / "annotations"
+    def features_src_dir(self, log: bool) -> Path:
+        return self.ref_src_dir(log) / "feature_data"
 
     def tool_src_dir(self, log: bool) -> Path:
         return self._resource_or_log_dir(log) / "tools"
@@ -1452,8 +1452,8 @@ class StratoMod(_BaseModel):
             / get_wildcard("bench_key")
         )
 
-    def annotation_res_dir(self, log: bool) -> Path:
-        return self._result_or_log_dir(log) / "annotations" / get_wildcard("refset_key")
+    def features_res_dir(self, log: bool) -> Path:
+        return self._result_or_log_dir(log) / "features" / get_wildcard("refset_key")
 
     def query_prepare_res_dir(self, labeled: bool, log: bool) -> Path:
         return self._query_dir(labeled, log) / "prepare"
@@ -1468,7 +1468,11 @@ class StratoMod(_BaseModel):
         return self._result_or_log_dir(log) / "references" / get_wildcard("refset_key")
 
     def annotated_res_dir(self, labeled: bool, log: bool) -> Path:
-        return self._result_or_log_dir(log) / "annotated" / self._labeled_dir(labeled)
+        return (
+            self._result_or_log_dir(log)
+            / "annotated_variants"
+            / self._labeled_dir(labeled)
+        )
 
     def model_train_res_dir(self, log: bool) -> Path:
         return (

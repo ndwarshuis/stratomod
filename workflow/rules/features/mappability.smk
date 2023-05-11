@@ -1,10 +1,10 @@
 from scripts.python.common.config import attempt_mem_gb
 
 map_dir = "mappability"
-map_src = config.annotation_src_dir(log=False) / map_dir
-map_src_log = config.annotation_src_dir(log=True) / map_dir
-map_res = config.annotation_res_dir(log=False) / map_dir
-map_res_log = config.annotation_res_dir(log=True) / map_dir
+map_src = config.features_src_dir(log=False) / map_dir
+map_src_log = config.features_src_dir(log=True) / map_dir
+map_res = config.features_res_dir(log=False) / map_dir
+map_res_log = config.features_res_dir(log=True) / map_dir
 
 
 use rule download_labeled_query_vcf as download_mappability_high with:
@@ -13,7 +13,7 @@ use rule download_labeled_query_vcf as download_mappability_high with:
     log:
         map_src_log / "download_high.log",
     params:
-        src=lambda w: config.references[w.ref_key].annotations.mappability.high.src,
+        src=lambda w: config.references[w.ref_key].feature_data.mappability.high.src,
     conda:
         "../../envs/utils.yml"
     localrule: True
@@ -25,7 +25,7 @@ use rule download_mappability_high as download_mappability_low with:
     log:
         map_src_log / "download_low.log",
     params:
-        src=lambda w: config.references[w.ref_key].annotations.mappability.low.src,
+        src=lambda w: config.references[w.ref_key].feature_data.mappability.low.src,
     localrule: True
 
 

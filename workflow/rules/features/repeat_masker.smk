@@ -3,17 +3,17 @@ from scripts.python.common.config import attempt_mem_gb
 rmsk_dir = "repeat_masker"
 rmsk_classes = config.feature_names.repeat_masker.classes
 
-rmsk_res = config.annotation_res_dir(log=False) / rmsk_dir
-rmsk_log = config.annotation_res_dir(log=True) / rmsk_dir
+rmsk_res = config.features_res_dir(log=False) / rmsk_dir
+rmsk_log = config.features_res_dir(log=True) / rmsk_dir
 
 
 use rule download_mappability_high as download_repeat_masker with:
     output:
-        config.annotation_src_dir(log=False) / rmsk_dir / "repeat_masker.txt.gz",
+        config.features_src_dir(log=False) / rmsk_dir / "repeat_masker.txt.gz",
     log:
-        config.annotation_src_dir(log=True) / rmsk_dir / "download.log",
+        config.features_src_dir(log=True) / rmsk_dir / "download.log",
     params:
-        src=lambda w: config.refkey_to_annotations(w.ref_key).repeat_masker.src,
+        src=lambda w: config.refkey_to_feature_data(w.ref_key).repeat_masker.src,
     localrule: True
 
 
