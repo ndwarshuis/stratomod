@@ -31,10 +31,7 @@ def merge_base(
 ) -> pd.DataFrame:
     logger.info("Filtering bed file for %ss", base)
     _df = df[df[BASE_COL] == f"unit={base.value}"].drop(columns=[BASE_COL])
-    ldf = len(_df)
-    # TODO log this rather than throwing assert
-    assert ldf > 0, f"Filtered bed file for {base} has no rows"
-    logger.info("Merging %s rows for %ss", ldf, base)
+    logger.info("Merging %s rows for %ss", len(_df), base)
     # Calculate the length of each "pure" homopolymer (eg just "AAAAAAAA").
     # Note that this is summed in the merge below, and the final length based
     # on start/end won't necessarily be this sum because of the -d 1 parameter

@@ -3,6 +3,9 @@ from typing import Any
 import subprocess as sp
 import common.config as cfg
 from Bio import bgzf  # type: ignore
+from common.io import setup_logging
+
+logger = setup_logging(snakemake.log[0])  # type: ignore
 
 
 def stream_fasta(ipath: str, chr_names: list[str]) -> sp.Popen[bytes]:
@@ -50,15 +53,21 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
             for i in p.stdout:
                 if i.startswith(b">"):
                     m = re.match(">[^ ]+", i.decode())
-                    assert m is not None, "could get chrom name from FASTA header"
+                    if m is None:
+                        logger.error("could get chrom name from FASTA header")
+                        exit(1)
                     try:
                         f.write(f">{chr_mapper[m[1]]}")
                     except KeyError:
-                        assert False, "could not convert '%s' to index" % m[1]
+                        assert False, (
+                            "could not convert '%s' to index, this should not happen"
+                            % m[1]
+                        )
                 else:
                     f.write(i)
     else:
-        assert False  # TODO make useful
+        logger.error(p.stderr)
+        exit(1)
 
 
 main(snakemake, snakemake.config)  # type: ignore
