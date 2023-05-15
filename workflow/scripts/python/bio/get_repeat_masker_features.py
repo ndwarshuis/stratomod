@@ -37,32 +37,29 @@ def main(smk: Any, config: cfg.StratoMod) -> None:
         groupname = clsname if famname is None else famname
         dropped = df[df[groupcol] == groupname].drop(columns=[groupcol])
         merged = bt.from_dataframe(dropped).merge().to_dataframe(names=cfg.BED_COLS)
-        if len(merged.index) == 0:
-            logger.warning("Empty dataframe for %s", path)
-        else:
-            col = config.feature_definitions.repeat_masker.fmt_name(
-                src, clsname, famname
-            )
-            merged[col] = merged[cfg.BED_END] - merged[cfg.BED_START]
-            write_tsv(path, merged, header=True)
+        col = config.feature_definitions.repeat_masker.fmt_name(src, clsname, famname)
+        merged[col] = merged[cfg.BED_END] - merged[cfg.BED_START]
+        write_tsv(path, merged, header=True)
 
-    # TODO add better error handling here
-    def parse_output(path: str, key: str, df: pd.DataFrame) -> None:
+    def parse_output(path: str, key: str, df: pd.DataFrame) -> bool:
         s = key.split("_")
         if len(s) == 1:
             cls = s[0]
             logger.info("Filtering/merging rmsk class %s", cls)
             merge_and_write_group(df, path, CLASSCOL, cls)
+            return False
         elif len(s) == 2:
             cls, fam = s
             logger.info("Filtering/merging rmsk family %s/class %s", fam, cls)
             merge_and_write_group(df, path, FAMCOL, cls, fam)
+            return False
         else:
-            logger.info("Invalid family/class spec in path: %s", path)
+            logger.error("Invalid family/class spec in path: %s", path)
+            return True
 
     rmsk_df = read_rmsk_df(smk.input[0])
-    for key, path in smk.output.items():
-        parse_output(path, key, rmsk_df)
+    if any(parse_output(path, key, rmsk_df) for key, path in smk.output.items()):
+        exit(1)
 
 
 main(snakemake, snakemake.config)  # type: ignore
