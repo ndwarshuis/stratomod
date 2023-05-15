@@ -41,25 +41,22 @@ def main(smk: Any, config: cfg.StratoMod) -> None:
         merged[col] = merged[cfg.BED_END] - merged[cfg.BED_START]
         write_tsv(path, merged, header=True)
 
-    def parse_output(path: str, key: str, df: pd.DataFrame) -> bool:
+    def parse_output(path: str, key: str, df: pd.DataFrame) -> None:
         s = key.split("_")
         if len(s) == 1:
             cls = s[0]
             logger.info("Filtering/merging rmsk class %s", cls)
             merge_and_write_group(df, path, CLASSCOL, cls)
-            return False
         elif len(s) == 2:
             cls, fam = s
             logger.info("Filtering/merging rmsk family %s/class %s", fam, cls)
             merge_and_write_group(df, path, FAMCOL, cls, fam)
-            return False
         else:
-            logger.error("Invalid family/class spec in path: %s", path)
-            return True
+            assert False, f"Invalid family/class spec in path: {path}"
 
     rmsk_df = read_rmsk_df(smk.input[0])
-    if any(parse_output(path, key, rmsk_df) for key, path in smk.output.items()):
-        exit(1)
+    for key, path in smk.output.items():
+        parse_output(path, key, rmsk_df)
 
 
 main(snakemake, snakemake.config)  # type: ignore
