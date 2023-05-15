@@ -1,8 +1,6 @@
-import numpy as np
-from typing import NamedTuple, Optional, Any, Type, Callable
+from typing import NamedTuple, Optional, Any, Type, Callable, cast
 import pandas as pd
 import common.config as cfg
-from functools import partial
 from more_itertools import partition
 from common.tsv import write_tsv
 from common.io import setup_logging
@@ -48,84 +46,74 @@ def fix_dot_alts(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def lookup_maybe(k: str, d: dict[str, float]) -> float:
-    return d[k] if k in d else np.nan
-
-
 def assign_format_sample_fields(
-    fields: dict[cfg.PandasColumn, Optional[str]],
+    fields: dict[cfg.PandasColumn, cfg.FormatField | str | None],
     df: pd.DataFrame,
 ) -> pd.DataFrame:
-    def log_split(what: str, xs: list[tuple[cfg.PandasColumn, Optional[str]]]) -> None:
-        logger.info(
-            "Splitting FORMAT/SAMPLE into %i %s columns.",
-            len(xs),
-            what,
-        )
+    def log_split(what: str, n: int) -> None:
+        logger.info("Splitting FORMAT/SAMPLE into %i %s columns.", n, what)
 
-    # Any fields that we don't want to parse will just get filled with NaNs. If
-    # all fields are like this, our job is super easy and we don't need to
-    # bother with zipping the FORMAT/SAMPLE columns
-    fill_fields, nan_fields = map(
-        lambda xs: list(xs),
-        partition(
-            lambda x: x[1] is None,
-            fields.items(),
-        ),
-    )
+    # Any fields that we don't want to parse will just get filled with a
+    # constant. If all fields are like the latter, our job is super easy and we
+    # don't need to bother with zipping the FORMAT/SAMPLE columns
+    fs = fields.items()
+    # mypy is being dumb...
+    parse_fields = [
+        (k, cast(cfg.FormatField, v)) for k, v in fs if isinstance(k, cfg.FormatField)
+    ]
+    const_fields = [
+        (k, cast(str | None, v)) for k, v in fs if not isinstance(k, cfg.FormatField)
+    ]
 
-    log_split("NaN", nan_fields)
-    log_split("filled", fill_fields)
+    log_split("parsed", len(parse_fields))
+    log_split("constant", len(const_fields))
 
-    for dest_col, _ in nan_fields:
-        df[dest_col] = np.nan
+    for dest_col, dest_val in const_fields:
+        df[dest_col] = dest_val
 
-    # If all columns are NaN'd, we are done
-    if len(fill_fields) == 0:
+    # If all columns are constant, we are done
+    if len(parse_fields) == 0:
         return df
 
-    # For all columns that aren't to be NaN'd, split format and sample fields
-    # into lists (to be zipped later).
-    def split_col(n: str) -> tuple["pd.Series[Any]", "pd.Series[int]"]:
-        split_ser = df[n].str.split(":")
-        len_ser = split_ser.str.len()
-        return split_ser, len_ser
-
-    format_split, format_len = split_col(FORMAT)
-    sample_split, sample_len = split_col(SAMPLE)
-
-    # warn user if any FORMAT/SAMPLE pairs are different length (which
-    # shouldn't happen, but vcf files are weird)
-    present = ~format_len.isna() & ~sample_len.isna()
-    eqlen = format_len == sample_len
-
-    cfg.assert_empty(
-        [
-            f"{r[cfg.BED_CHROM]}@{r[cfg.BED_START]}"
-            for r in df[~eqlen & present].to_dict(orient="records")
-        ],
-        "Lines where FORMAT/SAMPLE have different cardinality",
-    )
-
-    # zip FORMAT/SAMPLE into dict series and assign
+    # Else, zip FORMAT/SAMPLE into dict and assign values to column names
     #
-    # NOTE: this is a faily slow operation because we need to (or at least
+    # NOTE: this is a fairly slow operation because we need to (or at least
     # should) not assume that FORMAT/SAMPLE pair is exactly the same wrt
     # order, cardinality, etc. Some fields that are in one line might be
     # absent from others. VCF files are weird...
-    mask = eqlen & present
-    splits = format_split[mask].combine(
-        sample_split[mask],
-        lambda a, b: dict(zip(a, b)),
-    )
-    return pd.concat(
-        [df]
-        + [
-            splits.apply(partial(lookup_maybe, field)).rename(dest_col)
-            for dest_col, field in fill_fields
-        ],
-        axis=1,
-    )
+    def parse(
+        chrom: str,
+        start: str,
+        format: str,
+        sample: str,
+    ) -> dict[str, str | None] | tuple[str, str]:
+        fs = format.split(":")
+        ss = sample.split(":")
+        # ASSUME any FORMAT/SAMPLE columns with different lengths are screwed
+        # up in some way, so collect these to throw (semi-politely) in the
+        # user's face
+        if len(fs) != len(ss):
+            return (chrom, start)
+        d = dict(zip(fs, ss))
+        return {
+            col: d[field.field_name] if field.field_name in d else field.field_missing
+            for col, field in parse_fields
+        }
+
+    parse_cols = [cfg.BED_CHROM, cfg.BED_START, FORMAT, SAMPLE]
+
+    parsed = [parse(*r) for r in df[parse_cols].itertuples(index=False)]
+
+    parsed_records, errors = partition(lambda x: isinstance(x, dict), parsed)
+
+    if len(_errors := list(errors)) > 0:
+        for chrom, start in _errors:
+            logger.error(
+                "FORMAT/SAMPLE have different cardinality at %s, %s", chrom, start
+            )
+        exit(1)
+
+    return pd.concat([df, pd.DataFrame(parsed_records)], axis=1)
 
 
 def get_filter_mask(
@@ -214,7 +202,7 @@ def get_label(wildcards: dict[str, str]) -> Optional[str]:
 # ASSUME these vcf file already have standard chromosomes
 def main(smk: Any, sconf: cfg.StratoMod) -> None:
     wildcards = smk.wildcards
-    fconf = sconf.feature_names
+    fconf = sconf.feature_definitions
     iconf = sconf._querykey_to_input(smk.params.query_key)
 
     def fmt(f: Callable[[cfg.VCFColumns], str]) -> cfg.PandasColumn:
@@ -246,7 +234,10 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
         info,
     ]
 
-    fields = iconf.format_fields.vcf_fields(fconf.vcf)
+    fields = {
+        cfg.PandasColumn(fconf.vcf.fmt_feature(k)): v
+        for k, v in iconf.format_fields.items()
+    }
     label = get_label(wildcards)
 
     df = read_vcf(input_cols, smk.input[0])

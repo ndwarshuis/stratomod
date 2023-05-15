@@ -707,58 +707,69 @@ class _FeatureGroup(_BaseModel):
         return FeatureKey(f"{self.prefix}_{rest}")
 
 
+# TODO move some of these to the query block so they can be defined on a
+# VCF-basis
 class VCFColumns(_BaseModel):
     "Columns for a vcf file"
-    qual: NonEmptyStr
-    filter: NonEmptyStr
-    info: NonEmptyStr
-    gt: NonEmptyStr
-    gq: NonEmptyStr
-    dp: NonEmptyStr
-    vaf: NonEmptyStr
-    len: NonEmptyStr
+    qual: NonEmptyStr = "QUAL"
+    filter: NonEmptyStr = "FILTER"
+    info: NonEmptyStr = "INFO"
+    # gt: NonEmptyStr = "GT"
+    # gq: NonEmptyStr = "GQ"
+    # dp: NonEmptyStr = "DP"
+    # vaf: NonEmptyStr = "VAF"
+    len: NonEmptyStr = "indel_length"
 
 
 class VCFGroup(_FeatureGroup):
     "Feature and column names for VCF files"
-    columns: VCFColumns
+    prefix: FeaturePrefix = "VCF"
+    columns: VCFColumns = VCFColumns()
 
     def fmt_name(self: Self, f: Callable[[VCFColumns], str]) -> FeatureKey:
         return self.fmt_feature(f(self.columns))
 
     @property
-    def str_feature_names(self) -> list[FeatureKey]:
-        return [
+    def str_feature_names(self) -> set[FeatureKey]:
+        return set(
             self.fmt_name(x)
             for x in [
                 lambda x: x.filter,
                 lambda x: x.info,
-                lambda x: x.gt,
-                lambda x: x.gq,
+                # lambda x: x.gt,
+                # lambda x: x.gq,
             ]
-        ]
+        )
 
-    def feature_names(self) -> list[FeatureKey]:
-        return self.str_feature_names + [
-            self.fmt_name(x)
-            for x in [
-                lambda x: x.qual,
-                lambda x: x.dp,
-                lambda x: x.vaf,
-                lambda x: x.len,
-            ]
-        ]
+    def field_feature_names(self, format_fields: set[str]) -> set[FeatureKey]:
+        return set(self.fmt_feature(f) for f in format_fields)
+
+    def feature_names(self, format_fields: set[str]) -> set[FeatureKey]:
+        return (
+            self.str_feature_names
+            | set(
+                self.fmt_name(x)
+                for x in [
+                    lambda x: x.qual,
+                    # lambda x: x.dp,
+                    # lambda x: x.vaf,
+                    lambda x: x.len,
+                ]
+            )
+            | self.field_feature_names(format_fields)
+        )
 
 
 class MapSuffixes(_BaseModel):
     "Suffixes corresponding to low-map regions"
-    low: NonEmptyStr
-    high: NonEmptyStr
+    low: NonEmptyStr = "difficult_100bp"
+    high: NonEmptyStr = "difficult_250bp"
 
 
 class MapGroup(_FeatureGroup):
     "Feature and column names for low-map dataframes"
-    suffixes: MapSuffixes
+    prefix: FeaturePrefix = "MAP"
+    suffixes: MapSuffixes = MapSuffixes()
 
     @property
     def low(self) -> FeatureKey:
@@ -768,54 +779,55 @@ class MapGroup(_FeatureGroup):
     def high(self) -> FeatureKey:
         return self.fmt_feature(self.suffixes.high)
 
-    def feature_names(self) -> list[FeatureKey]:
-        return [self.low, self.high]
+    def feature_names(self) -> set[FeatureKey]:
+        return {self.low, self.high}
 
 
 class HomopolySuffixes(_BaseModel):
     "Suffixes corresponding to homopolymer regions"
-    len: NonEmptyStr
-    imp_frac: NonEmptyStr
+    len: NonEmptyStr = "length"
+    imp_frac: NonEmptyStr = "imperfect_length"
 
 
 class HomopolyGroup(_FeatureGroup):
     "Feature and column names for homopolymer dataframes"
-    bases: set[Base]
-    suffixes: HomopolySuffixes
+    prefix: FeaturePrefix = "HOMOPOL"
+    bases: set[Base] = set(b for b in Base)
+    suffixes: HomopolySuffixes = HomopolySuffixes()
 
     def fmt_name(self, b: Base, f: Callable[[HomopolySuffixes], str]) -> FeatureKey:
         return self.fmt_feature(f"{b.value}_{f(self.suffixes)}")
 
-    def feature_names(self) -> list[FeatureKey]:
-        return [
+    def feature_names(self) -> set[FeatureKey]:
+        return set(
             self.fmt_name(b, f)
             for f, b in product([lambda x: x.len, lambda x: x.imp_frac], self.bases)
-        ]
+        )
 
 
+# TODO need to get this in terms of the classes from the reference
 class RMSKGroup(_FeatureGroup):
     "Feature and column names for repeat masker dataframes"
-    classes: dict[str, set[NonEmptyStr]] = {
-        k: set() for k in ["SINE", "LINE", "LTR", "Satellite"]
-    }
+    prefix: FeaturePrefix = "REPMASK"
 
     def fmt_name(
         self,
+        f: RMSKFile,
         grp: str,
         fam: str | None,
     ) -> PandasColumn:
-        assert grp in self.classes, f"{grp} not a valid RMSK class"
+        assert grp in f.class_families, f"{grp} not a valid RMSK class"
         rest = maybe(grp, lambda f: f"{grp}_{fam}", fam)
         return PandasColumn(self.fmt_feature(f"{rest}_length"))
 
-    def feature_names(self) -> list[FeatureKey]:
+    def feature_names(self, f: RMSKFile) -> set[FeatureKey]:
         def fmt(grp: str, fam: str | None) -> FeatureKey:
-            return FeatureKey(self.fmt_name(grp, fam))
+            return FeatureKey(self.fmt_name(f, grp, fam))
 
-        return [
-            *[fmt(c, None) for c in self.classes],
-            *[fmt(c, f) for c, fs in self.classes.items() for f in fs],
-        ]
+        return set(
+            *[fmt(c, None) for c in f.class_families],
+            *[fmt(c, f) for c, fs in f.class_families.items() for f in fs],
+        )
 
 
 class MergedFeatureGroup(_FeatureGroup, Generic[X]):
@@ -835,30 +847,34 @@ class MergedFeatureGroup(_FeatureGroup, Generic[X]):
     def merged_feature_col_names(
         self,
         fs: list[Callable[[X], str]],
-    ) -> list[FeatureKey]:
+    ) -> set[FeatureKey]:
         return self.merged_feature_names([self.fmt_col(f) for f in fs])
 
-    def merged_feature_names(self, names: list[PandasColumn]) -> list[FeatureKey]:
-        return [
-            *[
-                self.fmt_merged_feature(n, o)
-                for n, o in product(names, self.operations)
-            ],
-            self.fmt_count_feature(),
-        ]
+    def merged_feature_names(self, names: list[PandasColumn]) -> set[FeatureKey]:
+        return set(
+            [
+                *[
+                    self.fmt_merged_feature(n, o)
+                    for n, o in product(names, self.operations)
+                ],
+                self.fmt_count_feature(),
+            ]
+        )
 
 
 class SegDupsColumns(_BaseModel):
     "Columns corresponding to the superdups files"
-    alignL: NonEmptyStr
-    fracMatchIndel: NonEmptyStr
+    alignL: NonEmptyStr = "size"
+    fracMatchIndel: NonEmptyStr = "identity"
 
 
 class SegDupsGroup(MergedFeatureGroup[SegDupsColumns]):
     "Feature and column names for segdups dataframes"
-    columns: SegDupsColumns
+    prefix: FeaturePrefix = "SEGDUP"
+    columns: SegDupsColumns = SegDupsColumns()
+    operations: set[BedMergeOp] = {BedMergeOp.MIN, BedMergeOp.MAX, BedMergeOp.MEAN}
 
-    def feature_names(self) -> list[FeatureKey]:
+    def feature_names(self) -> set[FeatureKey]:
         return self.merged_feature_col_names(
             [lambda x: x.alignL, lambda x: x.fracMatchIndel]
         )
@@ -866,16 +882,18 @@ class SegDupsGroup(MergedFeatureGroup[SegDupsColumns]):
 
 class TandemRepeatColumns(_BaseModel):
     "Columns corresponding to the simple_repeats files"
-    period: NonEmptyStr
-    copyNum: NonEmptyStr
-    perMatch: NonEmptyStr
-    perIndel: NonEmptyStr
-    score: NonEmptyStr
+    period: NonEmptyStr = "unit_size"
+    copyNum: NonEmptyStr = "unit_copies"
+    perMatch: NonEmptyStr = "identity"
+    perIndel: NonEmptyStr = "per_indel_mismatch"
+    score: NonEmptyStr = "score"
 
 
 class TandemRepeatGroup(MergedFeatureGroup[TandemRepeatColumns]):
     "Feature and column names for segdups dataframes"
-    columns: TandemRepeatColumns
+    prefix: FeaturePrefix = "TR"
+    columns: TandemRepeatColumns = TandemRepeatColumns()
+    operations: set[BedMergeOp] = {BedMergeOp.MIN, BedMergeOp.MAX, BedMergeOp.MEDIAN}
 
     def _base_name(self, base: str) -> PandasColumn:
         return PandasColumn(self.fmt_feature(f"percent_{base}"))
@@ -903,7 +921,7 @@ class TandemRepeatGroup(MergedFeatureGroup[TandemRepeatColumns]):
     def fmt_base_col(self, b: Base) -> PandasColumn:
         return self._base_name(b.value)
 
-    def feature_names(self) -> list[FeatureKey]:
+    def feature_names(self) -> set[FeatureKey]:
         single_base = [self.fmt_base_col(b) for b in Base]
         # lombardo quit to become a bioinformatician...
         double_base = [self.AT_name, self.GC_name, self.AG_name, self.CT_name]
@@ -919,7 +937,7 @@ class TandemRepeatGroup(MergedFeatureGroup[TandemRepeatColumns]):
                 lambda x: x.score,
             ]
         )
-        return noncols + cols
+        return noncols | cols
 
 
 class VariableGroup(_FeatureGroup):
@@ -944,8 +962,8 @@ class VariableGroup(_FeatureGroup):
     def all_keys(self) -> list[VarKey]:
         return list(self.continuous) + list(self.categorical)
 
-    def feature_names(self) -> list[FeatureKey]:
-        return [self.fmt_feature(x) for x in self.all_keys()]
+    def feature_names(self) -> set[FeatureKey]:
+        return set(self.fmt_feature(x) for x in self.all_keys())
 
     # ASSUME we don't need to check the incoming varkeys or varvals since they
     # will be validated on model creation
@@ -961,32 +979,59 @@ class VariableGroup(_FeatureGroup):
         return {self.fmt_feature(k): self._parse_var(k, v) for k, v in kvs.items()}
 
 
-class FormatFields(_BaseModel):
-    "Specifies the names of fields in the FORMAT column of a VCF file"
-    vaf: str | None = "VAF"
-    dp: str | None = "DP"
-    gt: str | None = "GT"
-    gq: str | None = "GQ"
+# class FormatFields(_BaseModel):
+#     "Specifies the names of fields in the FORMAT column of a VCF file"
+#     vaf: str | None = "VAF"
+#     dp: str | None = "DP"
+#     gt: str | None = "GT"
+#     gq: str | None = "GQ"
 
-    def vcf_fields(self, vcf: VCFGroup) -> dict[PandasColumn, str | None]:
-        return {
-            PandasColumn(vcf.fmt_name(f)): v
-            for f, v in [
-                (lambda x: x.vaf, self.vaf),
-                (lambda x: x.dp, self.dp),
-                (lambda x: x.gt, self.gt),
-                (lambda x: x.gq, self.gq),
-            ]
-        }
+#     def vcf_fields(self, vcf: VCFGroup) -> dict[PandasColumn, str | None]:
+#         return {
+#             PandasColumn(vcf.fmt_name(f)): v
+#             for f, v in [
+#                 (lambda x: x.vaf, self.vaf),
+#                 (lambda x: x.dp, self.dp),
+#                 (lambda x: x.gt, self.gt),
+#                 (lambda x: x.gq, self.gq),
+#             ]
+#         }
+
+
+class FormatField(_BaseModel):
+    """Means to parse a field in the FORMAT/SAMPLE columns of a VCF.
+
+    Members:
+    field_name: member of the FORMAT column to be parsed from SAMPLE
+    field_missing: value to use if 'field_name' is not in FORMAT
+    """
+
+    field_name: str
+    field_missing: str | None = None
+
+
+FormatFields = dict[str, FormatField | str | None]
 
 
 class UnlabeledVCFQuery(VCFFile):
     "A vcf to be used as the query for a model without labels."
     refset: RefsetKey
     variables: dict[VarKey, VarVal]
-    format_fields: FormatFields = FormatFields()
     max_ref: Annotated[int, Field(ge=0)] = 50
     max_alt: Annotated[int, Field(ge=0)] = 50
+    format_fields: FormatFields = {
+        "VAF": FormatField(field_name="VAF"),
+        "DP": FormatField(field_name="DP"),
+        "GT": FormatField(field_name="GT"),
+        "GQ": FormatField(field_name="GQ"),
+    }
+
+    # @property
+    # def field_names(self) -> set[str]:
+    #     return set(self.format_fields)
+
+    # def vcf_fields(self, vcf: VCFGroup) -> dict[PandasColumn, str | None]:
+    #     return {PandasColumn(vcf.fmt_name(f)): v for f, v in self.format_fields.items()}
 
 
 class LabeledVCFQuery(UnlabeledVCFQuery):
@@ -999,34 +1044,18 @@ VCFQuery = UnlabeledVCFQuery | LabeledVCFQuery
 
 class FeatureNames(_BaseModel):
     "Defines valid feature names to be specified in models"
-    label: NonEmptyStr
-    vcf: VCFGroup
-    mappability: MapGroup
-    homopolymers: HomopolyGroup
-    repeat_masker: RMSKGroup
-    segdups: SegDupsGroup
-    tandem_repeats: TandemRepeatGroup
+    label: NonEmptyStr = "label"
+    vcf: VCFGroup = VCFGroup()
+    mappability: MapGroup = MapGroup()
+    homopolymers: HomopolyGroup = HomopolyGroup()
+    repeat_masker: RMSKGroup = RMSKGroup()
+    segdups: SegDupsGroup = SegDupsGroup()
+    tandem_repeats: TandemRepeatGroup = TandemRepeatGroup()
     variables: VariableGroup
 
     @property
     def label_name(self: Self) -> PandasColumn:
         return PandasColumn(self.label)
-
-    # def all_index_cols(self) -> list[PandasColumn]:
-    #     return [PandasColumn(self.raw_index), *self.bed_index.bed_cols_ordered()]
-
-    def all_feature_names(self) -> set[FeatureKey]:
-        return set(
-            [
-                *self.vcf.feature_names(),
-                *self.mappability.feature_names(),
-                *self.homopolymers.feature_names(),
-                *self.repeat_masker.feature_names(),
-                *self.segdups.feature_names(),
-                *self.tandem_repeats.feature_names(),
-                *self.variables.feature_names(),
-            ]
-        )
 
     @property
     def non_summary_cols(self) -> list[PandasColumn]:
@@ -1080,7 +1109,7 @@ class StratoMod(_BaseModel):
     paths: Paths
     tools: Tools
     references: dict[RefKey, Reference]
-    feature_names: FeatureNames
+    feature_definitions: FeatureNames
     reference_sets: dict[RefsetKey, Refset]
     labeled_queries: LabeledQueries
     unlabeled_queries: UnlabeledQueries
@@ -1340,7 +1369,7 @@ class StratoMod(_BaseModel):
 
     def querykey_to_variables(self, input_key: QueryKey) -> dict[FeatureKey, float]:
         vs = self._querykey_to_input(input_key).variables
-        return self.feature_names.variables.parse_vars(vs)
+        return self.feature_definitions.variables.parse_vars(vs)
 
     def querykey_to_bench_correction(
         self,
@@ -1358,7 +1387,7 @@ class StratoMod(_BaseModel):
     ) -> dict[FeatureKey, float]:
         test = self.models[mkey].runs[rkey].test[tkey]
         qs = self.querykey_to_variables(test.query_key)
-        return {**qs, **self.feature_names.variables.parse_vars(test.variables)}
+        return {**qs, **self.feature_definitions.variables.parse_vars(test.variables)}
 
     def runkey_to_train_querykeys(
         self,
@@ -1377,6 +1406,48 @@ class StratoMod(_BaseModel):
         tkey: TestKey,
     ) -> QueryKey:
         return self.models[mkey].runs[rkey].test[tkey].query_key
+
+    def runkey_to_feature_names(self, mk: ModelKey, rk: RunKey) -> set[FeatureKey]:
+        """Return features for a given run.
+
+        For the most part, the total set of defined features is constant across
+        all runs. However, each query vcf can independently specify how to parse
+        the pesky FORMAT column and a few other features that are
+        reference-dependent. Due to this variability, we need to intersect all
+        the field names together between all train and test keys.
+
+        """
+        train = self.runkey_to_train_querykeys(mk, rk)
+        test = self.runkey_to_test_querykeys(mk, rk)
+        query_keys = train + test
+        vcf_features = set.intersection(
+            *[
+                self.feature_definitions.vcf.feature_names(
+                    set(self._querykey_to_input(k).format_fields)
+                )
+                for k in query_keys
+            ]
+        )
+        rmsk_features = set.intersection(
+            *[
+                self.feature_definitions.repeat_masker.feature_names(
+                    self.references[
+                        self.querykey_to_refkey(k)
+                    ].feature_data.repeat_masker
+                )
+                for k in query_keys
+            ]
+        )
+        defs = self.feature_definitions
+        return (
+            vcf_features
+            | rmsk_features
+            | defs.mappability.feature_names()
+            | defs.homopolymers.feature_names()
+            | defs.segdups.feature_names()
+            | defs.tandem_repeats.feature_names()
+            | defs.variables.feature_names()
+        )
 
     # src getters
 

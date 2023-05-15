@@ -80,7 +80,7 @@ def merge_tandem_repeats(
 
 def main(smk: Any, sconf: cfg.StratoMod) -> None:
     i = smk.input
-    fconf = sconf.feature_names.tandem_repeats
+    fconf = sconf.feature_definitions.tandem_repeats
     repeat_df = read_tandem_repeats(smk, Path(i.src[0]), fconf, sconf)
     merged_df = merge_tandem_repeats(i.genome[0], repeat_df, fconf)
     write_tsv(smk.output[0], merged_df, header=True)

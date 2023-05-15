@@ -240,7 +240,7 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
     ebm = read_model(sin["model"])
     write_model_json(sout["model"], ebm)
 
-    label = sconf.feature_names.label
+    label = sconf.feature_definitions.label
 
     def write_predictions(xpath: str, ypath: str, out_path: str) -> None:
         X = pd.read_table(xpath).drop(columns=cfg.IDX_COLS)

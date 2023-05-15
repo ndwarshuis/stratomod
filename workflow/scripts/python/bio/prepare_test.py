@@ -15,8 +15,8 @@ def write_labeled(
     rconf: cfg.Model,
     df: pd.DataFrame,
 ) -> None:
-    filter_col = sconf.feature_names.vcf.fmt_name(lambda x: x.filter)
-    label_col = sconf.feature_names.label_name
+    filter_col = sconf.feature_definitions.vcf.fmt_name(lambda x: x.filter)
+    label_col = sconf.feature_definitions.label_name
     processed = process_labeled_data(
         rconf.features,
         rconf.error_labels,

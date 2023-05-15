@@ -44,7 +44,7 @@ def merge_segdups(
 
 
 def main(smk: Any, config: cfg.StratoMod) -> None:
-    fconf = config.feature_names.segdups
+    fconf = config.feature_definitions.segdups
     repeat_df = read_segdups(smk, config, smk.input[0], fconf)
     merged_df = merge_segdups(repeat_df, fconf)
     write_tsv(smk.output[0], merged_df, header=True)

@@ -298,7 +298,7 @@ tools:
 # static, hardcoded data structure (effectively a gigantic constant) since any
 # changes to the layout of these input files will require zillions of changes
 # that aren't worth exposing in a user-configurable fashion
-feature_names:
+feature_definitions:
   label: label
 
   vcf:

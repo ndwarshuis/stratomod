@@ -25,7 +25,7 @@ def read_queries(
 
 def main(smk: Any, sconf: cfg.StratoMod) -> None:
     rconf = sconf.models[cfg.ModelKey(cfg.ModelKey(smk.wildcards.model_key))]
-    fconf = sconf.feature_names
+    fconf = sconf.feature_definitions
     raw_df = read_queries(sconf, smk.input)
     processed = process_labeled_data(
         rconf.features,

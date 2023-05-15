@@ -50,7 +50,7 @@ def merge_base(
     # files from tmpfs to prevent a run on downloadmoreram.com
     cleanup()
 
-    hgroup = config.feature_names.homopolymers
+    hgroup = config.feature_definitions.homopolymers
 
     length_col = hgroup.fmt_name(base, lambda x: x.len)
     frac_col = hgroup.fmt_name(base, lambda x: x.imp_frac)

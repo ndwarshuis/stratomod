@@ -45,7 +45,7 @@ def train_ebm(
     rconf: cfg.Model,
     df: pd.DataFrame,
 ) -> None:
-    label = sconf.feature_names.label
+    label = sconf.feature_definitions.label
 
     def strip_coords(df: pd.DataFrame) -> pd.DataFrame:
         return df.drop(columns=cfg.IDX_COLS)
