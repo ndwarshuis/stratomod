@@ -35,7 +35,7 @@ y <- tibble(label = truth_y$label, prob = pred_y$`1`)
 * Variant Type: `r snakemake@wildcards$filter_key`
 * Input Key: `r snakemake@wildcards$input_key`
 * Test Key: `r snakemake@wildcards$test_key`
-* EBM Run Key: `r snakemake@wildcards$run_key`
+* EBM Model Key: `r snakemake@wildcards$model_key`
 
 # Model Statistics
 

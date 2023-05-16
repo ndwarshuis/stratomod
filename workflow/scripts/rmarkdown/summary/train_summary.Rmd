@@ -68,7 +68,7 @@ bivariate <- to_bivariate(mod)
 # Model Overview
 
 * Variant Type: `r snakemake@wildcards$filter_key`
-* EBM Run Key: `r snakemake@wildcards$run_key`
+* EBM Model Key: `r snakemake@wildcards$model_key`
 * Error Labels: `r str_c(error_labels, collapse = ", ")`
 
 # Model Statistics

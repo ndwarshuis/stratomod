@@ -402,7 +402,7 @@ rule label_vcf:
 
 
 def labeled_file(ext):
-    return cfg.wildcard_format_ext(f"{{}}_{{}}", ["filter_key", "label"], ext)
+    return cfg.wildcard_format_ext(f"{{}}_{{}}", ["vartype_key", "label"], ext)
 
 
 rule parse_labeled_vcf:
@@ -434,14 +434,14 @@ rule concat_labeled_tsvs:
     output:
         ensure(
             config.query_parsed_res_dir(labeled=True, log=False)
-            / cfg.wildcard_format("{}_labeled.tsv.gz", "filter_key"),
+            / cfg.wildcard_format("{}_labeled.tsv.gz", "vartype_key"),
             non_empty=True,
         ),
     conda:
         "../envs/bio.yml"
     benchmark:
         config.query_parsed_res_dir(labeled=True, log=True) / cfg.wildcard_format(
-            "{}_concat.bench", "filter_key"
+            "{}_concat.bench", "vartype_key"
         )
     resources:
         mem_mb=cfg.attempt_mem_gb(4),
@@ -454,7 +454,7 @@ rule concat_labeled_tsvs:
 
 
 def unlabeled_file(ext):
-    return cfg.wildcard_ext("filter_key", ext)
+    return cfg.wildcard_ext("vartype_key", ext)
 
 
 use rule parse_labeled_vcf as parse_unlabeled_vcf with:

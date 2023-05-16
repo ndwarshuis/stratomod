@@ -122,51 +122,59 @@ models:
   # Each key should be unique and briefly describe the intent of the model
   # configuration.
   test_model:
-    # Run = an input combination to be used for the model training/testing
-    # process.
-    runs:
-      # Each key should be unique and briefly describe the data inputs
-      test_inputs:
-        # A list of keys from either 'labeled_queries' or 'unlabeled_queries'
-        # above
-        train: [HG002_Hifi_DV, HG002_Illumina_DV]
+    # A list of keys from either 'labeled_queries' or 'unlabeled_queries'
+    # above which will be used for training (and testing using holdout)
+    train: [HG002_Hifi_DV, HG002_Illumina_DV]
 
-        # Test = an input combination (given a training input combination) to
-        # test a given model specification.
-        test:
-          # Each key should uniquely describe the testing data being used
-          Clinvar_Illumina:
-            # A key corresponding to one entry in 'unlabeld_queries' above
-            query_key: Clinvar
+    # Test = an input combination (given a training input combination) to
+    # test a given model specification.
+    test:
+      # Each key should uniquely describe the testing data being used
+      Clinvar_Illumina:
+        # A key corresponding to one entry in 'unlabeld_queries' above
+        query_key: Clinvar
 
-            # A set of variables to use for this testing input. Any variables
-            # previously specified in the 'unlabeled_queries' section will be
-            # overriden. In this example, we are telling the model to regard
-            # this vcf "as if" it had been collected with 40x Illumina
-            # and called with DeepVariant (since it is a ClinVar vcf none of
-            # these things are actually true, but here we could test what the
-            # model predicts for this set of variants if they hypothetically
-            # were produced under these conditions)
-            variables:
-              coverage: 40
-              seqtech: "Illumina"
-              variant_caller: "DeepVariant"
+        # A set of variables to use for this testing input. Any variables
+        # previously specified in the 'unlabeled_queries' section will be
+        # overriden. In this example, we are telling the model to regard
+        # this vcf "as if" it had been collected with 40x Illumina
+        # and called with DeepVariant (since it is a ClinVar vcf none of
+        # these things are actually true, but here we could test what the
+        # model predicts for this set of variants if they hypothetically
+        # were produced under these conditions)
+        #
+        # Default: {}
+        variables:
+          coverage: 40
+          seqtech: "Illumina"
+          variant_caller: "DeepVariant"
 
-          HG005_Hifi_DV:
-            query_key: HG005_Hifi_DV
-            variables: {} # TODO default this out
+      HG005_Hifi_DV:
+        query_key: HG005_Hifi_DV
 
     # The type of variant to include. The only valid members are 'SNV' and
     # 'INDEL' and this list must not be empty
-    filter: [SNV, INDEL]
+    vartypes: [SNV, INDEL]
+
+    # The labels to be regarded as the negative class. Usually this will either
+    # be 'fp' (false positives) or 'fn' (false negatives). However, one can
+    # combine these into one meta-error by specifying both. In all cases, the
+    # positive class is 'tp' (true positives).
+    error_labels: [fp]
+
+    # Whether to regard filtered variants as candidate variant or not. If false,
+    # only variants with PASS as its filter result will be included in the
+    # model input. Otherwise, non-passing variants are also included.
+    filtered_are_candidates: false
 
     # How the EBM model should be trained
-    ebm_settings: &ebm_settings
+    # ebm_settings:
 
       # How the training data should be split when traning/testing
-      split_parameters:
+      # split_parameters:
         # The fraction of holdout data used for testing (a float b/t 0 and 1)
-        test_size: 0.2
+        # Default: 0.2 (20%)
+        # test_size: 0.2
 
         # The random seed for splitting. This defaults to a random value.
         # Supply your own value to fix the splitting process.
@@ -198,20 +206,9 @@ models:
         # 'null' to disable.
         # downsample: null
 
-    # The labels to be regarded as the negative class. Usually this will either
-    # be 'fp' (false positives) or 'fn' (false negatives). However, one can
-    # combine these into one meta-error by specifying both. In all cases, the
-    # positive class is 'tp' (true positives).
-    error_labels: [fp]
-
-    # Whether to regard filtered variants as candidate variant or not. If false,
-    # only variants with PASS as its filter result will be included in the
-    # model input. Otherwise, non-passing variants are also included.
-    filtered_are_candidates: false
-
     # A list of features to include. This only covers 1st order features;
     # interactions are specified in the next section.
-    features: &base_features
+    features:
 
       # Each key in this section must correspond to a given feature supplied
       # either by a variable or a hardcoded feature in the pipeline.

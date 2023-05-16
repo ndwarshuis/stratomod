@@ -120,18 +120,20 @@ def assign_format_sample_fields(
 def get_filter_mask(
     ref_len: "pd.Series[int]",
     alt_len: "pd.Series[int]",
-    filter_key: cfg.FilterKey,
+    vartype_key: cfg.VartypeKey,
 ) -> "pd.Series[bool]":
     snps = (ref_len == 1) & (alt_len == 1)
-    keep = ~snps & ~(ref_len == alt_len) if filter_key == cfg.FilterKey.INDEL else snps
-    logger.info("Number of %ss: %i", filter_key, keep.sum())
+    keep = (
+        ~snps & ~(ref_len == alt_len) if vartype_key == cfg.VartypeKey.INDEL else snps
+    )
+    logger.info("Number of %ss: %i", vartype_key, keep.sum())
     return keep
 
 
 # ASSUME there are no NaNs in alt at this point
 def add_length_and_filter(
     indel_len_col: str,
-    filter_key: cfg.FilterKey,
+    vartype_key: cfg.VartypeKey,
     max_ref: int,
     max_alt: int,
     df: pd.DataFrame,
@@ -144,13 +146,13 @@ def add_length_and_filter(
         logger.info(
             "Removing %i %ss with %s",
             (filter_mask & ~other_mask).sum(),
-            filter_key,
+            vartype_key,
             msg,
         )
 
     alt_len = df[ALT].str.len()
     ref_len = df[REF].str.len()
-    filter_mask = get_filter_mask(ref_len, alt_len, filter_key)
+    filter_mask = get_filter_mask(ref_len, alt_len, vartype_key)
 
     # these should be variants where ALT is a "." (which means "ALT and REF are
     # the same" and should only apply to ClinVar VCFs)
@@ -252,7 +254,7 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
             fields,
             add_length_and_filter(
                 indel_length,
-                cfg.FilterKey(wildcards.filter_key),
+                cfg.VartypeKey(wildcards.vartype_key),
                 iconf.max_ref,
                 iconf.max_alt,
                 fix_dot_alts(

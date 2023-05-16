@@ -50,7 +50,6 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
     wcs = smk.wildcards
     variables = sconf.testkey_to_variables(
         cfg.ModelKey(wcs["model_key"]),
-        cfg.RunKey(wcs["run_key"]),
         cfg.TestKey(wcs["test_key"]),
     )
     df = pd.read_table(sin["annotated"][0]).assign(

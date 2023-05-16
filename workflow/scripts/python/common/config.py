@@ -66,7 +66,6 @@ RefsetKey = NewType("RefsetKey", str)  # key for reference set (reference + filt
 TestKey = NewType("TestKey", str)  # key for a model test
 BenchKey = NewType("BenchKey", str)  # key for a benchmark (within a given reference)
 ModelKey = NewType("ModelKey", str)  # key for a model and its parameters
-RunKey = NewType("RunKey", str)  # key for a model run (eg parameters + queries)
 FeatureKey = NewType("FeatureKey", str)  # key for a feature in the model
 
 VarKey = NewType("VarKey", str)  # key for a VCF variable
@@ -118,7 +117,7 @@ class ChrIndex(Enum):
         return cast(bool, self.value < other.value)
 
 
-class FilterKey(_ListEnum):
+class VartypeKey(_ListEnum):
     SNV = "SNV"
     INDEL = "INDEL"
 
@@ -203,22 +202,21 @@ class ChrFilter(NamedTuple):
     indices: list[ChrIndex]
 
 
-class RunKeyCombo(NamedTuple):
+class ModelKeyCombo(NamedTuple):
     "The keys needed to uniquely specify a model run"
     model_key: ModelKey
-    filter_key: FilterKey
-    run_key: RunKey
+    vartype_key: VartypeKey
 
 
 class TrainKeyCombo(NamedTuple):
     "The keys needed to uniquely specify a train query for a run"
-    run_combo: RunKeyCombo
+    run_combo: ModelKeyCombo
     labeled_query_key: LabeledQueryKey
 
 
 class TestKeyCombo(NamedTuple):
     "The keys needed to uniquely specify a test query for a run"
-    run_combo: RunKeyCombo
+    run_combo: ModelKeyCombo
     test_key: TestKey
     query_key: QueryKey
 
@@ -246,16 +244,12 @@ _constraints: dict[str, str] = {
     "query_key": KEY_CONSTR,
     "ul_query_key": KEY_CONSTR,
     "l_query_key": KEY_CONSTR,
-    # refers to a collection of input data input to an ebm model configuration
-    # (composed of multiple train/test keys + associated data)
-    "run_key": KEY_CONSTR,
     # refers to a benchmark vcf (within the context of a given reference)
     "bench_key": KEY_CONSTR,
-    # refers to an EBM model and its parameters
+    # refers to an EBM model and its parameters and inputs
     "model_key": KEY_CONSTR,
     # refers to the variant type (SNP or INDEL, for now)
-    # TODO ...why "filter"? (I can't think of anything better)
-    "filter_key": alternate_constraint(FilterKey.all()),
+    "vartype_key": alternate_constraint(VartypeKey.all()),
     # refers to a variant benchmarking label (tp, fp, etc)
     "label": alternate_constraint(VCFLabel.all()),
     # refers to a nucleotide base
@@ -338,13 +332,7 @@ class ContVar(_Range):
 class TestDataQuery(_BaseModel):
     "Specifies a test to run within a model."
     query_key: QueryKey
-    variables: dict[VarKey, VarVal]
-
-
-class ModelRun(_BaseModel):
-    "Specifies train and test queries to run in a model"
-    train: Annotated[set[LabeledQueryKey], Field(min_items=1)]
-    test: dict[TestKey, TestDataQuery]
+    variables: dict[VarKey, VarVal] = {}
 
 
 class EBMMiscParams(_BaseModel):
@@ -446,9 +434,10 @@ InteractionSpec = Annotated[list[InteractionSpec_], Field(unique_items=True)]
 
 class Model(_BaseModel):
     "A fully specified model, including parameters and queries to run"
-    runs: dict[RunKey, ModelRun]
-    filter: set[FilterKey]
-    ebm_settings: EBMsettings
+    train: Annotated[set[LabeledQueryKey], Field(min_items=1)]
+    test: dict[TestKey, TestDataQuery]
+    vartypes: set[VartypeKey]
+    ebm_settings: EBMsettings = EBMsettings()
     error_labels: Annotated[set[ErrorLabel], Field(min_items=1)]
     filtered_are_candidates: bool
     interactions: NonNegativeInt | InteractionSpec = 0
@@ -681,24 +670,6 @@ class Reference(_BaseModel):
 FeaturePrefix = Annotated[str, Field(regex="^[A-Z]+$")]
 
 
-# class BedIndex(_BaseModel):
-#     "Metadata to track the first three columns of bed(like) dataframes"
-#     chr: PandasColumn
-#     start: PandasColumn
-#     end: PandasColumn
-
-#     def bed_cols_ordered(self) -> list[PandasColumn]:
-#         return [self.chr, self.start, self.end]
-
-#     def bed_cols_indexed(
-#         self, indices: tuple[int, int, int]
-#     ) -> dict[int, PandasColumn]:
-#         return dict(zip(indices, self.bed_cols_ordered()))
-
-#     def bed_cols(self, cols: BedColumns) -> dict[int, PandasColumn]:
-#         return self.bed_cols_indexed((cols.chr, cols.start, cols.end))
-
-
 class _FeatureGroup(_BaseModel):
     "Superclass for feature groups (which in turn define valid feature names)"
     prefix: FeaturePrefix
@@ -707,17 +678,11 @@ class _FeatureGroup(_BaseModel):
         return FeatureKey(f"{self.prefix}_{rest}")
 
 
-# TODO move some of these to the query block so they can be defined on a
-# VCF-basis
 class VCFColumns(_BaseModel):
     "Columns for a vcf file"
     qual: NonEmptyStr = "QUAL"
     filter: NonEmptyStr = "FILTER"
     info: NonEmptyStr = "INFO"
-    # gt: NonEmptyStr = "GT"
-    # gq: NonEmptyStr = "GQ"
-    # dp: NonEmptyStr = "DP"
-    # vaf: NonEmptyStr = "VAF"
     len: NonEmptyStr = "indel_length"
 
 
@@ -731,15 +696,7 @@ class VCFGroup(_FeatureGroup):
 
     @property
     def str_feature_names(self) -> set[FeatureKey]:
-        return set(
-            self.fmt_name(x)
-            for x in [
-                lambda x: x.filter,
-                lambda x: x.info,
-                # lambda x: x.gt,
-                # lambda x: x.gq,
-            ]
-        )
+        return set(self.fmt_name(x) for x in [lambda x: x.filter, lambda x: x.info])
 
     def field_feature_names(self, format_fields: set[str]) -> set[FeatureKey]:
         return set(self.fmt_feature(f) for f in format_fields)
@@ -747,15 +704,7 @@ class VCFGroup(_FeatureGroup):
     def feature_names(self, format_fields: set[str]) -> set[FeatureKey]:
         return (
             self.str_feature_names
-            | set(
-                self.fmt_name(x)
-                for x in [
-                    lambda x: x.qual,
-                    # lambda x: x.dp,
-                    # lambda x: x.vaf,
-                    lambda x: x.len,
-                ]
-            )
+            | set(self.fmt_name(x) for x in [lambda x: x.qual, lambda x: x.len])
             | self.field_feature_names(format_fields)
         )
 
@@ -805,7 +754,6 @@ class HomopolyGroup(_FeatureGroup):
         )
 
 
-# TODO need to get this in terms of the classes from the reference
 class RMSKGroup(_FeatureGroup):
     "Feature and column names for repeat masker dataframes"
     prefix: FeaturePrefix = "REPMASK"
@@ -825,8 +773,8 @@ class RMSKGroup(_FeatureGroup):
             return FeatureKey(self.fmt_name(f, grp, fam))
 
         return set(
-            *[fmt(c, None) for c in f.class_families],
-            *[fmt(c, f) for c, fs in f.class_families.items() for f in fs],
+            [fmt(c, None) for c in f.class_families]
+            + [fmt(c, f) for c, fs in f.class_families.items() for f in fs]
         )
 
 
@@ -980,25 +928,6 @@ class VariableGroup(_FeatureGroup):
         return {self.fmt_feature(k): self._parse_var(k, v) for k, v in kvs.items()}
 
 
-# class FormatFields(_BaseModel):
-#     "Specifies the names of fields in the FORMAT column of a VCF file"
-#     vaf: str | None = "VAF"
-#     dp: str | None = "DP"
-#     gt: str | None = "GT"
-#     gq: str | None = "GQ"
-
-#     def vcf_fields(self, vcf: VCFGroup) -> dict[PandasColumn, str | None]:
-#         return {
-#             PandasColumn(vcf.fmt_name(f)): v
-#             for f, v in [
-#                 (lambda x: x.vaf, self.vaf),
-#                 (lambda x: x.dp, self.dp),
-#                 (lambda x: x.gt, self.gt),
-#                 (lambda x: x.gq, self.gq),
-#             ]
-#         }
-
-
 class FormatField(_BaseModel):
     """Means to parse a field in the FORMAT/SAMPLE columns of a VCF.
 
@@ -1027,13 +956,6 @@ class UnlabeledVCFQuery(VCFFile):
         "GQ": FormatField(field_name="GQ"),
     }
 
-    # @property
-    # def field_names(self) -> set[str]:
-    #     return set(self.format_fields)
-
-    # def vcf_fields(self, vcf: VCFGroup) -> dict[PandasColumn, str | None]:
-    #     return {PandasColumn(vcf.fmt_name(f)): v for f, v in self.format_fields.items()}
-
 
 class LabeledVCFQuery(UnlabeledVCFQuery):
     "A vcf to be used as the query for a model with labels (requires benchmark)."
@@ -1043,7 +965,7 @@ class LabeledVCFQuery(UnlabeledVCFQuery):
 VCFQuery = UnlabeledVCFQuery | LabeledVCFQuery
 
 
-class FeatureNames(_BaseModel):
+class FeatureDefs(_BaseModel):
     "Defines valid feature names to be specified in models"
     label: NonEmptyStr = "label"
     vcf: VCFGroup = VCFGroup()
@@ -1104,17 +1026,72 @@ def assert_keypattern(x: str) -> None:
     assert re.fullmatch(KEY_CONSTR, x), f"key '{x}' does not match {KEY_CONSTR}"
 
 
+LabeledQueryMap = dict[LabeledQueryKey, LabeledVCFQuery]
+UnlabeledQueryMap = dict[UnlabeledQueryKey, UnlabeledVCFQuery]
+RefMap = dict[RefKey, Reference]
+RefsetMap = dict[RefsetKey, Refset]
+ModelMap = dict[ModelKey, Model]
+
+
 class StratoMod(_BaseModel):
     "Root config for the stratomod pipeline."
 
     paths: Paths
     tools: Tools
-    references: dict[RefKey, Reference]
-    feature_definitions: FeatureNames
-    reference_sets: dict[RefsetKey, Refset]
+    references: RefMap
+    feature_definitions: FeatureDefs
+    reference_sets: RefsetMap
     labeled_queries: LabeledQueries
     unlabeled_queries: UnlabeledQueries
-    models: dict[ModelKey, Model]
+    models: ModelMap
+
+    @classmethod
+    def _lookup_vcfquery(
+        cls,
+        labeled: dict[LabeledQueryKey, LabeledVCFQuery],
+        unlabeled: dict[UnlabeledQueryKey, UnlabeledVCFQuery],
+        k: QueryKey,
+    ) -> VCFQuery:
+        try:
+            return labeled[cast(LabeledQueryKey, k)]
+        except KeyError:
+            return unlabeled[cast(UnlabeledQueryKey, k)]
+
+    @classmethod
+    def _merge_feature_names(
+        cls,
+        fs: FeatureDefs,
+        lm: LabeledQueryMap,
+        um: UnlabeledQueryMap,
+        rm: RefMap,
+        rsm: RefsetMap,
+        ks: list[QueryKey],
+    ) -> set[FeatureKey]:
+        def to_keys(f: Callable[[QueryKey], set[FeatureKey]]) -> set[FeatureKey]:
+            return set.intersection(*[f(k) for k in ks])
+
+        def querykey_to_vcf(k: QueryKey) -> set[FeatureKey]:
+            x = set(cls._lookup_vcfquery(lm, um, k).format_fields)
+            return fs.vcf.feature_names(x)
+
+        def querykey_to_rmsk(k: QueryKey) -> set[FeatureKey]:
+            rsk = cls._lookup_vcfquery(lm, um, k).refset
+            rk = rsm[rsk].ref
+            rmsk = rm[rk].feature_data.repeat_masker
+            return fs.repeat_masker.feature_names(rmsk)
+
+        vcf_features = to_keys(querykey_to_vcf)
+        rmsk_features = to_keys(querykey_to_rmsk)
+
+        return (
+            vcf_features
+            | rmsk_features
+            | fs.mappability.feature_names()
+            | fs.homopolymers.feature_names()
+            | fs.segdups.feature_names()
+            | fs.tandem_repeats.feature_names()
+            | fs.variables.feature_names()
+        )
 
     @validator("reference_sets", each_item=True)
     def refsets_have_valid_refkeys(
@@ -1123,7 +1100,7 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> Refset:
         try:
-            assert_member(v.ref, values["references"])
+            assert_member(v.ref, list(cast(RefMap, values["references"])))
             assert_keypattern(v.ref)
         except KeyError:
             pass
@@ -1136,7 +1113,7 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> VCFQuery:
         try:
-            assert_member(v.refset, values["reference_sets"])
+            assert_member(v.refset, list(cast(RefsetMap, values["reference_sets"])))
             assert_keypattern(v.refset)
         except KeyError:
             pass
@@ -1149,7 +1126,7 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> VCFQuery:
         try:
-            var_root = cast(FeatureNames, values["feature_definitions"]).variables
+            var_root = cast(FeatureDefs, values["feature_definitions"]).variables
         except KeyError:
             pass
         else:
@@ -1164,14 +1141,14 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> LabeledVCFQuery:
         try:
-            refsets = values["reference_sets"]
-            refs = values["references"]
+            refsets = cast(RefsetMap, values["reference_sets"])
+            refs = cast(RefMap, values["references"])
         except KeyError:
             pass
         else:
             ref_key = refsets[v.refset].ref
             ref_benchmarks = refs[ref_key].benchmarks
-            assert_member(v.benchmark, ref_benchmarks)
+            assert_member(v.benchmark, list(ref_benchmarks))
             assert_keypattern(v.benchmark)
         return v
 
@@ -1183,7 +1160,7 @@ class StratoMod(_BaseModel):
     ) -> UnlabeledQueries:
         try:
             assert set(v).isdisjoint(
-                set(values["labeled_queries"])
+                set(cast(LabeledQueryMap, values["labeled_queries"]))
             ), "labeled and unlabeled query keys overlap"
         except KeyError:
             pass
@@ -1196,7 +1173,15 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> Model:
         try:
-            features = values["feature_defintions"].all_feature_names()
+            query_keys = list(v.train) + [t.query_key for t in v.test.values()]
+            features = cls._merge_feature_names(
+                cast(FeatureDefs, values["feature_definitions"]),
+                cast(LabeledQueryMap, values["labeled_queries"]),
+                cast(UnlabeledQueryMap, values["unlabeled_queries"]),
+                cast(RefMap, values["references"]),
+                cast(RefsetMap, values["reference_sets"]),
+                query_keys,
+            )
         except KeyError:
             pass
         else:
@@ -1233,9 +1218,11 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> Model:
         try:
-            train = [t for r in v.runs.values() for t in r.train]
-            assert_subset(set(train), set(values["labeled_queries"]))
-            for t in train:
+            assert_subset(
+                set(v.train),
+                set(cast(LabeledQueryMap, values["labeled_queries"])),
+            )
+            for t in v.train:
                 assert_keypattern(t)
         except KeyError:
             pass
@@ -1248,10 +1235,10 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> Model:
         try:
-            tests = [t.query_key for r in v.runs.values() for t in r.test.values()]
-            all_queries = set(values["labeled_queries"]) | set(
-                values["unlabeled_queries"]
-            )
+            tests = [t.query_key for t in v.test.values()]
+            ls = set(cast(LabeledQueryMap, values["labeled_queries"]))
+            us = set(cast(UnlabeledQueryMap, values["unlabeled_queries"]))
+            all_queries = ls | us
             assert_subset(set(tests), all_queries)
             for t in tests:
                 assert_keypattern(t)
@@ -1270,14 +1257,13 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> Model:
         try:
-            var_root = cast(FeatureNames, values["feature_definitions"]).variables
+            var_root = cast(FeatureDefs, values["feature_definitions"]).variables
         except KeyError:
             pass
         else:
             varpairs = [
                 (varname, varval)
-                for r in v.runs.values()
-                for t in r.test.values()
+                for t in v.test.values()
                 for varname, varval in t.variables.items()
             ]
             assert set([p[0] for p in varpairs]) == set(
@@ -1296,13 +1282,13 @@ class StratoMod(_BaseModel):
             assert_keypattern(k)
         return v
 
-    @validator("models", each_item=True)
-    def run_and_test_keys_are_valid(cls: Type[Self], v: Model) -> Model:
-        for rk, r in v.runs.items():
-            assert_keypattern(rk)
-            for tk in r.test:
-                assert_keypattern(tk)
-        return v
+    # @validator("models", each_item=True)
+    # def run_and_test_keys_are_valid(cls: Type[Self], v: Model) -> Model:
+    #     for rk, r in v.runs.items():
+    #         assert_keypattern(rk)
+    #         for tk in r.test:
+    #             assert_keypattern(tk)
+    #     return v
 
     # various mapping functions
 
@@ -1312,11 +1298,12 @@ class StratoMod(_BaseModel):
     def refsetkey_to_refset(self, key: RefsetKey) -> Refset:
         return self.reference_sets[key]
 
-    def _querykey_to_input(self, key: QueryKey) -> VCFQuery:
-        try:
-            return self.labeled_queries[cast(LabeledQueryKey, key)]
-        except KeyError:
-            return self.unlabeled_queries[cast(UnlabeledQueryKey, key)]
+    def _querykey_to_input(self, k: QueryKey) -> VCFQuery:
+        return self._lookup_vcfquery(
+            self.labeled_queries,
+            self.unlabeled_queries,
+            k,
+        )
 
     def refsetkey_to_refkey(self, key: RefsetKey) -> RefKey:
         return self.refsetkey_to_refset(key).ref
@@ -1383,32 +1370,22 @@ class StratoMod(_BaseModel):
     def testkey_to_variables(
         self,
         mkey: ModelKey,
-        rkey: RunKey,
         tkey: TestKey,
     ) -> dict[FeatureKey, float]:
-        test = self.models[mkey].runs[rkey].test[tkey]
+        test = self.models[mkey].test[tkey]
         qs = self.querykey_to_variables(test.query_key)
         return {**qs, **self.feature_definitions.variables.parse_vars(test.variables)}
 
-    def runkey_to_train_querykeys(
-        self,
-        mkey: ModelKey,
-        rkey: RunKey,
-    ) -> list[LabeledQueryKey]:
-        return [t for t in self.models[mkey].runs[rkey].train]
+    def modelkey_to_train_querykeys(self, mkey: ModelKey) -> list[LabeledQueryKey]:
+        return [t for t in self.models[mkey].train]
 
-    def runkey_to_test_querykeys(self, mkey: ModelKey, rkey: RunKey) -> list[QueryKey]:
-        return [t.query_key for t in self.models[mkey].runs[rkey].test.values()]
+    def modelkey_to_test_querykeys(self, mkey: ModelKey) -> list[QueryKey]:
+        return [t.query_key for t in self.models[mkey].test.values()]
 
-    def testkey_to_querykey(
-        self,
-        mkey: ModelKey,
-        rkey: RunKey,
-        tkey: TestKey,
-    ) -> QueryKey:
-        return self.models[mkey].runs[rkey].test[tkey].query_key
+    def testkey_to_querykey(self, mkey: ModelKey, tkey: TestKey) -> QueryKey:
+        return self.models[mkey].test[tkey].query_key
 
-    def runkey_to_feature_names(self, mk: ModelKey, rk: RunKey) -> set[FeatureKey]:
+    def modelkey_to_feature_names(self, mk: ModelKey) -> set[FeatureKey]:
         """Return features for a given run.
 
         For the most part, the total set of defined features is constant across
@@ -1418,36 +1395,17 @@ class StratoMod(_BaseModel):
         the field names together between all train and test keys.
 
         """
-        train = self.runkey_to_train_querykeys(mk, rk)
-        test = self.runkey_to_test_querykeys(mk, rk)
-        query_keys = train + test
-        vcf_features = set.intersection(
-            *[
-                self.feature_definitions.vcf.feature_names(
-                    set(self._querykey_to_input(k).format_fields)
-                )
-                for k in query_keys
-            ]
-        )
-        rmsk_features = set.intersection(
-            *[
-                self.feature_definitions.repeat_masker.feature_names(
-                    self.references[
-                        self.querykey_to_refkey(k)
-                    ].feature_data.repeat_masker
-                )
-                for k in query_keys
-            ]
-        )
-        defs = self.feature_definitions
-        return (
-            vcf_features
-            | rmsk_features
-            | defs.mappability.feature_names()
-            | defs.homopolymers.feature_names()
-            | defs.segdups.feature_names()
-            | defs.tandem_repeats.feature_names()
-            | defs.variables.feature_names()
+        train = self.modelkey_to_train_querykeys(mk)
+        test = self.modelkey_to_test_querykeys(mk)
+        query_key = train + test
+
+        return self._merge_feature_names(
+            self.feature_definitions,
+            self.labeled_queries,
+            self.unlabeled_queries,
+            self.references,
+            self.reference_sets,
+            query_key,
         )
 
     # src getters
@@ -1550,7 +1508,7 @@ class StratoMod(_BaseModel):
         return (
             self._result_or_log_dir(log)
             / "model"
-            / wildcard_format("{}-{}-{}", "model_key", "filter_key", "run_key")
+            / wildcard_format("{}-{}", "model_key", "vartype_key")
         )
 
     def model_test_res_dir(self, labeled: bool, log: bool) -> Path:
@@ -1566,18 +1524,17 @@ class StratoMod(_BaseModel):
     def querykey_is_labeled(self, k: QueryKey) -> bool:
         return k in self.labeled_queries
 
-    @property
-    def _all_runs(self) -> list[ModelRun]:
-        return [r for m in self.models.values() for r in m.runs.values()]
+    # @property
+    # def _all_runs(self) -> list[ModelRun]:
+    #     return [r for m in self.models.values() for r in m.runs.values()]
 
     @property
     def all_labeled_querykeys(self) -> set[LabeledQueryKey]:
-        runs = self._all_runs
-        train_keys = [k for r in runs for k in r.train]
+        train_keys = [k for m in self.models.values() for k in m.train]
         test_keys = [
             LabeledQueryKey(k)
-            for r in runs
-            for t in r.test.values()
+            for m in self.models.values()
+            for t in m.test.values()
             if self.querykey_is_labeled(k := t.query_key)
         ]
         return set(train_keys + test_keys)
@@ -1587,8 +1544,8 @@ class StratoMod(_BaseModel):
         return set(
             [
                 UnlabeledQueryKey(k)
-                for r in self._all_runs
-                for t in r.test.values()
+                for m in self.models.values()
+                for t in m.test.values()
                 if not self.querykey_is_labeled(k := t.query_key)
             ]
         )
@@ -1607,10 +1564,9 @@ class StratoMod(_BaseModel):
     @property
     def _all_model_combos(self) -> tuple[list[TrainKeyCombo], list[TestKeyCombo]]:
         models = [
-            (RunKeyCombo(model_key, filter_key, run_key), rest)
+            (ModelKeyCombo(model_key, vartype_key), model)
             for model_key, model in self.models.items()
-            for filter_key in model.filter
-            for run_key, rest in model.runs.items()
+            for vartype_key in model.vartypes
         ]
         train = [
             TrainKeyCombo(r, train_key)
@@ -1652,7 +1608,7 @@ class StratoMod(_BaseModel):
                 target,
                 zip,
                 model_key=map(lambda x: x.run_combo.model_key, key_set),
-                filter_key=map(lambda x: x.run_combo.filter_key.value, key_set),
+                vartype_key=map(lambda x: x.run_combo.vartype_key.value, key_set),
                 l_query_key=map(lambda x: x.labeled_query_key, key_set),
             )
 
@@ -1666,7 +1622,7 @@ class StratoMod(_BaseModel):
                 target,
                 zip,
                 model_key=map(lambda x: x.run_combo.model_key, key_set),
-                filter_key=map(lambda x: x.run_combo.filter_key.value, key_set),
+                vartype_key=map(lambda x: x.run_combo.vartype_key.value, key_set),
                 **{qkey: map(lambda x: x.query_key, key_set)},
             )
 
@@ -1709,8 +1665,7 @@ class StratoMod(_BaseModel):
                 path,
                 zip,
                 model_key=map(lambda x: x.run_combo.model_key, key_set),
-                filter_key=map(lambda x: x.run_combo.filter_key.value, key_set),
-                run_key=map(lambda x: x.run_combo.run_key, key_set),
+                vartype_key=map(lambda x: x.run_combo.vartype_key.value, key_set),
                 test_key=map(lambda x: x.test_key, key_set),
                 refset_key=all_refset_keys(train_set),
                 **{qkey: map(lambda x: x.query_key, key_set)},
@@ -1722,8 +1677,7 @@ class StratoMod(_BaseModel):
             train_target,
             zip,
             model_key=map(lambda x: x.run_combo.model_key, train_set),
-            filter_key=map(lambda x: x.run_combo.filter_key.value, train_set),
-            run_key=map(lambda x: x.run_combo.run_key, train_set),
+            vartype_key=map(lambda x: x.run_combo.vartype_key.value, train_set),
         )
 
         # TODO these should eventually point to the test summary htmls

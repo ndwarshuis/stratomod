@@ -10,9 +10,9 @@ import scripts.python.common.config as cfg
 # annotate variants with features
 
 
-annotated_tsv = cfg.wildcard_ext("filter_key", "tsv.gz")
-annotated_log = cfg.wildcard_ext("filter_key", "log")
-annotated_bench = cfg.wildcard_ext("filter_key", "bench")
+annotated_tsv = cfg.wildcard_ext("vartype_key", "tsv.gz")
+annotated_log = cfg.wildcard_ext("vartype_key", "log")
+annotated_bench = cfg.wildcard_ext("vartype_key", "bench")
 
 
 def annotation_input(tsv_path, query_key):
@@ -79,8 +79,8 @@ use rule annotate_labeled_variants as annotate_unlabeled_variants with:
 ################################################################################
 # summarize annotated input
 
-summary_output = cfg.wildcard_format("{}_summary.html", "filter_key")
-summary_bench = cfg.wildcard_format("{}_summary.bench", "filter_key")
+summary_output = cfg.wildcard_format("{}_summary.html", "vartype_key")
+summary_bench = cfg.wildcard_format("{}_summary.bench", "vartype_key")
 
 
 rule summarize_labeled_annotated_variants:
@@ -125,16 +125,13 @@ rule prepare_train_data:
         # NOTE: name these inputs according to their labeled_query_keys so
         # they can be used in the script along with each file path
         unpack(
-            lambda wildcards: {
+            lambda w: {
                 k: expand(
                     rules.annotate_labeled_variants.output,
                     allow_missing=True,
                     l_query_key=k,
                 )
-                for k in config.runkey_to_train_querykeys(
-                    wildcards.model_key,
-                    wildcards.run_key,
-                )
+                for k in config.modelkey_to_train_querykeys(w.model_key)
             }
         ),
     output:
@@ -236,11 +233,10 @@ def test_data_input(annotated_path, key, wildcards):
     return {
         "annotated": expand(
             annotated_path,
-            filter_key=wildcards.filter_key,
+            vartype_key=wildcards.vartype_key,
             **{
                 key: config.testkey_to_querykey(
                     wildcards.model_key,
-                    wildcards.run_key,
                     wildcards.test_key,
                 )
             },
