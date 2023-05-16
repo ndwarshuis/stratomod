@@ -16,14 +16,14 @@ references:
     sdf:
       # The location of the referenece
       src:
-        url: https://s3.amazonaws.com/rtg-datasets/references/1000g_v37_phase2.sdf.zip
+        url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/references/GRCh37/hs37d5.fa.gz
 
       # The prefix used for chromosomes in this sdf.
       chr_prefix: ""
 
       # If true, the src block refers to a FASTA file; else it refers to an
       # SDF file as defined by rtg-tools
-      is_fasta: False
+      is_fasta: True
 
     # Any GIAB stratifications pertinant to this reference which will be used
     # for filtering out invalid variants
@@ -299,55 +299,51 @@ tools:
 # changes to the layout of these input files will require zillions of changes
 # that aren't worth exposing in a user-configurable fashion
 feature_definitions:
-  label: label
+  # label: label
 
-  vcf:
-    prefix: VCF
-    columns:
-      qual: QUAL
-      filter: FILTER
-      info: INFO
-      gt: GT
-      gq: GQ
-      dp: DP
-      vaf: VAF
-      len: indel_length
+  # vcf:
+  #   prefix: VCF
+  #   columns:
+  #     qual: QUAL
+  #     filter: FILTER
+  #     info: INFO
+  #     len: indel_length
 
-  mappability:
-    prefix: MAP
-    suffixes:
-      low: difficult_100bp
-      high: difficult_250bp
+  # mappability:
+  #   prefix: MAP
+  #   suffixes:
+  #     low: difficult_100bp
+  #     high: difficult_250bp
 
-  homopolymers:
-    prefix: HOMOPOL
-    bases: [A, T, G, C]
-    suffixes:
-      len: length
-      imp_frac: imperfect_frac
+  # homopolymers:
+  #   prefix: HOMOPOL
+  #   bases: [A, T, G, C]
+  #   suffixes:
+  #     len: length
+  #     imp_frac: imperfect_frac
 
-  repeat_masker:
-    prefix: REPMASK
+  # repeat_masker:
+  #   prefix: REPMASK
 
-  segdups:
-    prefix: SEGDUP
-    columns:
-      alignL: size
-      fracMatchIndel: identity
-    operations: [min, max, mean]
+  # segdups:
+  #   prefix: SEGDUP
+  #   columns:
+  #     alignL: size
+  #     fracMatchIndel: identity
+  #   operations: [min, max, mean]
 
-  tandem_repeats:
-    prefix: TR
-    columns:
-      period: unit_size
-      copyNum: unit_copies
-      perMatch: identity
-      perIndel: per_indel_mismatch
-      score: score
-    operations: [max, min, median]
+  # tandem_repeats:
+  #   prefix: TR
+  #   columns:
+  #     period: unit_size
+  #     copyNum: unit_copies
+  #     perMatch: identity
+  #     perIndel: per_indel_mismatch
+  #     score: score
+  #   operations: [max, min, median]
 
   variables:
-    prefix: VAR
+    # prefix: VAR
     continuous:
       coverage:
         lower: 1

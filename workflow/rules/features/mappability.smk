@@ -7,7 +7,7 @@ map_res = config.features_res_dir(log=False) / map_dir
 map_res_log = config.features_res_dir(log=True) / map_dir
 
 
-use rule download_labeled_query_vcf as download_mappability_high with:
+rule download_mappability_high:
     output:
         map_src / "high.bed.gz",
     log:
@@ -17,6 +17,8 @@ use rule download_labeled_query_vcf as download_mappability_high with:
     conda:
         "../../envs/utils.yml"
     localrule: True
+    script:
+        "../../scripts/python/bio/download_bed_or_vcf.py"
 
 
 use rule download_mappability_high as download_mappability_low with:

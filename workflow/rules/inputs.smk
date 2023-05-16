@@ -37,10 +37,10 @@ rule download_ref_sdf:
     log:
         config.ref_src_dir(log=True) / "download_ref.log",
     conda:
-        "../envs/utils.yml"
+        "../envs/bio.yml"
     localrule: True
     script:
-        "../scripts/python/bio/download_sdf.py"
+        "../scripts/python/bio/download_ref.py"
 
 
 use rule download_ref_sdf as download_ref_fasta with:
@@ -52,22 +52,25 @@ use rule download_ref_sdf as download_ref_fasta with:
     localrule: True
 
 
+def ref_input(wildcards):
+    rk = config.refsetkey_to_refkey(wildcards.refset_key)
+    path, key = (
+        (rules.download_ref_fasta.output, "fasta")
+        if config.references[rk].sdf.is_fasta
+        else (rules.download_ref_sdf.output, "sdf")
+    )
+    return {key: expand(path, ref_key=rk)}
+
+
 rule filter_sort_ref:
     input:
-        lambda w: expand(
-            rules.download_ref_fasta.output
-            if config.references[
-                (rk := config.refsetkey_to_refkey(w.refset_key))
-            ].sdf.is_fasta
-            else rules.download_ref_sdf.output,
-            ref_key=rk,
-        ),
+        unpack(ref_input),
     output:
-        config.refset_res_dir(log=False) / "ref.fasta",
+        config.refset_res_dir(log=False) / "ref.fa.gz",
     log:
         config.refset_res_dir(log=True) / "filter_sort_ref.log",
     conda:
-        ""
+        "../envs/bio.yml"
     script:
         "../scripts/python/bio/filter_sort_ref.py"
 
@@ -138,10 +141,10 @@ rule download_labeled_query_vcf:
     params:
         src=lambda w: config.labeled_queries[w.l_query_key].src,
     conda:
-        "../envs/utils.yml"
+        "../envs/bio.yml"
     localrule: True
     script:
-        "../scripts/python/bio/get_file.py"
+        "../scripts/python/bio/download_bed_or_vcf.py"
 
 
 use rule download_labeled_query_vcf as download_unlabeled_query_vcf with:
@@ -206,7 +209,7 @@ rule zip_labeled_query_vcf:
     output:
         rule_output_suffix("fix_refcall_query_vcf", "gz"),
     conda:
-        "../envs/utils.yml"
+        "../envs/bio.yml"
     shell:
         "bgzip -c {input} > {output}"
 
@@ -217,7 +220,7 @@ rule generate_query_tbi:
     output:
         rule_output_suffix("zip_labeled_query_vcf", "tbi"),
     conda:
-        "../envs/utils.yml"
+        "../envs/bio.yml"
     shell:
         "tabix -p vcf {input}"
 

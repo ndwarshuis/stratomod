@@ -16,7 +16,7 @@ log = setup_logging(snakemake.log[0])  # type: ignore
 
 
 def main(smk: Any, params: Any) -> None:
-    src = cast(params.src, cfg.FileSrc)
+    src = cast(cfg.FileSrc, params.src)
     opath = Path(smk.output[0])
     is_fasta = smk.params.is_fasta
 
@@ -80,4 +80,4 @@ def main(smk: Any, params: Any) -> None:
             exit(1)
 
 
-main(snakemake.output, snakemake.params)  # type: ignore
+main(snakemake, snakemake.params)  # type: ignore

@@ -29,7 +29,6 @@ def main(smk: Any, config: cfg.StratoMod) -> None:
 
     def merge_and_write_group(
         df: pd.DataFrame,
-        path: str,
         groupcol: str,
         clsname: str,
         famname: Optional[str] = None,
@@ -39,24 +38,18 @@ def main(smk: Any, config: cfg.StratoMod) -> None:
         merged = bt.from_dataframe(dropped).merge().to_dataframe(names=cfg.BED_COLS)
         col = config.feature_definitions.repeat_masker.fmt_name(src, clsname, famname)
         merged[col] = merged[cfg.BED_END] - merged[cfg.BED_START]
-        write_tsv(path, merged, header=True)
+        write_tsv(smk.output[0], merged, header=True)
 
-    def parse_output(path: str, key: str, df: pd.DataFrame) -> None:
-        s = key.split("_")
-        if len(s) == 1:
-            cls = s[0]
-            logger.info("Filtering/merging rmsk class %s", cls)
-            merge_and_write_group(df, path, CLASSCOL, cls)
-        elif len(s) == 2:
-            cls, fam = s
-            logger.info("Filtering/merging rmsk family %s/class %s", fam, cls)
-            merge_and_write_group(df, path, FAMCOL, cls, fam)
-        else:
-            assert False, f"Invalid family/class spec in path: {path}"
+    cls = smk.wildcards.rmsk_class
+    df = read_rmsk_df(smk.input[0])
 
-    rmsk_df = read_rmsk_df(smk.input[0])
-    for key, path in smk.output.items():
-        parse_output(path, key, rmsk_df)
+    try:
+        fam = smk.wildcards.rmsk_family
+        logger.info("Filtering/merging rmsk family %s/class %s", fam, cls)
+        merge_and_write_group(df, FAMCOL, cls, fam)
+    except AttributeError:
+        logger.info("Filtering/merging rmsk class %s", cls)
+        merge_and_write_group(df, CLASSCOL, cls)
 
 
 main(snakemake, snakemake.config)  # type: ignore

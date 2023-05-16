@@ -16,29 +16,27 @@ annotated_bench = cfg.wildcard_ext("filter_key", "bench")
 
 
 def annotation_input(tsv_path, query_key):
+    rsk = config.querykey_to_refsetkey(query_key)
+    rk = config.refsetkey_to_refkey(rsk)
     return {
-        "variants": expand(
-            tsv_path,
-            allow_missing=True,
-            refset_key=config.querykey_to_refsetkey(query_key),
-        ),
+        "variants": expand(tsv_path, allow_missing=True, refset_key=rsk),
         "features": [
+            *expand(rmsk_targets(rk), refset_key=rsk),
             *expand(
                 [
-                    *rules.get_repeat_masker_classes.output,
                     *rules.get_tandem_repeats.output,
                     rules.get_mappability.output.high,
                     rules.get_mappability.output.low,
                     *rules.get_segdups.output,
                 ],
                 allow_missing=True,
-                refset_key=config.querykey_to_refsetkey(query_key),
+                refset_key=rsk,
             ),
             *expand(
                 rules.get_homopolymers.output,
                 allow_missing=True,
                 base=cfg.Base.all(),
-                refset_key=config.querykey_to_refsetkey(query_key),
+                refset_key=rsk,
             ),
         ],
     }
@@ -97,8 +95,8 @@ rule summarize_labeled_annotated_variants:
     resources:
         mem_mb=cfg.attempt_mem_gb(16),
     params:
-        label_col=config.feature_names.label,
-        columns=config.feature_names.non_summary_cols,
+        label_col=config.feature_definitions.label,
+        columns=config.feature_definitions.non_summary_cols,
     script:
         "../scripts/rmarkdown/summary/input_summary.Rmd"
 
@@ -112,7 +110,7 @@ use rule summarize_labeled_annotated_variants as summarize_unlabeled_annotated_v
         config.annotated_res_dir(labeled=False, log=True) / summary_bench
     params:
         label_col=None,
-        columns=config.feature_names.non_summary_cols,
+        columns=config.feature_definitions.non_summary_cols,
 
 
 ################################################################################

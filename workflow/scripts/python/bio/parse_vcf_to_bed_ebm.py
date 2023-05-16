@@ -1,4 +1,4 @@
-from typing import NamedTuple, Optional, Any, Type, Callable, cast
+from typing import NamedTuple, Optional, Any, Type, Callable
 import pandas as pd
 import common.config as cfg
 from more_itertools import partition
@@ -57,13 +57,8 @@ def assign_format_sample_fields(
     # constant. If all fields are like the latter, our job is super easy and we
     # don't need to bother with zipping the FORMAT/SAMPLE columns
     fs = fields.items()
-    # mypy is being dumb...
-    parse_fields = [
-        (k, cast(cfg.FormatField, v)) for k, v in fs if isinstance(k, cfg.FormatField)
-    ]
-    const_fields = [
-        (k, cast(str | None, v)) for k, v in fs if not isinstance(k, cfg.FormatField)
-    ]
+    parse_fields = [(k, v) for k, v in fs if isinstance(v, cfg.FormatField)]
+    const_fields = [(k, v) for k, v in fs if not isinstance(v, cfg.FormatField)]
 
     log_split("parsed", len(parse_fields))
     log_split("constant", len(const_fields))
@@ -86,7 +81,7 @@ def assign_format_sample_fields(
         start: str,
         format: str,
         sample: str,
-    ) -> dict[str, str | None] | tuple[str, str]:
+    ) -> list[str | None] | tuple[str, str]:
         fs = format.split(":")
         ss = sample.split(":")
         # ASSUME any FORMAT/SAMPLE columns with different lengths are screwed
@@ -95,16 +90,16 @@ def assign_format_sample_fields(
         if len(fs) != len(ss):
             return (chrom, start)
         d = dict(zip(fs, ss))
-        return {
-            col: d[field.field_name] if field.field_name in d else field.field_missing
+        return [
+            d[field.field_name] if field.field_name in d else field.field_missing
             for col, field in parse_fields
-        }
+        ]
 
     parse_cols = [cfg.BED_CHROM, cfg.BED_START, FORMAT, SAMPLE]
 
     parsed = [parse(*r) for r in df[parse_cols].itertuples(index=False)]
 
-    parsed_records, errors = partition(lambda x: isinstance(x, dict), parsed)
+    errors, parsed_records = partition(lambda x: isinstance(x, list), parsed)
 
     if len(_errors := list(errors)) > 0:
         for chrom, start in _errors:
@@ -113,7 +108,13 @@ def assign_format_sample_fields(
             )
         exit(1)
 
-    return pd.concat([df, pd.DataFrame(parsed_records)], axis=1)
+    return pd.concat(
+        [
+            df.reset_index(drop=True),
+            pd.DataFrame(parsed_records, columns=[f[0] for f in parse_fields]),
+        ],
+        axis=1,
+    )
 
 
 def get_filter_mask(

@@ -617,7 +617,7 @@ class BedRegion(_BaseModel):
     @validator("end")
     def positive_region(cls, v: int, values: dict[Any, Any]) -> int:
         try:
-            start = cast(BedRegion, values["feature_names"]).start
+            start = cast(BedRegion, values["feature_definitions"]).start
         except KeyError:
             pass
         else:
@@ -786,7 +786,7 @@ class MapGroup(_FeatureGroup):
 class HomopolySuffixes(_BaseModel):
     "Suffixes corresponding to homopolymer regions"
     len: NonEmptyStr = "length"
-    imp_frac: NonEmptyStr = "imperfect_length"
+    imp_frac: NonEmptyStr = "imperfect_frac"
 
 
 class HomopolyGroup(_FeatureGroup):
@@ -942,6 +942,7 @@ class TandemRepeatGroup(MergedFeatureGroup[TandemRepeatColumns]):
 
 class VariableGroup(_FeatureGroup):
     "Feature and column names for vcf manually-assigned variable dataframes"
+    prefix: NonEmptyStr = "VAR"
     continuous: dict[VarKey, ContVar]
     categorical: dict[VarKey, CatVar]
 
@@ -1148,7 +1149,7 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> VCFQuery:
         try:
-            var_root = cast(FeatureNames, values["feature_names"]).variables
+            var_root = cast(FeatureNames, values["feature_definitions"]).variables
         except KeyError:
             pass
         else:
@@ -1195,7 +1196,7 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> Model:
         try:
-            features = values["feature_names"].all_feature_names()
+            features = values["feature_defintions"].all_feature_names()
         except KeyError:
             pass
         else:
@@ -1269,7 +1270,7 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> Model:
         try:
-            var_root = cast(FeatureNames, values["feature_names"]).variables
+            var_root = cast(FeatureNames, values["feature_definitions"]).variables
         except KeyError:
             pass
         else:

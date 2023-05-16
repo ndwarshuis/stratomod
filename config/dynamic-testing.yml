@@ -109,10 +109,10 @@ unlabeled_queries:
     chr_prefix: '' # isn't genomics wonderful?
     # don't include any of these fields since they are not defined in clinvar
     format_fields:
-      vaf: null
-      dp: null
-      gt: null
-      gq: null
+      VAF: null
+      DP: null
+      GT: null
+      GQ: null
     variables: {}
 
 # Model run specification. Each key represents a particular modul configuration.
