@@ -29,19 +29,18 @@ def read_tandem_repeats(
     rk = sconf.refsetkey_to_refkey(rsk)
     ss = sconf.references[rk].feature_data.tandem_repeats
     ocs = ss.other_cols
-    fmt_base = fconf.fmt_base_col
     fmt_col = fconf.fmt_col
-    perc_a_col = fmt_base(cfg.Base.A)
-    perc_t_col = fmt_base(cfg.Base.T)
-    perc_c_col = fmt_base(cfg.Base.C)
-    perc_g_col = fmt_base(cfg.Base.G)
-    unit_size_col = fmt_col(lambda x: x.period)
+    perc_a_col = cfg.PandasColumn(fconf.A[0])
+    perc_t_col = cfg.PandasColumn(fconf.T[0])
+    perc_c_col = cfg.PandasColumn(fconf.C[0])
+    perc_g_col = cfg.PandasColumn(fconf.G[0])
+    unit_size_col = fmt_col(lambda x: x.period)[0]
     feature_cols = {
         ocs.period: unit_size_col,
-        ocs.copy_num: fmt_col(lambda x: x.copyNum),
-        ocs.per_match: fmt_col(lambda x: x.perMatch),
-        ocs.per_indel: fmt_col(lambda x: x.perIndel),
-        ocs.score: fmt_col(lambda x: x.score),
+        ocs.copy_num: fmt_col(lambda x: x.copyNum)[0],
+        ocs.per_match: fmt_col(lambda x: x.perMatch)[0],
+        ocs.per_indel: fmt_col(lambda x: x.perIndel)[0],
+        ocs.score: fmt_col(lambda x: x.score)[0],
         ocs.per_A: perc_a_col,
         ocs.per_C: perc_c_col,
         ocs.per_G: perc_g_col,
@@ -50,10 +49,10 @@ def read_tandem_repeats(
     cs = sconf.refsetkey_to_chr_indices(rsk)
     df = read_bed(path, ss.params, feature_cols, cs)
     base_groups = [
-        (fconf.AT_name, perc_a_col, perc_t_col),
-        (fconf.AG_name, perc_a_col, perc_g_col),
-        (fconf.CT_name, perc_c_col, perc_t_col),
-        (fconf.GC_name, perc_c_col, perc_g_col),
+        (fconf.AT[0], perc_a_col, perc_t_col),
+        (fconf.AG[0], perc_a_col, perc_g_col),
+        (fconf.CT[0], perc_c_col, perc_t_col),
+        (fconf.GC[0], perc_c_col, perc_g_col),
     ]
     for double, single1, single2 in base_groups:
         df[double] = df[single1] + df[single2]
@@ -73,7 +72,7 @@ def merge_tandem_repeats(
 ) -> pd.DataFrame:
     bed, names = merge_and_apply_stats(fconf, df)
     merged_df = cast(pd.DataFrame, bed.slop(b=SLOP, g=gfile).to_dataframe(names=names))
-    len_col = fconf.length_name
+    len_col = fconf.length[0]
     merged_df[len_col] = merged_df[cfg.BED_END] - merged_df[cfg.BED_START] - SLOP * 2
     return merged_df
 

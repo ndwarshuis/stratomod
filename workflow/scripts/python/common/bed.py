@@ -116,7 +116,7 @@ def merge_and_apply_stats(
     # number
     full_opts = ["count", *opts]
     full_cols = [drop_n + 1, *cols]
-    full_headers = [*cfg.BED_COLS, fconf.fmt_count_feature(), *headers]
+    full_headers: list[str] = [*cfg.BED_COLS, fconf.count_feature[0], *headers]
 
     logging.info("Merging regions")
     # TODO there might be a way to make pybedtools echo what it is doing, but

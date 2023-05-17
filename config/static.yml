@@ -344,5 +344,7 @@ feature_definitions:
     categorical:
       seqtech:
         levels: ["PacBio HiFi", "Illumina"]
+        description: Sequencing tech used to produce the reads for the VCF file
       variant_caller:
         levels: ["DeepVariant"]
+        description: Variant caller used to produce the reads for the VCF file

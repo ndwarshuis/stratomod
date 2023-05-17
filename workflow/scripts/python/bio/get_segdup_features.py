@@ -28,8 +28,8 @@ def read_segdups(
     s = config.references[rk].feature_data.segdups
     ocs = s.other_cols
     feature_cols = {
-        ocs.align_L: fconf.fmt_col(lambda x: x.alignL),
-        ocs.frac_match_indel: fconf.fmt_col(lambda x: x.fracMatchIndel),
+        ocs.align_L: fconf.fmt_col(lambda x: x.alignL)[0],
+        ocs.frac_match_indel: fconf.fmt_col(lambda x: x.fracMatchIndel)[0],
     }
     cs = config.refsetkey_to_chr_indices(rsk)
     return read_bed(path, s.params, feature_cols, cs)

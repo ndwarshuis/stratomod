@@ -32,7 +32,7 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
         rconf.error_labels,
         rconf.filtered_are_candidates,
         [cfg.FeatureKey(c) for c in cfg.IDX_COLS],
-        cfg.FeatureKey(fconf.vcf.fmt_name(lambda x: x.filter)),
+        cfg.FeatureKey(fconf.vcf.fmt_name(lambda x: x.filter)[0]),
         cfg.FeatureKey(fconf.label_name),
         raw_df,
     )

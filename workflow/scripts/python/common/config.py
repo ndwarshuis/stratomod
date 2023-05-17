@@ -47,6 +47,7 @@ from snakemake.io import expand, InputFiles  # type: ignore
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import validator, HttpUrl, PositiveFloat, NonNegativeInt, Field, FilePath
 from enum import Enum, unique
+from collections import ChainMap
 
 
 # various types
@@ -77,6 +78,7 @@ QueryKey = UnlabeledQueryKey | LabeledQueryKey
 
 ChrPrefix = NewType("ChrPrefix", str)  # the "chr" (or something) prefix for chromosomes
 PandasColumn = NewType("PandasColumn", str)  # the name of a pandas column
+FeatureDesc = NewType("FeatureDesc", str)  # a description for a feature
 
 # enums to prevent runaway strings
 
@@ -322,11 +324,12 @@ class Refset(_BaseModel):
 class CatVar(_BaseModel):
     "A categorical VCF variable"
     levels: Annotated[list[str], Field(min_items=1, unique_items=True)]
+    description: FeatureDesc | None = None
 
 
 class ContVar(_Range):
     "A continuous VCF variable"
-    pass
+    description: FeatureDesc | None = None
 
 
 class TestDataQuery(_BaseModel):
@@ -678,12 +681,31 @@ class _FeatureGroup(_BaseModel):
         return FeatureKey(f"{self.prefix}_{rest}")
 
 
+class ColumnSpec(_BaseModel):
+    feature_name: NonEmptyStr
+    description: FeatureDesc
+
+
 class VCFColumns(_BaseModel):
     "Columns for a vcf file"
-    qual: NonEmptyStr = "QUAL"
-    filter: NonEmptyStr = "FILTER"
-    info: NonEmptyStr = "INFO"
-    len: NonEmptyStr = "indel_length"
+    qual: ColumnSpec = ColumnSpec(
+        feature_name="QUAL",
+        description=FeatureDesc("The value of the QUAL column in the VCF file"),
+    )
+    filter: ColumnSpec = ColumnSpec(
+        feature_name="FILTER",
+        description=FeatureDesc("The value of the FILTER column in the VCF file"),
+    )
+    info: ColumnSpec = ColumnSpec(
+        feature_name="INFO",
+        description=FeatureDesc("The value of the INFO column in the VCF file"),
+    )
+    len: ColumnSpec = ColumnSpec(
+        feature_name="indel_length",
+        description=FeatureDesc(
+            "The difference between the lengths of the ALT and REF columns in the VCF file."
+        ),
+    )
 
 
 class VCFGroup(_FeatureGroup):
@@ -691,22 +713,34 @@ class VCFGroup(_FeatureGroup):
     prefix: FeaturePrefix = "VCF"
     columns: VCFColumns = VCFColumns()
 
-    def fmt_name(self: Self, f: Callable[[VCFColumns], str]) -> FeatureKey:
-        return self.fmt_feature(f(self.columns))
+    def fmt_name(
+        self: Self,
+        f: Callable[[VCFColumns], ColumnSpec],
+    ) -> tuple[FeatureKey, FeatureDesc]:
+        c = f(self.columns)
+        return (self.fmt_feature(c.feature_name), c.description)
 
     @property
-    def str_feature_names(self) -> set[FeatureKey]:
-        return set(self.fmt_name(x) for x in [lambda x: x.filter, lambda x: x.info])
+    def str_features(self) -> dict[FeatureKey, FeatureDesc]:
+        return dict(self.fmt_name(x) for x in [lambda x: x.filter, lambda x: x.info])
 
-    def field_feature_names(self, format_fields: set[str]) -> set[FeatureKey]:
-        return set(self.fmt_feature(f) for f in format_fields)
+    def field_features(
+        self,
+        format_fields: set[str],
+    ) -> dict[FeatureKey, FeatureDesc]:
+        return {
+            self.fmt_feature(f): FeatureDesc(
+                f"The value of field '{f}' in the FORMAT/SAMPLE columns of the vcf"
+            )
+            for f in format_fields
+        }
 
-    def feature_names(self, format_fields: set[str]) -> set[FeatureKey]:
-        return (
-            self.str_feature_names
-            | set(self.fmt_name(x) for x in [lambda x: x.qual, lambda x: x.len])
-            | self.field_feature_names(format_fields)
-        )
+    def features(self, format_fields: set[str]) -> dict[FeatureKey, FeatureDesc]:
+        return {
+            **self.str_features,
+            **dict(self.fmt_name(x) for x in [lambda x: x.qual, lambda x: x.len]),
+            **self.field_features(format_fields),
+        }
 
 
 class MapSuffixes(_BaseModel):
@@ -728,8 +762,27 @@ class MapGroup(_FeatureGroup):
     def high(self) -> FeatureKey:
         return self.fmt_feature(self.suffixes.high)
 
-    def feature_names(self) -> set[FeatureKey]:
-        return {self.low, self.high}
+    @property
+    def features(self) -> dict[FeatureKey, FeatureDesc]:
+        return {
+            self.low: FeatureDesc(
+                (
+                    "A low hard-to-map region is a 100bp sequence which "
+                    "maps to at least one other region in the genome with "
+                    "at most two substitutions and one gap. This is a binary "
+                    "feature, so if a variant intersect with a low mappability "
+                    "region, it gets a 1, otherwise 0."
+                )
+            ),
+            self.high: FeatureDesc(
+                (
+                    "A high hard-to-map region is a 250bp sequence which "
+                    "exactly maps to at least one other region in the genome. "
+                    "This is a binary feature, so if a variant intersect with "
+                    "a low mappability region, it gets a 1, otherwise 0."
+                )
+            ),
+        }
 
 
 class HomopolySuffixes(_BaseModel):
@@ -747,11 +800,26 @@ class HomopolyGroup(_FeatureGroup):
     def fmt_name(self, b: Base, f: Callable[[HomopolySuffixes], str]) -> FeatureKey:
         return self.fmt_feature(f"{b.value}_{f(self.suffixes)}")
 
-    def feature_names(self) -> set[FeatureKey]:
-        return set(
-            self.fmt_name(b, f)
-            for f, b in product([lambda x: x.len, lambda x: x.imp_frac], self.bases)
-        )
+    @property
+    def features(self) -> dict[FeatureKey, FeatureDesc]:
+        def fmt_len(b: Base) -> FeatureDesc:
+            return FeatureDesc(
+                (
+                    f"The length of a {b.value} homopolymer."
+                    "This includes all homopolymers of the same base as well "
+                    f"as 'imperfect homopolymers' which have non-{b.value}s "
+                    "separated by at least 4bp. Note that minimum length of "
+                    "a homopolymer is 4bp."
+                )
+            )
+
+        def fmt_imp_frac(b: Base) -> FeatureDesc:
+            return FeatureDesc(
+                f"The number of of non-{b.value}s over the length of the homopolymer."
+            )
+
+        fs = [(lambda x: x.len, fmt_len), (lambda x: x.imp_frac, fmt_imp_frac)]
+        return {self.fmt_name(b, nf): df(b) for (nf, df), b in product(fs, self.bases)}
 
 
 class RMSKGroup(_FeatureGroup):
@@ -768,52 +836,97 @@ class RMSKGroup(_FeatureGroup):
         rest = maybe(grp, lambda f: f"{grp}_{fam}", fam)
         return PandasColumn(self.fmt_feature(f"{rest}_length"))
 
-    def feature_names(self, f: RMSKFile) -> set[FeatureKey]:
-        def fmt(grp: str, fam: str | None) -> FeatureKey:
-            return FeatureKey(self.fmt_name(f, grp, fam))
+    def features(self, f: RMSKFile) -> dict[FeatureKey, FeatureDesc]:
+        def fmt(cls: str, fam: str | None) -> tuple[FeatureKey, FeatureDesc]:
+            k = FeatureKey(self.fmt_name(f, cls, fam))
+            d = (
+                FeatureDesc(f"The length of an intersecting region in class '{cls}'")
+                if fam is not None
+                else FeatureDesc(
+                    f"The length of an intersecting region from family '{fam}' in class '{cls}'"
+                )
+            )
+            return (k, d)
 
-        return set(
+        return dict(
             [fmt(c, None) for c in f.class_families]
             + [fmt(c, f) for c, fs in f.class_families.items() for f in fs]
         )
 
 
+DescribedFeature = tuple[FeatureKey, FeatureDesc]
+DescribedColumn = tuple[PandasColumn, FeatureDesc]
+
+
 class MergedFeatureGroup(_FeatureGroup, Generic[X]):
     "Superclass for feature group which supports bedtools merge"
     operations: set[BedMergeOp]
+    description: NonEmptyStr = "segmental duplications"
     columns: X
 
-    def fmt_col(self, f: Callable[[X], str]) -> PandasColumn:
-        return PandasColumn(self.fmt_feature(f(self.columns)))
+    @property
+    def count_feature(self) -> DescribedFeature:
+        return (
+            FeatureKey(self.fmt_feature("count")),
+            FeatureDesc(
+                f"The number of overlapping {self.description} regions used to make this feature."
+            ),
+        )
 
-    def fmt_count_feature(self) -> FeatureKey:
-        return self.fmt_feature("count")
+    def fmt_col(self, f: Callable[[X], ColumnSpec]) -> tuple[PandasColumn, FeatureDesc]:
+        c = f(self.columns)
+        return (PandasColumn(self.fmt_feature(c.feature_name)), c.description)
 
     def fmt_merged_feature(self, middle: str, op: BedMergeOp) -> FeatureKey:
         return FeatureKey(f"{middle}_{op.value}")
 
-    def merged_feature_col_names(
+    # TODO generalize this so it can take any sequence rather than a hardcoded
+    # dict?
+    def ops_product(
         self,
-        fs: list[Callable[[X], str]],
-    ) -> set[FeatureKey]:
-        return self.merged_feature_names([self.fmt_col(f) for f in fs])
+        xs: dict[FeatureKey, FeatureDesc],
+    ) -> dict[FeatureKey, FeatureDesc]:
+        return {
+            FeatureKey(f"{f}_{o.value}"): FeatureDesc(f"{d} ({o.value})")
+            for (f, d), o in product(xs.items(), self.operations)
+        }
 
-    def merged_feature_names(self, names: list[PandasColumn]) -> set[FeatureKey]:
-        return set(
+    def merged_features(
+        self,
+        column_getters: list[Callable[[X], ColumnSpec]],
+        other_columns: dict[FeatureKey, FeatureDesc] = {},
+    ) -> dict[FeatureKey, FeatureDesc]:
+        cs = dict(
             [
-                *[
-                    self.fmt_merged_feature(n, o)
-                    for n, o in product(names, self.operations)
-                ],
-                self.fmt_count_feature(),
+                (FeatureKey(self.fmt_feature(c.feature_name)), c.description)
+                for c in [f(self.columns) for f in column_getters]
             ]
         )
+        cnt = self.count_feature
+        return {**self.ops_product({**cs, **other_columns}), cnt[0]: cnt[1]}
 
 
 class SegDupsColumns(_BaseModel):
     "Columns corresponding to the superdups files"
-    alignL: NonEmptyStr = "size"
-    fracMatchIndel: NonEmptyStr = "identity"
+    alignL: ColumnSpec = ColumnSpec(
+        feature_name="size",
+        description=FeatureDesc(
+            (
+                "The fraction (a float between 0 and 1) between this "
+                "segmental duplication and another in a different part "
+                "of the genome. Corresponds to 'alignL' in superdups database."
+            )
+        ),
+    )
+    fracMatchIndel: ColumnSpec = ColumnSpec(
+        feature_name="identity",
+        description=FeatureDesc(
+            (
+                "Spaces/positions in the alignment (positive integer). "
+                "Corresponds to 'fracMatchIndel' in superdups database."
+            )
+        ),
+    )
 
 
 class SegDupsGroup(MergedFeatureGroup[SegDupsColumns]):
@@ -821,20 +934,45 @@ class SegDupsGroup(MergedFeatureGroup[SegDupsColumns]):
     prefix: FeaturePrefix = "SEGDUP"
     columns: SegDupsColumns = SegDupsColumns()
     operations: set[BedMergeOp] = {BedMergeOp.MIN, BedMergeOp.MAX, BedMergeOp.MEAN}
+    description: NonEmptyStr = "segmental duplications"
 
-    def feature_names(self) -> set[FeatureKey]:
-        return self.merged_feature_col_names(
-            [lambda x: x.alignL, lambda x: x.fracMatchIndel]
-        )
+    @property
+    def features(self) -> dict[FeatureKey, FeatureDesc]:
+        return self.merged_features([lambda x: x.alignL, lambda x: x.fracMatchIndel])
 
 
 class TandemRepeatColumns(_BaseModel):
     "Columns corresponding to the simple_repeats files"
-    period: NonEmptyStr = "unit_size"
-    copyNum: NonEmptyStr = "unit_copies"
-    perMatch: NonEmptyStr = "identity"
-    perIndel: NonEmptyStr = "per_indel_mismatch"
-    score: NonEmptyStr = "score"
+    period: ColumnSpec = ColumnSpec(
+        feature_name="unit_size",
+        description=FeatureDesc(
+            "Length of the repeat unit. Corresponds to 'period' in TRF."
+        ),
+    )
+    copyNum: ColumnSpec = ColumnSpec(
+        feature_name="unit_copies",
+        description=FeatureDesc(
+            "Mean number of copies of the repeated unit. Corresponds to 'copyNum' in TRF."
+        ),
+    )
+    perMatch: ColumnSpec = ColumnSpec(
+        feature_name="identity",
+        description=FeatureDesc(
+            "Percentage match (integer between 0 and 100). Corresponds to 'perMatch' in TRF."
+        ),
+    )
+    perIndel: ColumnSpec = ColumnSpec(
+        feature_name="per_indel_mismatch",
+        description=FeatureDesc(
+            "Percentage INDEL (integer between 0 and 100). Corresponds to 'perIndel' in TRF."
+        ),
+    )
+    score: ColumnSpec = ColumnSpec(
+        feature_name="score",
+        description=FeatureDesc(
+            "Alignment score (integer with minimum of 50). Corresponds to 'score' in TRF."
+        ),
+    )
 
 
 class TandemRepeatGroup(MergedFeatureGroup[TandemRepeatColumns]):
@@ -843,49 +981,75 @@ class TandemRepeatGroup(MergedFeatureGroup[TandemRepeatColumns]):
     columns: TandemRepeatColumns = TandemRepeatColumns()
     operations: set[BedMergeOp] = {BedMergeOp.MIN, BedMergeOp.MAX, BedMergeOp.MEDIAN}
 
-    def _base_name(self, base: str) -> PandasColumn:
-        return PandasColumn(self.fmt_feature(f"percent_{base}"))
+    def _base_name(self, bs: list[Base]) -> DescribedFeature:
+        b = "".join(b.value for b in bs)
+        f = self.fmt_feature(f"percent_{b}")
+        d = f"The percentage of {b} in the repeat (integer from 0 to 100)."
+        return (FeatureKey(f), FeatureDesc(d))
 
     @property
-    def AT_name(self) -> PandasColumn:
-        return self._base_name("AT")
+    def A(self) -> DescribedFeature:
+        return self._base_name([Base.A])
 
     @property
-    def GC_name(self) -> PandasColumn:
-        return self._base_name("GC")
+    def T(self) -> DescribedFeature:
+        return self._base_name([Base.T])
 
     @property
-    def AG_name(self) -> PandasColumn:
-        return self._base_name("AG")
+    def C(self) -> DescribedFeature:
+        return self._base_name([Base.C])
 
     @property
-    def CT_name(self) -> PandasColumn:
-        return self._base_name("CT")
+    def G(self) -> DescribedFeature:
+        return self._base_name([Base.G])
 
     @property
-    def length_name(self) -> PandasColumn:
-        return PandasColumn(self.fmt_feature("length"))
+    def AT(self) -> DescribedFeature:
+        return self._base_name([Base.A, Base.T])
 
-    def fmt_base_col(self, b: Base) -> PandasColumn:
-        return self._base_name(b.value)
+    @property
+    def GC(self) -> DescribedFeature:
+        return self._base_name([Base.G, Base.C])
 
-    def feature_names(self) -> set[FeatureKey]:
-        single_base = [self.fmt_base_col(b) for b in Base]
-        # lombardo quit to become a bioinformatician...
-        double_base = [self.AT_name, self.GC_name, self.AG_name, self.CT_name]
-        noncols = self.merged_feature_names(
-            single_base + double_base + [self.length_name]
+    @property
+    def AG(self) -> DescribedFeature:
+        return self._base_name([Base.A, Base.G])
+
+    @property
+    def CT(self) -> DescribedFeature:
+        return self._base_name([Base.C, Base.T])
+
+    @property
+    def length(self) -> DescribedFeature:
+        return (
+            FeatureKey(self.fmt_feature("length")),
+            FeatureDesc("The length of the this merged region of tandem repeats"),
         )
-        cols = self.merged_feature_col_names(
+
+    @property
+    def features(self) -> dict[FeatureKey, FeatureDesc]:
+        return self.merged_features(
             [
                 lambda x: x.period,
                 lambda x: x.copyNum,
                 lambda x: x.perMatch,
                 lambda x: x.perIndel,
                 lambda x: x.score,
-            ]
+            ],
+            dict(
+                [
+                    self.A,
+                    self.T,
+                    self.G,
+                    self.C,
+                    self.AT,
+                    self.AG,
+                    self.CT,
+                    self.GC,
+                    self.length,
+                ]
+            ),
         )
-        return noncols | cols
 
 
 class VariableGroup(_FeatureGroup):
@@ -908,11 +1072,19 @@ class VariableGroup(_FeatureGroup):
         else:
             assert False, f"'{varname}' not a valid variable name"
 
+    @property
     def all_keys(self) -> list[VarKey]:
         return list(self.continuous) + list(self.categorical)
 
-    def feature_names(self) -> set[FeatureKey]:
-        return set(self.fmt_feature(x) for x in self.all_keys())
+    @property
+    def features(self) -> dict[FeatureKey, FeatureDesc]:
+        # return dict(self.fmt_feature(x) for x in self.all_keys())
+        conts = [(k, v.description) for k, v in self.continuous.items()]
+        cats = [(k, v.description) for k, v in self.categorical.items()]
+        return {
+            self.fmt_feature(f): FeatureDesc("<No description>") if d is None else d
+            for f, d in conts + cats
+        }
 
     # ASSUME we don't need to check the incoming varkeys or varvals since they
     # will be validated on model creation
@@ -983,7 +1155,7 @@ class FeatureDefs(_BaseModel):
     @property
     def non_summary_cols(self) -> list[PandasColumn]:
         return [PandasColumn(c) for c in BED_COLS] + [
-            PandasColumn(x) for x in self.vcf.str_feature_names
+            PandasColumn(x) for x in self.vcf.str_features
         ]
 
 
@@ -1058,6 +1230,43 @@ class StratoMod(_BaseModel):
             return unlabeled[cast(UnlabeledQueryKey, k)]
 
     @classmethod
+    def _merge_features(
+        cls,
+        fs: FeatureDefs,
+        lm: LabeledQueryMap,
+        um: UnlabeledQueryMap,
+        rm: RefMap,
+        rsm: RefsetMap,
+        ks: list[QueryKey],
+    ) -> dict[FeatureKey, FeatureDesc]:
+        def to_keys(
+            f: Callable[[QueryKey], dict[FeatureKey, FeatureDesc]]
+        ) -> dict[FeatureKey, FeatureDesc]:
+            return dict(ChainMap(*[f(k) for k in ks]))
+
+        def querykey_to_vcf(k: QueryKey) -> dict[FeatureKey, FeatureDesc]:
+            x = set(cls._lookup_vcfquery(lm, um, k).format_fields)
+            return fs.vcf.features(x)
+
+        def querykey_to_rmsk(k: QueryKey) -> dict[FeatureKey, FeatureDesc]:
+            rsk = cls._lookup_vcfquery(lm, um, k).refset
+            rk = rsm[rsk].ref
+            rmsk = rm[rk].feature_data.repeat_masker
+            return fs.repeat_masker.features(rmsk)
+
+        vcf_features = to_keys(querykey_to_vcf)
+        rmsk_features = to_keys(querykey_to_rmsk)
+        return {
+            **vcf_features,
+            **rmsk_features,
+            **fs.mappability.features,
+            **fs.homopolymers.features,
+            **fs.segdups.features,
+            **fs.tandem_repeats.features,
+            **fs.variables.features,
+        }
+
+    @classmethod
     def _merge_feature_names(
         cls,
         fs: FeatureDefs,
@@ -1067,31 +1276,7 @@ class StratoMod(_BaseModel):
         rsm: RefsetMap,
         ks: list[QueryKey],
     ) -> set[FeatureKey]:
-        def to_keys(f: Callable[[QueryKey], set[FeatureKey]]) -> set[FeatureKey]:
-            return set.intersection(*[f(k) for k in ks])
-
-        def querykey_to_vcf(k: QueryKey) -> set[FeatureKey]:
-            x = set(cls._lookup_vcfquery(lm, um, k).format_fields)
-            return fs.vcf.feature_names(x)
-
-        def querykey_to_rmsk(k: QueryKey) -> set[FeatureKey]:
-            rsk = cls._lookup_vcfquery(lm, um, k).refset
-            rk = rsm[rsk].ref
-            rmsk = rm[rk].feature_data.repeat_masker
-            return fs.repeat_masker.feature_names(rmsk)
-
-        vcf_features = to_keys(querykey_to_vcf)
-        rmsk_features = to_keys(querykey_to_rmsk)
-
-        return (
-            vcf_features
-            | rmsk_features
-            | fs.mappability.feature_names()
-            | fs.homopolymers.feature_names()
-            | fs.segdups.feature_names()
-            | fs.tandem_repeats.feature_names()
-            | fs.variables.feature_names()
-        )
+        return set(cls._merge_features(fs, lm, um, rm, rsm, ks))
 
     @validator("reference_sets", each_item=True)
     def refsets_have_valid_refkeys(
@@ -1267,7 +1452,7 @@ class StratoMod(_BaseModel):
                 for varname, varval in t.variables.items()
             ]
             assert set([p[0] for p in varpairs]) == set(
-                var_root.all_keys()
+                var_root.all_keys
             ), "missing variables"
             for varname, varval in varpairs:
                 var_root.validate_variable(varname, varval)

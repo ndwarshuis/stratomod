@@ -208,8 +208,8 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
     fconf = sconf.feature_definitions
     iconf = sconf._querykey_to_input(smk.params.query_key)
 
-    def fmt(f: Callable[[cfg.VCFColumns], str]) -> cfg.PandasColumn:
-        return cfg.PandasColumn(fconf.vcf.fmt_name(f))
+    def fmt(f: Callable[[cfg.VCFColumns], cfg.ColumnSpec]) -> cfg.PandasColumn:
+        return cfg.PandasColumn(fconf.vcf.fmt_name(f)[0])
 
     qual = fmt(lambda x: x.qual)
     info = fmt(lambda x: x.info)
