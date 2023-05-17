@@ -418,8 +418,6 @@ rule parse_labeled_vcf:
         "../envs/bio.yml"
     params:
         query_key=lambda wildcards: wildcards.l_query_key,
-    resources:
-        mem_mb=cfg.attempt_mem_gb(2),
     script:
         "../scripts/python/bio/parse_vcf_to_bed_ebm.py"
 
@@ -443,8 +441,6 @@ rule concat_labeled_tsvs:
         config.query_parsed_res_dir(labeled=True, log=True) / cfg.wildcard_format(
             "{}_concat.bench", "vartype_key"
         )
-    resources:
-        mem_mb=cfg.attempt_mem_gb(4),
     script:
         "../scripts/python/bio/concat_tsv.py"
 
@@ -469,8 +465,6 @@ use rule parse_labeled_vcf as parse_unlabeled_vcf with:
     log:
         config.query_parsed_res_dir(labeled=False, log=True) / unlabeled_file("log"),
     params:
-        query_key=lambda wildcards: wildcards.ul_query_key,
-    resources:
-        mem_mb=cfg.attempt_mem_gb(2),
+        query_key=lambda w: w.ul_query_key,
     benchmark:
         config.query_parsed_res_dir(labeled=False, log=True) / unlabeled_file("bench")

@@ -1,5 +1,3 @@
-from scripts.python.common.config import attempt_mem_gb
-
 rmsk_dir = "repeat_masker"
 
 rmsk_res = config.features_res_dir(log=False) / rmsk_dir
@@ -36,8 +34,6 @@ rule get_repeat_masker_classes:
         rmsk_log / class_file("bench")
     conda:
         "../../envs/bio.yml"
-    resources:
-        mem_mb=attempt_mem_gb(2),
     wildcard_constraints:
         rmsk_class=rmsk_wc_constraint,
     script:

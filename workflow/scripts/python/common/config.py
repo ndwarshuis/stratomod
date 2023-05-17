@@ -1918,11 +1918,3 @@ class StratoMod(_BaseModel):
     # but not all will convert to R types (eg enum, which is silly)
     def items(self: Self) -> Any:
         return {}.items()
-
-
-# other random functions
-
-
-def attempt_mem_gb(mem_gb: int) -> Callable[[dict[str, str], int], int]:
-    # double initial memory on each attempt
-    return lambda _, attempt: cast(int, mem_gb * 1000 * 2 ** (attempt - 1))

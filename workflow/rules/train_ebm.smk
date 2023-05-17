@@ -55,8 +55,6 @@ rule annotate_labeled_variants:
         config.annotated_res_dir(labeled=True, log=True) / annotated_log,
     benchmark:
         config.annotated_res_dir(labeled=True, log=True) / annotated_bench
-    resources:
-        mem_mb=cfg.attempt_mem_gb(32),
     script:
         "../scripts/python/bio/annotate_variants.py"
 
@@ -92,8 +90,6 @@ rule summarize_labeled_annotated_variants:
         "../envs/summary.yml"
     benchmark:
         config.annotated_res_dir(labeled=True, log=True) / summary_bench
-    resources:
-        mem_mb=cfg.attempt_mem_gb(16),
     params:
         label_col=config.feature_definitions.label,
         columns=config.feature_definitions.non_summary_cols,
@@ -140,8 +136,6 @@ rule prepare_train_data:
         config.model_train_res_dir(log=True) / "prepare.log",
     benchmark:
         config.model_train_res_dir(log=True) / "prepare.bench"
-    resources:
-        mem_mb=cfg.attempt_mem_gb(8),
     conda:
         "../envs/bio.yml"
     script:
@@ -168,10 +162,6 @@ rule train_model:
     log:
         config.model_train_res_dir(log=True) / "model.log",
     threads: 1
-    # ASSUME total memory is proportional the number of EBMs that are trained in
-    # parallel (see outer_bags parameter in the EBM function call)
-    resources:
-        mem_mb=lambda wildcards, threads, attempt: 16000 * threads * 2 ** (attempt - 1),
     benchmark:
         config.model_train_res_dir(log=True) / "model.bench"
     script:
@@ -190,8 +180,6 @@ rule decompose_model:
         "../envs/ebm.yml"
     log:
         config.model_train_res_dir(log=True) / "decompose.log",
-    resources:
-        mem_mb=cfg.attempt_mem_gb(2),
     script:
         "../scripts/python/ebm/decompose_model.py"
 
@@ -207,8 +195,6 @@ rule summarize_model:
         "../envs/summary.yml"
     benchmark:
         config.model_train_res_dir(log=True) / "summary.bench"
-    resources:
-        mem_mb=cfg.attempt_mem_gb(8),
     params:
         # TODO this is because we can't convert enums yet
         features=lambda wildcards: {
@@ -262,8 +248,6 @@ rule prepare_labeled_test_data:
         config.model_test_res_dir(labeled=True, log=True) / prepare_log_file,
     benchmark:
         config.model_test_res_dir(labeled=True, log=True) / prepare_bench_file
-    resources:
-        mem_mb=cfg.attempt_mem_gb(8),
     conda:
         "../envs/bio.yml"
     script:
@@ -315,8 +299,6 @@ rule test_labeled_ebm:
         "../envs/ebm.yml"
     log:
         config.model_test_res_dir(labeled=True, log=True) / test_log_file,
-    resources:
-        mem_mb=cfg.attempt_mem_gb(2),
     benchmark:
         config.model_test_res_dir(labeled=True, log=True) / test_bench_file
     script:
@@ -351,8 +333,6 @@ rule summarize_labeled_test:
         "../envs/summary.yml"
     benchmark:
         config.model_test_res_dir(labeled=True, log=True) / test_summary_bench
-    resources:
-        mem_mb=cfg.attempt_mem_gb(8),
     script:
         "../scripts/rmarkdown/summary/test_summary.Rmd"
 

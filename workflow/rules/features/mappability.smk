@@ -1,5 +1,3 @@
-from scripts.python.common.config import attempt_mem_gb
-
 map_dir = "mappability"
 map_src = config.features_src_dir(log=False) / map_dir
 map_src_log = config.features_src_dir(log=True) / map_dir
@@ -50,7 +48,5 @@ rule get_mappability:
         map_res_log / "mappability.bench",
     conda:
         "../../envs/bio.yml"
-    resources:
-        mem_mb=attempt_mem_gb(2),
     script:
         "../../scripts/python/bio/get_mappability_features.py"

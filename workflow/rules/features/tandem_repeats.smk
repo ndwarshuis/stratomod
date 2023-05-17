@@ -1,5 +1,3 @@
-from scripts.python.common.config import attempt_mem_gb
-
 tr_dir = "tandem_repeats"
 
 
@@ -32,7 +30,5 @@ rule get_tandem_repeats:
         config.features_res_dir(log=True) / tr_dir / "tandem_repeats.log",
     benchmark:
         config.features_res_dir(log=True) / tr_dir / "tandem_repeats.bench"
-    resources:
-        mem_mb=attempt_mem_gb(1),
     script:
         "../../scripts/python/bio/get_tandem_repeat_features.py"

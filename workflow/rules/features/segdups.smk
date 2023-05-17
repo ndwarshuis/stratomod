@@ -1,5 +1,3 @@
-from scripts.python.common.config import attempt_mem_gb
-
 segdups_dir = "segdups"
 segdups_log = config.features_res_dir(log=False) / segdups_dir
 
@@ -28,7 +26,5 @@ rule get_segdups:
         segdups_log / "segdups.log",
     benchmark:
         segdups_log / "segdups.bench"
-    resources:
-        mem_mb=attempt_mem_gb(1),
     script:
         "../../scripts/python/bio/get_segdup_features.py"

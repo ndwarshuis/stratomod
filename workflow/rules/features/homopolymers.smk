@@ -1,4 +1,4 @@
-from scripts.python.common.config import attempt_mem_gb, wildcard_format_ext
+from scripts.python.common.config import wildcard_format_ext
 
 hp_dir = "homopolymers"
 hp_res = config.features_res_dir(log=False) / hp_dir
@@ -52,8 +52,6 @@ rule find_simple_repeats:
         hp_log / "find_regions.bench"
     log:
         hp_log / "find_regions.log",
-    resources:
-        mem_mb=attempt_mem_gb(4),
     shell:
         """
         gunzip -c {input.ref} | \
@@ -79,7 +77,5 @@ rule get_homopolymers:
         hp_log / homopolymer_file("log"),
     benchmark:
         hp_log / homopolymer_file("bench")
-    resources:
-        mem_mb=attempt_mem_gb(16),
     script:
         "../../scripts/python/bio/get_homopoly_features.py"
