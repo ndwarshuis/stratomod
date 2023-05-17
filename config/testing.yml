@@ -62,20 +62,19 @@ labeled_queries:
     # max_ref: 50
     # max_alt: 50
 
-    # The names of the fields in the FORMAT column in the vcf file. Some vcfs
-    # use wonky names to describe the same field that is represented elsewhere
-    # by a different name. The following are defaults and represent the names
-    # as given by DeepVariant. Change these as necessary. Set to null to skip
-    # retrieving this field (which also means it can't be used as a feature in
-    # the model)
+    # The fields from the FORMAT column to parse from the vcf file. This is a
+    # dictionary mapping whose keys are are string (which will become the
+    # feature that can be referenced in the model, and the value is one of:
+    # - a null value, which will create a feature of entirly missing values
+    # - a string value, which will create a feature with just that string
+    # - a mapping like {field_name: str, field_missing: str | None} which will
+    #   parse the corresponding SAMPLE field matching the FORMAT column field
+    #   whose name matches 'field_name'. Any lines without 'field_name' will
+    #   be filled with 'field_missing' if supplied.
     #
-    # NOTE: VAF = variant allele fraction, DP = read depth, GT = genotype,
-    # GQ = genotype quality
-    # format_fields:
-      # vaf: VAF
-      # dp: DP
-      # gt: GT
-      # gq: GQ
+    # Default: {} (eg parse no FORMAT fields)
+    #
+    # format_fields: {}
 
   HG002_Illumina_DV:
     refset: GRCh38_test
@@ -351,12 +350,6 @@ models:
       - {f1: VCF_indel_length, f2: HOMOPOL_T_length}
       - {f1: VCF_indel_length, f2: HOMOPOL_G_length}
       - {f1: VCF_indel_length, f2: HOMOPOL_C_length}
-
-# directories for input/output files
-# paths:
-#   resources: "resources"
-#   results: "results"
-#   log: "log"
 
 # Data specific to a reference fasta file, including benchmarks, feature context
 # data, and other metadata.
@@ -643,19 +636,62 @@ references:
       #   corrections:
       #     strip_IPS: false
 
-# tools:
-#   repseq: https://github.com/ndwarshuis/repseq/archive/refs/tags/v1.1.0.tar.gz
 
+# Definitions for features (in addition to what can be derived from other
+# parts of the configuration)
 feature_definitions:
+
+  # Custom features to be added to each query vcf. This will only define the
+  # permitted features to be added; they are actually added to each query
+  # individually in their own configuration blocks.
   variables:
-    # prefix: VAR
+
+    # Continuous variables that can be added. Each key is the variable name
+    # and the block under the key defines the properties of the variable (here
+    # is one variable "coverage" with a lower limit of 1). Any variable
+    # specified for a query file that violates these properties will trigger
+    # an error.
     continuous:
       coverage:
+        # the lower limit of the variable (if any)
+        # Default: null
         lower: 1
+
+        # the upper limit of the variable (if any)
+        # Default: null
+        # upper: null
+
+        # Thd description for this variable (if any)
+        # Default: null
+        # description: null
+
+    # Categorical variables to be added (analogous to continuous above)
     categorical:
       seqtech:
+        # The levels this variable may take. Must be a non-empty list.
         levels: ["PacBio HiFi", "Illumina"]
+
+        # Analogous description field.
         description: Sequencing tech used to produce the reads for the VCF file
+
       variant_caller:
         levels: ["DeepVariant"]
         description: Variant caller used to produce the reads for the VCF file
+
+# Directories for build targets
+# paths:
+#
+#   Directory for downloaded source files
+#   Default: "resources"
+#
+#   resources: "resources"
+#
+#   Directory for any processed output files (eg everything that isn't "downloaded")
+#   Default: "results"
+#
+#   results: "results"
+#
+#   Directory for log files (this will be a subdirectory under "results" above)
+#   Default: "log"
+#
+#   log: "log"
