@@ -676,9 +676,16 @@ FeaturePrefix = Annotated[str, Field(regex="^[A-Z]+$")]
 class _FeatureGroup(_BaseModel):
     "Superclass for feature groups (which in turn define valid feature names)"
     prefix: FeaturePrefix
+    description: NonEmptyStr
 
     def fmt_feature(self, rest: str) -> FeatureKey:
         return FeatureKey(f"{self.prefix}_{rest}")
+
+
+class _ConstFeatureGroup(_FeatureGroup):
+    @property
+    def features(self) -> dict[FeatureKey, FeatureDesc]:
+        return {}
 
 
 class ColumnSpec(_BaseModel):
@@ -712,6 +719,7 @@ class VCFGroup(_FeatureGroup):
     "Feature and column names for VCF files"
     prefix: FeaturePrefix = "VCF"
     columns: VCFColumns = VCFColumns()
+    description: NonEmptyStr = "Features obtained from the query VCF file."
 
     def fmt_name(
         self: Self,
@@ -749,10 +757,14 @@ class MapSuffixes(_BaseModel):
     high: NonEmptyStr = "difficult_250bp"
 
 
-class MapGroup(_FeatureGroup):
+class MapGroup(_ConstFeatureGroup):
     "Feature and column names for low-map dataframes"
     prefix: FeaturePrefix = "MAP"
     suffixes: MapSuffixes = MapSuffixes()
+    description: NonEmptyStr = (
+        "Features pertaining to hard-to-map regions of the genome. "
+        "These were obtained from the v3.0 GIAB stratification bed files."
+    )
 
     @property
     def low(self) -> FeatureKey:
@@ -791,11 +803,16 @@ class HomopolySuffixes(_BaseModel):
     imp_frac: NonEmptyStr = "imperfect_frac"
 
 
-class HomopolyGroup(_FeatureGroup):
+class HomopolyGroup(_ConstFeatureGroup):
     "Feature and column names for homopolymer dataframes"
     prefix: FeaturePrefix = "HOMOPOL"
     bases: set[Base] = set(b for b in Base)
     suffixes: HomopolySuffixes = HomopolySuffixes()
+    description: NonEmptyStr = (
+        "Features pertaining to homopolymers (eg AAAA or TTTT). "
+        "Unlike many other features, these are created manually from the "
+        "reference genome using a script to count long stretches of the same base."
+    )
 
     def fmt_name(self, b: Base, f: Callable[[HomopolySuffixes], str]) -> FeatureKey:
         return self.fmt_feature(f"{b.value}_{f(self.suffixes)}")
@@ -805,7 +822,7 @@ class HomopolyGroup(_FeatureGroup):
         def fmt_len(b: Base) -> FeatureDesc:
             return FeatureDesc(
                 (
-                    f"The length of a {b.value} homopolymer."
+                    f"The length of a homopolymer of {b.value}s. "
                     "This includes all homopolymers of the same base as well "
                     f"as 'imperfect homopolymers' which have non-{b.value}s "
                     "separated by at least 4bp. Note that minimum length of "
@@ -825,6 +842,10 @@ class HomopolyGroup(_FeatureGroup):
 class RMSKGroup(_FeatureGroup):
     "Feature and column names for repeat masker dataframes"
     prefix: FeaturePrefix = "REPMASK"
+    description: NonEmptyStr = (
+        "Features obtained from the repeat masker track for the reference genome. "
+        "(eg https://genome.ucsc.edu/cgi-bin/hgTables?db=hg38&hgta_group=rep&hgta_track=rmsk&hgta_table=rmsk&hgta_doSchema=describe+table+schema)"
+    )
 
     def fmt_name(
         self,
@@ -858,10 +879,10 @@ DescribedFeature = tuple[FeatureKey, FeatureDesc]
 DescribedColumn = tuple[PandasColumn, FeatureDesc]
 
 
-class MergedFeatureGroup(_FeatureGroup, Generic[X]):
+class MergedFeatureGroup(_ConstFeatureGroup, Generic[X]):
     "Superclass for feature group which supports bedtools merge"
     operations: set[BedMergeOp]
-    description: NonEmptyStr = "segmental duplications"
+    what: NonEmptyStr = "segmental duplications"
     columns: X
 
     @property
@@ -934,7 +955,11 @@ class SegDupsGroup(MergedFeatureGroup[SegDupsColumns]):
     prefix: FeaturePrefix = "SEGDUP"
     columns: SegDupsColumns = SegDupsColumns()
     operations: set[BedMergeOp] = {BedMergeOp.MIN, BedMergeOp.MAX, BedMergeOp.MEAN}
-    description: NonEmptyStr = "segmental duplications"
+    what: NonEmptyStr = "segmental duplications"
+    description: NonEmptyStr = (
+        "Features pertaining to segmental duplications as defined in the genome superdups database "
+        "(eg http://genome.ucsc.edu/cgi-bin/hgTables?hgta_doSchemaDb=hg38&hgta_doSchemaTable=genomicSuperDups)."
+    )
 
     @property
     def features(self) -> dict[FeatureKey, FeatureDesc]:
@@ -980,6 +1005,11 @@ class TandemRepeatGroup(MergedFeatureGroup[TandemRepeatColumns]):
     prefix: FeaturePrefix = "TR"
     columns: TandemRepeatColumns = TandemRepeatColumns()
     operations: set[BedMergeOp] = {BedMergeOp.MIN, BedMergeOp.MAX, BedMergeOp.MEDIAN}
+    what: NonEmptyStr = "tandem repeats"
+    description: NonEmptyStr = (
+        "Features created from the TRF/simple repeats database "
+        "(eg https://genome.ucsc.edu/cgi-bin/hgTables?db=hg38&hgta_group=rep&hgta_track=simpleRepeat&hgta_table=simpleRepeat&hgta_doSchema=describe+table+schema)."
+    )
 
     def _base_name(self, bs: list[Base]) -> DescribedFeature:
         b = "".join(b.value for b in bs)
@@ -1052,11 +1082,16 @@ class TandemRepeatGroup(MergedFeatureGroup[TandemRepeatColumns]):
         )
 
 
-class VariableGroup(_FeatureGroup):
+class VariableGroup(_ConstFeatureGroup):
     "Feature and column names for vcf manually-assigned variable dataframes"
     prefix: NonEmptyStr = "VAR"
     continuous: dict[VarKey, ContVar]
     categorical: dict[VarKey, CatVar]
+    description: NonEmptyStr = (
+        "Custom features to add to the query dataset. "
+        "Each of these will be added as a new column with a single constant value. "
+        "This is useful to distinguish b/t multiple VCF query input files in the training dataset"
+    )
 
     # not a pydantic validator; requires lots of data from parent classes
     def validate_variable(self, varname: VarKey, varval: VarVal) -> None:
@@ -1239,7 +1274,7 @@ class StratoMod(_BaseModel):
         rm: RefMap,
         rsm: RefsetMap,
         ks: list[QueryKey],
-    ) -> dict[FeatureKey, FeatureDesc]:
+    ) -> dict[FeaturePrefix, tuple[str, dict[FeatureKey, FeatureDesc]]]:
         def to_keys(
             f: Callable[[QueryKey], dict[FeatureKey, FeatureDesc]]
         ) -> dict[FeatureKey, FeatureDesc]:
@@ -1258,13 +1293,18 @@ class StratoMod(_BaseModel):
         vcf_features = to_keys(querykey_to_vcf)
         rmsk_features = to_keys(querykey_to_rmsk)
         return {
-            **vcf_features,
-            **rmsk_features,
-            **fs.mappability.features,
-            **fs.homopolymers.features,
-            **fs.segdups.features,
-            **fs.tandem_repeats.features,
-            **fs.variables.features,
+            fs.vcf.prefix: (fs.vcf.description, vcf_features),
+            fs.repeat_masker.prefix: (fs.repeat_masker.description, rmsk_features),
+            **{
+                g.prefix: (g.description, g.features)
+                for g in [
+                    fs.mappability,
+                    fs.homopolymers,
+                    fs.segdups,
+                    fs.tandem_repeats,
+                    fs.variables,
+                ]
+            },
         }
 
     @classmethod
@@ -1277,7 +1317,9 @@ class StratoMod(_BaseModel):
         rsm: RefsetMap,
         ks: list[QueryKey],
     ) -> set[FeatureKey]:
-        return set(cls._merge_features(fs, lm, um, rm, rsm, ks))
+        return set.union(
+            *[set(x[1]) for x in cls._merge_features(fs, lm, um, rm, rsm, ks).values()]
+        )
 
     @validator("reference_sets", each_item=True)
     def refsets_have_valid_refkeys(
@@ -1554,31 +1596,43 @@ class StratoMod(_BaseModel):
         qs = self.querykey_to_variables(test.query_key)
         return {**qs, **self.feature_definitions.variables.parse_vars(test.variables)}
 
-    def modelkey_to_train_querykeys(self, mkey: ModelKey) -> list[LabeledQueryKey]:
-        return [t for t in self.models[mkey].train]
+    def modelkey_to_train_querykeys(self, k: ModelKey) -> list[LabeledQueryKey]:
+        return [t for t in self.models[k].train]
 
-    def modelkey_to_test_querykeys(self, mkey: ModelKey) -> list[QueryKey]:
-        return [t.query_key for t in self.models[mkey].test.values()]
+    def modelkey_to_test_querykeys(self, k: ModelKey) -> list[QueryKey]:
+        return [t.query_key for t in self.models[k].test.values()]
+
+    def modelkey_to_querykeys(self, k: ModelKey) -> list[QueryKey]:
+        train = self.modelkey_to_train_querykeys(k)
+        test = self.modelkey_to_test_querykeys(k)
+        ks = train + test
+        return ks
 
     def testkey_to_querykey(self, mkey: ModelKey, tkey: TestKey) -> QueryKey:
         return self.models[mkey].test[tkey].query_key
 
-    def modelkey_to_features(self, mk: ModelKey) -> dict[FeatureKey, FeatureDesc]:
-        train = self.modelkey_to_train_querykeys(mk)
-        test = self.modelkey_to_test_querykeys(mk)
-        query_key = train + test
-
+    def modelkey_to_features(
+        self,
+        k: ModelKey,
+    ) -> dict[FeaturePrefix, tuple[str, dict[FeatureKey, FeatureDesc]]]:
         return self._merge_features(
             self.feature_definitions,
             self.labeled_queries,
             self.unlabeled_queries,
             self.references,
             self.reference_sets,
-            query_key,
+            self.modelkey_to_querykeys(k),
         )
 
-    def modelkey_to_feature_names(self, mk: ModelKey) -> set[FeatureKey]:
-        return set(self.modelkey_to_features(mk))
+    def modelkey_to_feature_names(self, k: ModelKey) -> set[FeatureKey]:
+        return self._merge_feature_names(
+            self.feature_definitions,
+            self.labeled_queries,
+            self.unlabeled_queries,
+            self.references,
+            self.reference_sets,
+            self.modelkey_to_querykeys(k),
+        )
 
     # src getters
 
