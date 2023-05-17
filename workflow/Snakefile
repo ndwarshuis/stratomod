@@ -3,9 +3,6 @@ from snakemake.utils import min_version
 min_version("7.20")
 
 
-configfile: "config/static.yml"
-
-
 # TODO this is a hack (required for depickling to work when sending the config
 # to scripts)
 sys.path.extend(["./workflow/scripts/python"])

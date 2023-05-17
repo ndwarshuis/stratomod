@@ -310,9 +310,9 @@ class _Range(_BaseModel):
 
 class Paths(_BaseModel):
     "Paths snakemake will use for disk IO"
-    resources: Path
-    results: Path
-    log: Path
+    resources: Path = Path("resources")
+    results: Path = Path("results")
+    log: Path = Path("log")
 
 
 class Refset(_BaseModel):
@@ -1159,9 +1159,10 @@ class FeatureDefs(_BaseModel):
         ]
 
 
+# mypy be stupid here, see https://github.com/pydantic/pydantic/issues/1684
 class Tools(_BaseModel):
     "Various tools that need to be downloaded for the pipeline to work"
-    repseq: HttpUrl
+    repseq: HttpUrl = "https://github.com/ndwarshuis/repseq/archive/refs/tags/v1.1.0.tar.gz"  # type: ignore
 
 
 LabeledQueries = dict[LabeledQueryKey, LabeledVCFQuery]
@@ -1208,8 +1209,8 @@ ModelMap = dict[ModelKey, Model]
 class StratoMod(_BaseModel):
     "Root config for the stratomod pipeline."
 
-    paths: Paths
-    tools: Tools
+    paths: Paths = Paths()
+    tools: Tools = Tools()
     references: RefMap
     feature_definitions: FeatureDefs
     reference_sets: RefsetMap
@@ -1467,14 +1468,6 @@ class StratoMod(_BaseModel):
             assert_keypattern(k)
         return v
 
-    # @validator("models", each_item=True)
-    # def run_and_test_keys_are_valid(cls: Type[Self], v: Model) -> Model:
-    #     for rk, r in v.runs.items():
-    #         assert_keypattern(rk)
-    #         for tk in r.test:
-    #             assert_keypattern(tk)
-    #     return v
-
     # various mapping functions
 
     def refsetkey_to_ref(self, key: RefsetKey) -> Reference:
@@ -1570,21 +1563,12 @@ class StratoMod(_BaseModel):
     def testkey_to_querykey(self, mkey: ModelKey, tkey: TestKey) -> QueryKey:
         return self.models[mkey].test[tkey].query_key
 
-    def modelkey_to_feature_names(self, mk: ModelKey) -> set[FeatureKey]:
-        """Return features for a given run.
-
-        For the most part, the total set of defined features is constant across
-        all runs. However, each query vcf can independently specify how to parse
-        the pesky FORMAT column and a few other features that are
-        reference-dependent. Due to this variability, we need to intersect all
-        the field names together between all train and test keys.
-
-        """
+    def modelkey_to_features(self, mk: ModelKey) -> dict[FeatureKey, FeatureDesc]:
         train = self.modelkey_to_train_querykeys(mk)
         test = self.modelkey_to_test_querykeys(mk)
         query_key = train + test
 
-        return self._merge_feature_names(
+        return self._merge_features(
             self.feature_definitions,
             self.labeled_queries,
             self.unlabeled_queries,
@@ -1592,6 +1576,9 @@ class StratoMod(_BaseModel):
             self.reference_sets,
             query_key,
         )
+
+    def modelkey_to_feature_names(self, mk: ModelKey) -> set[FeatureKey]:
+        return set(self.modelkey_to_features(mk))
 
     # src getters
 

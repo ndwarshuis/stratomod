@@ -351,3 +351,311 @@ models:
       - {f1: VCF_indel_length, f2: HOMOPOL_T_length}
       - {f1: VCF_indel_length, f2: HOMOPOL_G_length}
       - {f1: VCF_indel_length, f2: HOMOPOL_C_length}
+
+# directories for input/output files
+# paths:
+#   resources: "resources"
+#   results: "results"
+#   log: "log"
+
+# Data specific to a reference fasta file, including benchmarks, feature context
+# data, and other metadata.
+references:
+  # A unique key for this reference (which should probably correspond to the
+  # the commonly used name for the reference.
+  GRCh37:
+
+    # The source for the reference itself. NOTE, this is an SDF as defined by
+    # vcftools and not a fasta.
+    sdf:
+      # The location of the referenece
+      src:
+        url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/references/GRCh37/hs37d5.fa.gz
+
+      # The prefix used for chromosomes in this sdf.
+      chr_prefix: ""
+
+      # If true, the src block refers to a FASTA file; else it refers to an
+      # SDF file as defined by rtg-tools
+      is_fasta: True
+
+    # Any GIAB stratifications pertinant to this reference which will be used
+    # for filtering out invalid variants
+    strats:
+
+      mhc: [{chrom: 6, start: 28477797, end: 33448354}]
+
+    # Data used for feature generation.
+    feature_data:
+
+      # Data used for creating difficult-to-map features. These are actually
+      # GIAB stratification files.
+      mappability:
+
+        # Low stringency mappability file
+        low:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.0/GRCh37/mappability/GRCh37_lowmappabilityall.bed.gz
+          params:
+            chr_prefix: ""
+
+        # High stringency mappability file
+        high:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.0/GRCh37/mappability/GRCh37_nonunique_l250_m0_e0.bed.gz
+          params:
+            chr_prefix: ""
+
+      # Data used for creating the segmental duplications features. Assumes file
+      # from the UCSC superdups database
+      segdups:
+        src:
+          url: https://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/genomicSuperDups.txt.gz
+        params:
+          bed_cols: {chrom: 1, start: 2, end: 3}
+        other_cols:
+          align_L: 18
+          frac_match_indel: 27
+
+      # Data used for making tandem repeats feaures. Expects a UCSC simple
+      # repeats-like database file
+      tandem_repeats:
+        src:
+          url: https://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/simpleRepeat.txt.gz
+        params:
+          bed_cols: {chrom: 1, start: 2, end: 3}
+
+      # Data used for making transposable element features. Expects a repeat-masker
+      # output file.
+      repeat_masker:
+        src:
+          url: https://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/rmsk.txt.gz
+        params:
+          bed_cols: {chrom: 5, start: 6, end: 7}
+        class_families:
+          SINE: []
+          LINE: [L1, L2, CR1, RTE-BovB, Dong-R4]
+          LTR: []
+          Satellite: []
+
+    # A list of valid benchmarks
+    benchmarks:
+      # Unique key for this benchmark
+      HG002_v421:
+
+        # where to obtain the vcf
+        vcf:
+          src: 
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh37/HG002_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
+          chr_prefix: ""
+
+        # where to obtain the bed file
+        bed:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh37/HG002_GRCh37_1_22_v4.2.1_benchmark_noinconsistent.bed
+          params:
+            chr_prefix: ""
+
+        # corrections to be made to the vcf
+        corrections:
+
+          # in some VCF files, there is an IPS FORMAT fields that causes vcfeval
+          # to format the output weirdly. Set this to true to activate a
+          # workaround.
+          strip_IPS: false
+
+      HG003_v421:
+        vcf:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG003_NA24149_father/NISTv4.2.1/GRCh37/HG003_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
+          chr_prefix: ""
+        bed:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG003_NA24149_father/NISTv4.2.1/GRCh37/HG003_GRCh37_1_22_v4.2.1_benchmark_noinconsistent.bed
+          params:
+            chr_prefix: ""
+        corrections:
+          strip_IPS: false
+      HG004_v421:
+        vcf:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG004_NA24143_mother/NISTv4.2.1/GRCh37/HG004_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
+          chr_prefix: ""
+        bed:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG004_NA24143_mother/NISTv4.2.1/GRCh37/HG004_GRCh37_1_22_v4.2.1_benchmark_noinconsistent.bed
+          params:
+            chr_prefix: ""
+        corrections:
+          strip_IPS: false
+      HG005_v421:
+        vcf:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh37/HG005_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
+          chr_prefix: ""
+        bed:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh37/HG005_GRCh37_1_22_v4.2.1_benchmark.bed
+          params:
+            chr_prefix: ""
+        corrections:
+          strip_IPS: true
+      HG006_v421:
+        vcf:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG006_NA24694_father/NISTv4.2.1/GRCh37/HG006_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
+          chr_prefix: ""
+        bed:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG006_NA24694_father/NISTv4.2.1/GRCh37/HG006_GRCh37_1_22_v4.2.1_benchmark.bed
+          params:
+            chr_prefix: ""
+        corrections:
+          strip_IPS: false
+      HG007_v421:
+        vcf:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG007_NA24695_mother/NISTv4.2.1/GRCh37/HG007_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
+          chr_prefix: ""
+        bed:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG007_NA24695_mother/NISTv4.2.1/GRCh37/HG007_GRCh37_1_22_v4.2.1_benchmark.bed
+          params:
+            chr_prefix: ""
+        corrections:
+          strip_IPS: false
+      # draft_v0.005:
+      #   vcf_url: null
+      #   bed_url: null
+      #   chr_prefix: ""
+      #   corrections:
+      #     strip_IPS: false
+      # draft_v2.7_xy:
+      #   vcf_url: null
+      #   bed_url: null
+      #   chr_prefix: ""
+      #   corrections:
+      #     strip_IPS: false
+
+  GRCh38:
+    sdf:
+      src:
+        url: https://s3.amazonaws.com/rtg-datasets/references/GRCh38.sdf.zip
+      chr_prefix: chr
+      is_fasta: False
+    strats:
+      mhc: [{chrom: 6, start: 28510020, end: 33480577}]
+    feature_data:
+      mappability:
+        low:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.0/GRCh38/mappability/GRCh38_lowmappabilityall.bed.gz
+        high:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.0/GRCh38/mappability/GRCh38_nonunique_l250_m0_e0.bed.gz
+      segdups:
+        src:
+          url: https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz
+        params:
+          bed_cols: {chrom: 1, start: 2, end: 3}
+      tandem_repeats:
+        src:
+          url: https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/simpleRepeat.txt.gz
+        params:
+          bed_cols: {chrom: 1, start: 2, end: 3}
+      repeat_masker:
+        src:
+          url: https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/rmsk.txt.gz
+        params:
+          bed_cols: {chrom: 5, start: 6, end: 7}
+        class_families:
+          SINE: []
+          LINE: [L1, L2, CR1, RTE-BovB, Dong-R4]
+          LTR: []
+          Satellite: []
+    benchmarks:
+      HG002_v421:
+        vcf:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
+        bed:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed
+        corrections:
+          strip_IPS: false
+      HG003_v421:
+        vcf:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG003_NA24149_father/NISTv4.2.1/GRCh38/HG003_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
+        bed:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG003_NA24149_father/NISTv4.2.1/GRCh38/HG003_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed
+        corrections:
+          strip_IPS: false
+      HG004_v421:
+        vcf:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG004_NA24143_mother/NISTv4.2.1/GRCh38/HG004_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
+        bed:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG004_NA24143_mother/NISTv4.2.1/GRCh38/HG004_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed
+        corrections:
+          strip_IPS: false
+      HG005_v421:
+        vcf:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh38/HG005_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
+        bed:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh38/HG005_GRCh38_1_22_v4.2.1_benchmark.bed
+        corrections:
+          strip_IPS: true
+      HG006_v421:
+        vcf:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG006_NA24694_father/NISTv4.2.1/GRCh38/HG006_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
+        bed:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG006_NA24694_father/NISTv4.2.1/GRCh38/HG006_GRCh38_1_22_v4.2.1_benchmark.bed
+        corrections:
+          strip_IPS: false
+      HG007_v421:
+        vcf:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG007_NA24695_mother/NISTv4.2.1/GRCh38/HG007_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
+        bed:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG007_NA24695_mother/NISTv4.2.1/GRCh38/HG007_GRCh38_1_22_v4.2.1_benchmark.bed
+        corrections:
+          strip_IPS: false
+      draft_v005:
+        vcf:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/data/AshkenazimTrio/analysis/T2T-HG002-XY-v2.7/20220324_v0.005_HG002XYvsGRCh38/preliminary-draft-small-variant-benchmark-files/GRCh38_T2T-XY-v2.7_dipcall-z2k.vcf.gz
+        bed:
+          src:
+            url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/data/AshkenazimTrio/analysis/T2T-HG002-XY-v2.7/20220324_v0.005_HG002XYvsGRCh38/preliminary-draft-small-variant-benchmark-files/GRCh38_T2T-XY-v2.7_dipcall-z2k.excluded.bed
+        corrections:
+          strip_IPS: false
+      # draft_v27_xy:
+      #   vcf_url: null
+      #   bed_url: null
+      #   corrections:
+      #     strip_IPS: false
+
+# tools:
+#   repseq: https://github.com/ndwarshuis/repseq/archive/refs/tags/v1.1.0.tar.gz
+
+feature_definitions:
+  variables:
+    # prefix: VAR
+    continuous:
+      coverage:
+        lower: 1
+    categorical:
+      seqtech:
+        levels: ["PacBio HiFi", "Illumina"]
+        description: Sequencing tech used to produce the reads for the VCF file
+      variant_caller:
+        levels: ["DeepVariant"]
+        description: Variant caller used to produce the reads for the VCF file
