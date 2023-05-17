@@ -162,6 +162,7 @@ rule filter_labeled_query_vcf:
         rules.download_labeled_query_vcf.output,
     output:
         config.query_prepare_res_dir(log=False, labeled=True) / "filtered.vcf",
+    # TODO this isn't necessary
     params:
         chr_prefix=lambda w: config.querykey_to_chr_prefix(w.l_query_key),
     conda:
@@ -244,6 +245,7 @@ use rule filter_labeled_query_vcf as filter_bench_vcf with:
         partial(expand_benchmark_path, rules.download_bench_vcf.output),
     output:
         config.bench_res_dir(log=False) / "filtered.vcf",
+    # TODO this isn't necessary
     params:
         chr_prefix=lambda w: config.benchkey_to_bed_chr_prefix(
             w.refset_key, w.bench_key
@@ -302,6 +304,7 @@ rule filter_bench_bed:
         partial(expand_benchmark_path, rules.download_bench_bed.output),
     output:
         config.bench_res_dir(log=False) / "filtered.bed",
+    # TODO this isn't necessary
     params:
         chr_prefix=lambda w: config.benchkey_to_bed_chr_prefix(
             w.refset_key, w.bench_key

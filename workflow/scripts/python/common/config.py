@@ -529,6 +529,8 @@ class VCFFile(_BaseModel):
 
     src: FileSrc
     chr_prefix: ChrPrefix = ChrPrefix("chr")
+    strip_IPS: bool = False
+    fix_refcall: bool = False
 
 
 class BedFileParams(_BaseModel):
