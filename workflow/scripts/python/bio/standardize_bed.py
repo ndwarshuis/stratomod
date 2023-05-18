@@ -1,51 +1,33 @@
-import gzip
-import io
-import re
-from typing import Callable, Any
-from common.config import StratoMod, ChrIndex, RefsetKey
-
-# I could use pandas for all this, but vcfeval will complain if I strip out the
-# headers (which pandas will do). Imperative loop it is...
+from typing import Any, TextIO
+from common.config import StratoMod, RefsetKey
+from common.io import with_gzip_maybe
 
 
-def filter_file(smk: Any, config: StratoMod, fi: io.TextIOWrapper) -> None:
+def filter_file(smk: Any, config: StratoMod, fi: TextIO, fo: TextIO) -> None:
+    rsk = RefsetKey(smk.wildcards["refset_key"])
     chr_prefix = smk.params.chr_prefix
-    chr_indices = config.refsetkey_to_chr_indices(
-        RefsetKey(smk.wildcards["refset_key"])
-    )
-    fs = tuple(["#", *[f"{i.chr_name}\t" for i in chr_indices]])
+    cs = config.refsetkey_to_chr_indices(rsk)
 
-    def make_sub(i: ChrIndex) -> Callable[[str], str]:
-        pat = re.compile(f"^{i.chr_name}")
-        return lambda s: pat.sub(str(i.value), s)
+    chr_mapper = {c.chr_name_full(chr_prefix): c.value for c in cs}
 
-    subX = make_sub(ChrIndex.CHRX)
-    subY = make_sub(ChrIndex.CHRY)
-
-    def tolines(f: io.TextIOWrapper) -> None:
-        f.writelines(
-            (
-                subY(subX(y))
-                for x in fi
-                if (y := x.removeprefix(chr_prefix)).startswith(fs)
-            ),
-        )
-
-    if str(smk.output[0]).endswith(".gz"):
-        with gzip.open(smk.output[0], "wt") as fo:
-            tolines(fo)
-    else:
-        with open(smk.output[0], "wt") as fo:
-            tolines(fo)
+    for ln in fi:
+        if ln.startswith("#"):
+            fo.write(ln)
+        else:
+            ls = ln.rstrip().split("\t")
+            try:
+                ls[0] = str(chr_mapper[ls[0]])
+                fo.write("\t".join(ls) + "\n")
+            except KeyError:
+                pass
 
 
 def main(smk: Any, config: StratoMod) -> None:
-    if str(smk.input[0]).endswith(".gz"):
-        with gzip.open(smk.input[0], "rt") as f:
-            filter_file(smk, config, f)
-    else:
-        with open(smk.input[0], "rt") as f:
-            filter_file(smk, config, f)
+    with_gzip_maybe(
+        lambda i, o: filter_file(smk, config, i, o),
+        str(smk.input[0]),
+        str(smk.output[0]),
+    )
 
 
 main(snakemake, snakemake.config)  # type: ignore

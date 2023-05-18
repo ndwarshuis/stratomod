@@ -1,7 +1,8 @@
 import logging
 import csv
+import gzip
 from pathlib import Path
-from typing import TypeVar
+from typing import TypeVar, Callable, TextIO
 from itertools import product
 from more_itertools import unzip
 import pandas as pd
@@ -10,7 +11,7 @@ from pybedtools import BedTool as bt  # type: ignore
 from Bio import bgzf  # type: ignore
 
 
-T = TypeVar("T")
+X = TypeVar("X")
 
 
 def is_bgzip(p: Path) -> bool:
@@ -22,6 +23,18 @@ def is_bgzip(p: Path) -> bool:
             return True
         except ValueError:
             return False
+
+
+def with_bgzip_maybe(f: Callable[[TextIO, TextIO], X], i: str, o: str) -> X:
+    # bgzf only understands latin1, so read everything as such
+    hi = (
+        gzip.open(i, "rt", encoding="latin1")
+        if i.endswith(".gz")
+        else open(i, "rt", encoding="latin1")
+    )
+    ho = bgzf.open(o, "wt") if o.endswith(".gz") else open(o, "wt")
+    with hi as fi, ho as fo:
+        return f(fi, fo)
 
 
 def read_bed(
@@ -97,7 +110,7 @@ def sort_bed_numerically(df: pd.DataFrame, n: int) -> pd.DataFrame:
 
 
 def merge_and_apply_stats(
-    fconf: cfg.MergedFeatureGroup[T],
+    fconf: cfg.MergedFeatureGroup[X],
     bed_df: pd.DataFrame,
 ) -> tuple[bt, list[str]]:
     # compute stats on all columns except the first 3

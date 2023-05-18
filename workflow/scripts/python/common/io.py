@@ -1,7 +1,21 @@
 import gzip
 import hashlib
+from typing import Callable, TextIO, TypeVar
 from pathlib import Path
 from logging import Logger
+
+X = TypeVar("X")
+
+
+def with_gzip_maybe(f: Callable[[TextIO, TextIO], X], i: str, o: str) -> X:
+    hi = (
+        gzip.open(i, "rt", encoding="latin1")
+        if i.endswith(".gz")
+        else open(i, "rt", encoding="latin1")
+    )
+    ho = gzip.open(o, "wt") if o.endswith(".gz") else open(o, "wt")
+    with hi as fi, ho as fo:
+        return f(fi, fo)
 
 
 def get_md5(path: Path) -> str:

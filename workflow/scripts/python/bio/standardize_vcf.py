@@ -1,7 +1,7 @@
-import gzip
 from typing import Any, cast, TextIO
 from common.config import StratoMod, RefsetKey, VCFFile
-from Bio import bgzf  # type: ignore
+from common.bed import with_bgzip_maybe
+from functools import partial
 
 
 def fix_DV_refcall(filter_col: str, sample_col: str) -> str:
@@ -66,14 +66,11 @@ def filter_file(smk: Any, config: StratoMod, fi: TextIO, fo: TextIO) -> None:
 
 
 def main(smk: Any, config: StratoMod) -> None:
-    i = str(smk.input[0])
-    o = str(smk.output[0])
-    # bgzf only understands latin1, so read everything as such
-    with gzip.open(i, "rt", encoding="latin1") if i.endswith(".gz") else open(
-        i, "rt", encoding="latin1"
-    ) as fi:
-        with bgzf.open(o, "wt") if o.endswith(".gz") else open(o, "wt") as fo:
-            filter_file(smk, config, fi, fo)
+    with_bgzip_maybe(
+        lambda i, o: filter_file(smk, config, i, o),
+        str(smk.input[0]),
+        str(smk.output[0]),
+    )
 
 
 main(snakemake, snakemake.config)  # type: ignore
