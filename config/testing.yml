@@ -76,6 +76,19 @@ labeled_queries:
     #
     # format_fields: {}
 
+    # Corrections to apply to this VCF file
+    corrections:
+      # Remove the given format fields; this is sometimes necessary to keep
+      # hap.py happy. Obviously, these fields cannot be used to create features.
+      #
+      # Default: []
+      # strip_format_fields: []
+
+      # Fix refcall genotype. In the case of DV VCFs (and likely others) hap.py
+      # will complain if the genotype field is ./. or 0/0 instead of 0/1.
+      # Enable this flag to make this correction.
+      fix_refcall_gt : true
+
   HG002_Illumina_DV:
     refset: GRCh38_test
     chr_prefix: chr
@@ -86,6 +99,8 @@ labeled_queries:
       coverage: 40
       seqtech: Illumina
       variant_caller: "DeepVariant"
+    corrections:
+      fix_refcall_gt : true
   HG005_Hifi_DV:
     refset: GRCh37_test
     chr_prefix: ""
@@ -96,6 +111,8 @@ labeled_queries:
       coverage: 40
       seqtech: "PacBio HiFi"
       variant_caller: "DeepVariant"
+    corrections:
+      fix_refcall_gt : true
 
 # Unlabeled queries: These are like labeled queries (see immediately above)
 # except that they don't have a benchmark key, and consequently don't have
@@ -449,14 +466,6 @@ references:
           params:
             chr_prefix: ""
 
-        # corrections to be made to the vcf
-        corrections:
-
-          # in some VCF files, there is an IPS FORMAT fields that causes vcfeval
-          # to format the output weirdly. Set this to true to activate a
-          # workaround.
-          strip_IPS: false
-
       HG003_v421:
         vcf:
           src:
@@ -467,8 +476,6 @@ references:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG003_NA24149_father/NISTv4.2.1/GRCh37/HG003_GRCh37_1_22_v4.2.1_benchmark_noinconsistent.bed
           params:
             chr_prefix: ""
-        corrections:
-          strip_IPS: false
       HG004_v421:
         vcf:
           src:
@@ -479,20 +486,19 @@ references:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG004_NA24143_mother/NISTv4.2.1/GRCh37/HG004_GRCh37_1_22_v4.2.1_benchmark_noinconsistent.bed
           params:
             chr_prefix: ""
-        corrections:
-          strip_IPS: false
       HG005_v421:
         vcf:
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh37/HG005_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
           chr_prefix: ""
+          corrections:
+            # this particular vcf will make vcfeval choke if we don't strip this field
+            strip_format_fields: [IPS]
         bed:
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh37/HG005_GRCh37_1_22_v4.2.1_benchmark.bed
           params:
             chr_prefix: ""
-        corrections:
-          strip_IPS: true
       HG006_v421:
         vcf:
           src:
@@ -503,8 +509,6 @@ references:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG006_NA24694_father/NISTv4.2.1/GRCh37/HG006_GRCh37_1_22_v4.2.1_benchmark.bed
           params:
             chr_prefix: ""
-        corrections:
-          strip_IPS: false
       HG007_v421:
         vcf:
           src:
@@ -515,20 +519,6 @@ references:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG007_NA24695_mother/NISTv4.2.1/GRCh37/HG007_GRCh37_1_22_v4.2.1_benchmark.bed
           params:
             chr_prefix: ""
-        corrections:
-          strip_IPS: false
-      # draft_v0.005:
-      #   vcf_url: null
-      #   bed_url: null
-      #   chr_prefix: ""
-      #   corrections:
-      #     strip_IPS: false
-      # draft_v2.7_xy:
-      #   vcf_url: null
-      #   bed_url: null
-      #   chr_prefix: ""
-      #   corrections:
-      #     strip_IPS: false
 
   GRCh38:
     sdf:
@@ -574,8 +564,6 @@ references:
         bed:
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed
-        corrections:
-          strip_IPS: false
       HG003_v421:
         vcf:
           src:
@@ -583,8 +571,6 @@ references:
         bed:
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG003_NA24149_father/NISTv4.2.1/GRCh38/HG003_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed
-        corrections:
-          strip_IPS: false
       HG004_v421:
         vcf:
           src:
@@ -592,17 +578,16 @@ references:
         bed:
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG004_NA24143_mother/NISTv4.2.1/GRCh38/HG004_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed
-        corrections:
-          strip_IPS: false
       HG005_v421:
         vcf:
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh38/HG005_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
+          corrections:
+            # this particular vcf will make vcfeval choke if we don't strip this field
+            strip_format_fields: [IPS]
         bed:
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG005_NA24631_son/NISTv4.2.1/GRCh38/HG005_GRCh38_1_22_v4.2.1_benchmark.bed
-        corrections:
-          strip_IPS: true
       HG006_v421:
         vcf:
           src:
@@ -610,8 +595,6 @@ references:
         bed:
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG006_NA24694_father/NISTv4.2.1/GRCh38/HG006_GRCh38_1_22_v4.2.1_benchmark.bed
-        corrections:
-          strip_IPS: false
       HG007_v421:
         vcf:
           src:
@@ -619,8 +602,6 @@ references:
         bed:
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/ChineseTrio/HG007_NA24695_mother/NISTv4.2.1/GRCh38/HG007_GRCh38_1_22_v4.2.1_benchmark.bed
-        corrections:
-          strip_IPS: false
       draft_v005:
         vcf:
           src:
@@ -628,14 +609,6 @@ references:
         bed:
           src:
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/data/AshkenazimTrio/analysis/T2T-HG002-XY-v2.7/20220324_v0.005_HG002XYvsGRCh38/preliminary-draft-small-variant-benchmark-files/GRCh38_T2T-XY-v2.7_dipcall-z2k.excluded.bed
-        corrections:
-          strip_IPS: false
-      # draft_v27_xy:
-      #   vcf_url: null
-      #   bed_url: null
-      #   corrections:
-      #     strip_IPS: false
-
 
 # Definitions for features (in addition to what can be derived from other
 # parts of the configuration)

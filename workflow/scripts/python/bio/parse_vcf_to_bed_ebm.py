@@ -206,7 +206,7 @@ def get_label(wildcards: dict[str, str]) -> Optional[str]:
 def main(smk: Any, sconf: cfg.StratoMod) -> None:
     wildcards = smk.wildcards
     fconf = sconf.feature_definitions
-    iconf = sconf._querykey_to_input(smk.params.query_key)
+    iconf = sconf.querykey_to_vcf(smk.params.query_key)
 
     def fmt(f: Callable[[cfg.VCFColumns], cfg.ColumnSpec]) -> cfg.PandasColumn:
         return cfg.PandasColumn(fconf.vcf.fmt_name(f)[0])

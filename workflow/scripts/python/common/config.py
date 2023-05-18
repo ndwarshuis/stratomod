@@ -521,6 +521,12 @@ class BedColumns(_BaseModel):
         return bed_cols_indexed((self.chrom, self.start, self.end))
 
 
+class VCFCorrections(_BaseModel):
+    "Corrections to apply to a given vcf file"
+    strip_format_fields: set[str] = set()
+    fix_refcall_gt: bool = False
+
+
 class VCFFile(_BaseModel):
     """A VCF file.
 
@@ -529,8 +535,7 @@ class VCFFile(_BaseModel):
 
     src: FileSrc
     chr_prefix: ChrPrefix = ChrPrefix("chr")
-    strip_IPS: bool = False
-    fix_refcall: bool = False
+    corrections: VCFCorrections = VCFCorrections()
 
 
 class BedFileParams(_BaseModel):
@@ -638,16 +643,10 @@ class Strats(_BaseModel):
     mhc: list[BedRegion]
 
 
-class BenchmarkCorrections(_BaseModel):
-    "Corrections to apply to a given benchmark file"
-    strip_IPS: bool
-
-
 class Benchmark(_BaseModel):
     "Benchmark files for a given reference"
     vcf: VCFFile
     bed: BedFile
-    corrections: BenchmarkCorrections
 
 
 class Mappability(_BaseModel):
@@ -1520,7 +1519,7 @@ class StratoMod(_BaseModel):
     def refsetkey_to_refset(self, key: RefsetKey) -> Refset:
         return self.reference_sets[key]
 
-    def _querykey_to_input(self, k: QueryKey) -> VCFQuery:
+    def querykey_to_vcf(self, k: QueryKey) -> VCFQuery:
         return self._lookup_vcfquery(
             self.labeled_queries,
             self.unlabeled_queries,
@@ -1555,6 +1554,9 @@ class StratoMod(_BaseModel):
         prefix, indices = self.refsetkey_to_chr_filter(lambda r: r.sdf.chr_prefix, key)
         return list(i.chr_name_full(prefix) for i in indices)
 
+    def benchkey_to_vcf(self, rkey: RefsetKey, bkey: BenchKey) -> VCFFile:
+        return self.refsetkey_to_ref(rkey).benchmarks[bkey].vcf
+
     def benchkey_to_vcf_chr_prefix(self, rkey: RefsetKey, bkey: BenchKey) -> str:
         return self.refsetkey_to_ref(rkey).benchmarks[bkey].vcf.chr_prefix
 
@@ -1569,25 +1571,17 @@ class StratoMod(_BaseModel):
         return self.refsetkey_to_refkey(rk)
 
     def querykey_to_refsetkey(self, key: QueryKey) -> RefsetKey:
-        return self._querykey_to_input(key).refset
+        return self.querykey_to_vcf(key).refset
 
     def querykey_to_benchkey(self, key: LabeledQueryKey) -> BenchKey:
         return self.labeled_queries[key].benchmark
 
     def querykey_to_chr_prefix(self, key: QueryKey) -> str:
-        return self._querykey_to_input(key).chr_prefix
+        return self.querykey_to_vcf(key).chr_prefix
 
     def querykey_to_variables(self, input_key: QueryKey) -> dict[FeatureKey, float]:
-        vs = self._querykey_to_input(input_key).variables
+        vs = self.querykey_to_vcf(input_key).variables
         return self.feature_definitions.variables.parse_vars(vs)
-
-    def querykey_to_bench_correction(
-        self,
-        key: LabeledQueryKey,
-    ) -> BenchmarkCorrections:
-        bkey = self.labeled_queries[key].benchmark
-        rkey = self.querykey_to_refsetkey(key)
-        return self.refsetkey_to_ref(rkey).benchmarks[bkey].corrections
 
     def testkey_to_variables(
         self,

@@ -3,13 +3,13 @@ import scripts.python.common.config as cfg
 from scripts.python.common.functional import flip, compose
 
 
-def lookup_benchmark_vcf(wildcards):
-    cor = (
-        config.refsetkey_to_ref(wildcards.refset_key)
-        .benchmarks[wildcards.bench_key]
-        .corrections.strip_IPS
-    )
-    return rules.fix_HG005_bench_vcf.output if cor else rules.filter_bench_vcf.output
+# def lookup_benchmark_vcf(wildcards):
+#     cor = (
+#         config.refsetkey_to_ref(wildcards.refset_key)
+#         .benchmarks[wildcards.bench_key]
+#         .corrections.strip_IPS
+#     )
+#     return rules.fix_HG005_bench_vcf.output if cor else rules.filter_bench_vcf.output
 
 
 def expand_benchmark_path(path, wildcards):
@@ -20,8 +20,8 @@ def expand_benchmark_path(path, wildcards):
     )
 
 
-def rule_output_suffix(rulename, suffix):
-    return f"{getattr(rules, rulename).output[0]}.{suffix}"
+# def rule_output_suffix(rulename, suffix):
+#     return f"{getattr(rules, rulename).output[0]}.{suffix}"
 
 
 ################################################################################
@@ -161,40 +161,39 @@ rule filter_labeled_query_vcf:
     input:
         rules.download_labeled_query_vcf.output,
     output:
-        config.query_prepare_res_dir(log=False, labeled=True) / "filtered.vcf",
-    # TODO this isn't necessary
+        config.query_prepare_res_dir(log=False, labeled=True) / "filtered.vcf.gz",
     params:
-        chr_prefix=lambda w: config.querykey_to_chr_prefix(w.l_query_key),
+        vcf=lambda w: config.querykey_to_vcf(w.l_query_key),
     conda:
         "../envs/bio.yml"
     script:
-        "../scripts/python/bio/standardize_bed.py"
+        "../scripts/python/bio/standardize_vcf.py"
 
 
 use rule filter_labeled_query_vcf as filter_unlabeled_query_vcf with:
     input:
         rules.download_unlabeled_query_vcf.output,
     output:
-        config.query_prepare_res_dir(log=False, labeled=False) / "filtered.vcf",
+        config.query_prepare_res_dir(log=False, labeled=False) / "filtered.vcf.gz",
     params:
-        chr_prefix=lambda w: config.querykey_to_chr_prefix(w.ul_query_key),
+        vcf=lambda w: config.querykey_to_vcf(w.ul_query_key),
 
 
-# TODO this is (probably) just for DV VCFs
-rule fix_refcall_query_vcf:
-    input:
-        rules.filter_labeled_query_vcf.output,
-    output:
-        config.query_prepare_res_dir(log=False, labeled=True) / "fixed_refcall.vcf",
-    conda:
-        "../envs/utils.yml"
-    shell:
-        f"""
-        cat {{input}} | \
-        sed -e '/.RefCall./ s/\.\/\./0\/1/g' | \
-        sed -e '/.RefCall./ s/0\/0/0\/1/g' \
-        > {{output}}
-        """
+# # TODO this is (probably) just for DV VCFs
+# rule fix_refcall_query_vcf:
+#     input:
+#         rules.filter_labeled_query_vcf.output,
+#     output:
+#         config.query_prepare_res_dir(log=False, labeled=True) / "fixed_refcall.vcf",
+#     conda:
+#         "../envs/utils.yml"
+#     shell:
+#         f"""
+#         cat {{input}} | \
+#         sed -e '/.RefCall./ s/\.\/\./0\/1/g' | \
+#         sed -e '/.RefCall./ s/0\/0/0\/1/g' \
+#         > {{output}}
+#         """
 
 
 ################################################################################
@@ -204,22 +203,23 @@ rule fix_refcall_query_vcf:
 # need to do this weird bgzip acrobatics with the query/bench
 
 
-rule zip_labeled_query_vcf:
-    input:
-        rules.fix_refcall_query_vcf.output,
-    output:
-        rule_output_suffix("fix_refcall_query_vcf", "gz"),
-    conda:
-        "../envs/bio.yml"
-    shell:
-        "bgzip -c {input} > {output}"
+# # this isn't necessary...
+# rule zip_labeled_query_vcf:
+#     input:
+#         rules.filter_labeled_query_vcf.output,
+#     output:
+#         rule_output_suffix("filter_labeled_query_vcf", "gz"),
+#     conda:
+#         "../envs/bio.yml"
+#     shell:
+#         "bgzip -c {input} > {output}"
 
 
 rule generate_query_tbi:
     input:
-        rules.zip_labeled_query_vcf.output,
+        rules.filter_labeled_query_vcf.output,
     output:
-        rule_output_suffix("zip_labeled_query_vcf", "tbi"),
+        rules.filter_labeled_query_vcf.output[0] + ".tbi",
     conda:
         "../envs/bio.yml"
     shell:
@@ -244,45 +244,43 @@ use rule filter_labeled_query_vcf as filter_bench_vcf with:
     input:
         partial(expand_benchmark_path, rules.download_bench_vcf.output),
     output:
-        config.bench_res_dir(log=False) / "filtered.vcf",
-    # TODO this isn't necessary
+        config.bench_res_dir(log=False) / "filtered.vcf.gz",
     params:
-        chr_prefix=lambda w: config.benchkey_to_bed_chr_prefix(
-            w.refset_key, w.bench_key
-        ),
+        vcf=lambda w: config.benchkey_to_vcf(w.refset_key, w.bench_key),
 
 
-# NOTE: this avoids an error caused by vcfeval where it will strip out any
-# fields in the SAMPLE column that end in a dot, which in turn will result in a
-# FORMAT/SAMPLE cardinality mismatch.
-rule fix_HG005_bench_vcf:
-    input:
-        rules.filter_bench_vcf.output,
-    output:
-        config.bench_res_dir(log=False) / "HG005_fixed.vcf",
-    conda:
-        "../envs/utils.yml"
-    shell:
-        """
-        cat {input} | \
-        sed 's/:IPS\t/\t/' | \
-        sed 's/:[^:]\+$//' \
-        > {output}
-        """
+# # NOTE: this avoids an error caused by vcfeval where it will strip out any
+# # fields in the SAMPLE column that end in a dot, which in turn will result in a
+# # FORMAT/SAMPLE cardinality mismatch.
+# rule fix_HG005_bench_vcf:
+#     input:
+#         rules.filter_bench_vcf.output,
+#     output:
+#         config.bench_res_dir(log=False) / "HG005_fixed.vcf",
+#     conda:
+#         "../envs/utils.yml"
+#     shell:
+#         """
+#         cat {input} | \
+#         sed 's/:IPS\t/\t/' | \
+#         sed 's/:[^:]\+$//' \
+#         > {output}
+#         """
 
 
-use rule zip_labeled_query_vcf as zip_bench_vcf with:
-    input:
-        lookup_benchmark_vcf,
-    output:
-        config.bench_res_dir(log=False) / "final_bench.vcf.gz",
+# # TODO not necessary...
+# use rule zip_labeled_query_vcf as zip_bench_vcf with:
+#     input:
+#         rules.filter_bench_vcf.output,
+#     output:
+#         config.bench_res_dir(log=False) / "final_bench.vcf.gz",
 
 
 use rule generate_query_tbi as generate_bench_tbi with:
     input:
-        rules.zip_bench_vcf.output,
+        rules.filter_bench_vcf.output,
     output:
-        rule_output_suffix("zip_bench_vcf", "tbi"),
+        rules.filter_bench_vcf.output[0] + ".tbi",
 
 
 ################################################################################
@@ -304,7 +302,6 @@ rule filter_bench_bed:
         partial(expand_benchmark_path, rules.download_bench_bed.output),
     output:
         config.bench_res_dir(log=False) / "filtered.bed",
-    # TODO this isn't necessary
     params:
         chr_prefix=lambda w: config.benchkey_to_bed_chr_prefix(
             w.refset_key, w.bench_key
@@ -315,6 +312,7 @@ rule filter_bench_bed:
         "../scripts/python/bio/standardize_bed.py"
 
 
+# TODO gunzip not necessary here?
 rule subtract_mhc_bench_bed:
     input:
         bed=rules.filter_bench_bed.output,
@@ -351,7 +349,7 @@ def vcf_bench_targets(wildcards):
             bench_key=config.querykey_to_benchkey(wildcards.l_query_key),
         )
         for k, v in [
-            ("bench_vcf", rules.zip_bench_vcf.output),
+            ("bench_vcf", rules.filter_bench_vcf.output),
             ("bench_bed", rules.subtract_mhc_bench_bed.output),
             ("bench_tbi", rules.generate_bench_tbi.output),
         ]
@@ -361,7 +359,7 @@ def vcf_bench_targets(wildcards):
 rule label_vcf:
     input:
         unpack(vcf_bench_targets),
-        query_vcf=rules.zip_labeled_query_vcf.output,
+        query_vcf=rules.filter_labeled_query_vcf.output,
         query_tbi=rules.generate_query_tbi.output,
         sdf=lambda wildcards: expand(
             rules.fasta_to_sdf.output,
