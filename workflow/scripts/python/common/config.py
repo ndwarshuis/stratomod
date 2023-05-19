@@ -716,26 +716,26 @@ class _ConstFeatureGroup(_FeatureGroup):
 
 
 class ColumnSpec(_BaseModel):
-    feature_name: NonEmptyStr
+    name: NonEmptyStr
     description: FeatureDesc
 
 
 class VCFColumns(_BaseModel):
     "Columns for a vcf file"
     qual: ColumnSpec = ColumnSpec(
-        feature_name="QUAL",
+        name="QUAL",
         description=FeatureDesc("The value of the QUAL column in the VCF file"),
     )
     filter: ColumnSpec = ColumnSpec(
-        feature_name="FILTER",
+        name="FILTER",
         description=FeatureDesc("The value of the FILTER column in the VCF file"),
     )
     info: ColumnSpec = ColumnSpec(
-        feature_name="INFO",
+        name="INFO",
         description=FeatureDesc("The value of the INFO column in the VCF file"),
     )
     len: ColumnSpec = ColumnSpec(
-        feature_name="indel_length",
+        name="indel_length",
         description=FeatureDesc(
             "The difference between the lengths of the ALT and REF columns in the VCF file."
         ),
@@ -753,7 +753,7 @@ class VCFGroup(_FeatureGroup):
         f: Callable[[VCFColumns], ColumnSpec],
     ) -> tuple[FeatureKey, FeatureDesc]:
         c = f(self.columns)
-        return (self.fmt_feature(c.feature_name), c.description)
+        return (self.fmt_feature(c.name), c.description)
 
     @property
     def str_features(self) -> dict[FeatureKey, FeatureDesc]:
@@ -923,7 +923,7 @@ class MergedFeatureGroup(_ConstFeatureGroup, Generic[X]):
 
     def fmt_col(self, f: Callable[[X], ColumnSpec]) -> tuple[PandasColumn, FeatureDesc]:
         c = f(self.columns)
-        return (PandasColumn(self.fmt_feature(c.feature_name)), c.description)
+        return (PandasColumn(self.fmt_feature(c.name)), c.description)
 
     def fmt_merged_feature(self, middle: str, op: BedMergeOp) -> FeatureKey:
         return FeatureKey(f"{middle}_{op.value}")
@@ -946,7 +946,7 @@ class MergedFeatureGroup(_ConstFeatureGroup, Generic[X]):
     ) -> dict[FeatureKey, FeatureDesc]:
         cs = dict(
             [
-                (FeatureKey(self.fmt_feature(c.feature_name)), c.description)
+                (FeatureKey(self.fmt_feature(c.name)), c.description)
                 for c in [f(self.columns) for f in column_getters]
             ]
         )
@@ -957,7 +957,7 @@ class MergedFeatureGroup(_ConstFeatureGroup, Generic[X]):
 class SegDupsColumns(_BaseModel):
     "Columns corresponding to the superdups files"
     alignL: ColumnSpec = ColumnSpec(
-        feature_name="size",
+        name="size",
         description=FeatureDesc(
             (
                 "The fraction (a float between 0 and 1) between this "
@@ -967,7 +967,7 @@ class SegDupsColumns(_BaseModel):
         ),
     )
     fracMatchIndel: ColumnSpec = ColumnSpec(
-        feature_name="identity",
+        name="identity",
         description=FeatureDesc(
             (
                 "Spaces/positions in the alignment (positive integer). "
@@ -996,31 +996,31 @@ class SegDupsGroup(MergedFeatureGroup[SegDupsColumns]):
 class TandemRepeatColumns(_BaseModel):
     "Columns corresponding to the simple_repeats files"
     period: ColumnSpec = ColumnSpec(
-        feature_name="unit_size",
+        name="unit_size",
         description=FeatureDesc(
             "Length of the repeat unit. Corresponds to 'period' in TRF."
         ),
     )
     copyNum: ColumnSpec = ColumnSpec(
-        feature_name="unit_copies",
+        name="unit_copies",
         description=FeatureDesc(
             "Mean number of copies of the repeated unit. Corresponds to 'copyNum' in TRF."
         ),
     )
     perMatch: ColumnSpec = ColumnSpec(
-        feature_name="identity",
+        name="identity",
         description=FeatureDesc(
             "Percentage match (integer between 0 and 100). Corresponds to 'perMatch' in TRF."
         ),
     )
     perIndel: ColumnSpec = ColumnSpec(
-        feature_name="per_indel_mismatch",
+        name="per_indel_mismatch",
         description=FeatureDesc(
             "Percentage INDEL (integer between 0 and 100). Corresponds to 'perIndel' in TRF."
         ),
     )
     score: ColumnSpec = ColumnSpec(
-        feature_name="score",
+        name="score",
         description=FeatureDesc(
             "Alignment score (integer with minimum of 50). Corresponds to 'score' in TRF."
         ),
@@ -1166,13 +1166,16 @@ class FormatField(_BaseModel):
     """Means to parse a field in the FORMAT/SAMPLE columns of a VCF.
 
     Members:
-    field_name: member of the FORMAT column to be parsed from SAMPLE
-    field_missing: value to use if 'field_name' is not in FORMAT
+    name: member of the FORMAT column to be parsed from SAMPLE
+    missing: value to use if 'name' is not in FORMAT
+    mapper: if given, will be used to map the value of the field to a number;
+      if not given the field is assumed to be a number, and filled with a blank
+      if it isn't actually a number
     """
 
     name: str
     missing: str | None = None
-    mapper: dict[str, int] = {}
+    mapper: dict[str, float] = {}
 
 
 FormatFields = dict[str, FormatField | str | None]
