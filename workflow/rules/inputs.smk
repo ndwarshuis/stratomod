@@ -418,9 +418,9 @@ rule parse_labeled_vcf:
     conda:
         "../envs/bio.yml"
     params:
-        query_key=lambda wildcards: wildcards.l_query_key,
+        query_key=lambda w: w.l_query_key,
     script:
-        "../scripts/python/bio/parse_vcf_to_bed_ebm.py"
+        "../scripts/python/bio/vcf_to_bed.py"
 
 
 rule concat_labeled_tsvs:
