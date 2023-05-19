@@ -39,8 +39,8 @@ def write_row(
 def lookup_field(f: cfg.FormatField, d: dict[str, str]) -> str:
     try:
         v = d[f.name]
-        if is_real(v):
-            return v
+        if len(f.mapper) == 0:
+            return v if is_real(v) else ""
         try:
             return str(f.mapper[v])
         except KeyError:
