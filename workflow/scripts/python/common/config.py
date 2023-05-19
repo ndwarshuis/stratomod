@@ -49,13 +49,21 @@ from pydantic import validator, HttpUrl, PositiveFloat, NonNegativeInt, Field, F
 from enum import Enum, unique
 from collections import ChainMap
 
+# constants
+
+BED_CHROM = "chrom"
+BED_START = "chromStart"
+BED_END = "chromEnd"
+VAR_IDX = "variant_index"
+
+BED_COLS = [BED_CHROM, BED_START, BED_END]
+IDX_COLS = [VAR_IDX, *BED_COLS]
 
 # various types
 
-X = TypeVar("X")
-
 Fraction = Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)]
 NonEmptyStr = Annotated[str, Field(min_length=1)]
+FeaturePrefix = Annotated[str, Field(regex="^[A-Z]+$")]
 
 # newtype string wrappers for different purposes
 
@@ -79,6 +87,42 @@ QueryKey = UnlabeledQueryKey | LabeledQueryKey
 ChrPrefix = NewType("ChrPrefix", str)  # the "chr" (or something) prefix for chromosomes
 PandasColumn = NewType("PandasColumn", str)  # the name of a pandas column
 FeatureDesc = NewType("FeatureDesc", str)  # a description for a feature
+
+
+# helper functions
+
+X = TypeVar("X")
+
+
+def _assert_empty(xs: Collection[X], msg: str) -> None:
+    assert len(xs) == 0, f"{msg}: {xs}"
+
+
+def _assert_no_dups(xs: Collection[X], msg: str) -> None:
+    _assert_empty(set(duplicates_everseen(xs)), msg)
+
+
+def _assert_match(pat: str, s: str) -> str:
+    res = re.match(pat, s)
+    assert res is not None, f"match failed for pattern '{pat}' and query '{s}'"
+    return res[0]
+
+
+def _assert_subset(xs: set[X], ys: set[X]) -> None:
+    assert xs <= ys, f"not a subset - extra members: {xs - ys}"
+
+
+def _assert_member(x: X, xs: Sequence[X]) -> None:
+    assert x in xs, f"'{x}' is not one of {xs}"
+
+
+def _assert_keypattern(x: str) -> None:
+    assert re.fullmatch(KEY_CONSTR, x), f"key '{x}' does not match {KEY_CONSTR}"
+
+
+def bed_cols_indexed(indices: tuple[int, int, int]) -> dict[int, str]:
+    return dict(zip(indices, BED_COLS))
+
 
 # enums to prevent runaway strings
 
@@ -173,21 +217,6 @@ class Transform(Enum):
     BINARY = "binary"
 
 
-# constants
-
-BED_CHROM = "chrom"
-BED_START = "chromStart"
-BED_END = "chromEnd"
-VAR_IDX = "variant_index"
-
-BED_COLS = [BED_CHROM, BED_START, BED_END]
-IDX_COLS = [VAR_IDX, *BED_COLS]
-
-
-def bed_cols_indexed(indices: tuple[int, int, int]) -> dict[int, str]:
-    return dict(zip(indices, BED_COLS))
-
-
 # useful data bundles
 
 
@@ -223,7 +252,7 @@ class TestKeyCombo(NamedTuple):
     query_key: QueryKey
 
 
-# wildcards: all wildcards ever used in the pipeline should be in this dict
+# wildcards: common wildcards used in the pipeline should be in this dict
 
 
 def alternate_constraint(xs: list[str]) -> str:
@@ -453,8 +482,8 @@ class Model(_BaseModel):
         for k, v in fs.items():
             alt = v.alt_name
             if alt is not None:
-                prefix = assert_match("^[^_]+", k)
-                alt_prefix = assert_match("^[^_]+", alt)
+                prefix = _assert_match("^[^_]+", k)
+                alt_prefix = _assert_match("^[^_]+", alt)
                 assert alt_prefix == prefix, f"Alt prefix must match for {k}"
         return fs
 
@@ -669,9 +698,6 @@ class Reference(_BaseModel):
     strats: Strats
     feature_data: FeatureData
     benchmarks: dict[BenchKey, Benchmark]
-
-
-FeaturePrefix = Annotated[str, Field(regex="^[A-Z]+$")]
 
 
 class _FeatureGroup(_BaseModel):
@@ -1189,10 +1215,12 @@ class FeatureDefs(_BaseModel):
         return PandasColumn(self.label)
 
     @property
+    def index_cols(self) -> list[PandasColumn]:
+        return [*[PandasColumn(c) for c in BED_COLS], PandasColumn(VAR_IDX)]
+
+    @property
     def non_summary_cols(self) -> list[PandasColumn]:
-        return [PandasColumn(c) for c in BED_COLS] + [
-            PandasColumn(x) for x in self.vcf.str_features
-        ]
+        return self.index_cols + [PandasColumn(x) for x in self.vcf.str_features]
 
 
 # mypy be stupid here, see https://github.com/pydantic/pydantic/issues/1684
@@ -1205,34 +1233,8 @@ LabeledQueries = dict[LabeledQueryKey, LabeledVCFQuery]
 UnlabeledQueries = dict[UnlabeledQueryKey, UnlabeledVCFQuery]
 
 
-def assert_empty(xs: Collection[X], msg: str) -> None:
-    assert len(xs) == 0, f"{msg}: {xs}"
-
-
-def assert_no_dups(xs: Collection[X], msg: str) -> None:
-    assert_empty(set(duplicates_everseen(xs)), msg)
-
-
-def assert_match(pat: str, s: str) -> str:
-    res = re.match(pat, s)
-    assert res is not None, f"match failed for pattern '{pat}' and query '{s}'"
-    return res[0]
-
-
-def assert_subset(xs: set[X], ys: set[X]) -> None:
-    assert xs <= ys, f"not a subset - extra members: {xs - ys}"
-
-
-def assert_member(x: X, xs: Sequence[X]) -> None:
-    assert x in xs, f"'{x}' is not one of {xs}"
-
-
-def flatten_features(fs: dict[FeatureKey, Feature]) -> list[FeatureKey]:
+def _flatten_features(fs: dict[FeatureKey, Feature]) -> list[FeatureKey]:
     return [k if v.alt_name is None else v.alt_name for k, v in fs.items()]
-
-
-def assert_keypattern(x: str) -> None:
-    assert re.fullmatch(KEY_CONSTR, x), f"key '{x}' does not match {KEY_CONSTR}"
 
 
 LabeledQueryMap = dict[LabeledQueryKey, LabeledVCFQuery]
@@ -1251,7 +1253,7 @@ class StratoMod(_BaseModel):
     feature_definitions: FeatureDefs
     reference_sets: RefsetMap
     labeled_queries: LabeledQueries
-    unlabeled_queries: UnlabeledQueries
+    unlabeled_queries: UnlabeledQueries = {}
     models: ModelMap
 
     @classmethod
@@ -1329,8 +1331,8 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> Refset:
         try:
-            assert_member(v.ref, list(cast(RefMap, values["references"])))
-            assert_keypattern(v.ref)
+            _assert_member(v.ref, list(cast(RefMap, values["references"])))
+            _assert_keypattern(v.ref)
         except KeyError:
             pass
         return v
@@ -1342,8 +1344,8 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> VCFQuery:
         try:
-            assert_member(v.refset, list(cast(RefsetMap, values["reference_sets"])))
-            assert_keypattern(v.refset)
+            _assert_member(v.refset, list(cast(RefsetMap, values["reference_sets"])))
+            _assert_keypattern(v.refset)
         except KeyError:
             pass
         return v
@@ -1377,8 +1379,8 @@ class StratoMod(_BaseModel):
         else:
             ref_key = refsets[v.refset].ref
             ref_benchmarks = refs[ref_key].benchmarks
-            assert_member(v.benchmark, list(ref_benchmarks))
-            assert_keypattern(v.benchmark)
+            _assert_member(v.benchmark, list(ref_benchmarks))
+            _assert_keypattern(v.benchmark)
         return v
 
     @validator("unlabeled_queries")
@@ -1414,13 +1416,13 @@ class StratoMod(_BaseModel):
         except KeyError:
             pass
         else:
-            assert_subset(set(v.features), features)
+            _assert_subset(set(v.features), features)
         return v
 
     @validator("models", each_item=True)
     def models_have_valid_features_alt(cls: Type[Self], v: Model) -> Model:
         # TODO dry?
-        assert_no_dups(flatten_features(v.features), "Duplicated features")
+        _assert_no_dups(_flatten_features(v.features), "Duplicated features")
         return v
 
     @validator("models", each_item=True)
@@ -1430,14 +1432,14 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> Model:
         if isinstance(v.interactions, set):
-            features = set(flatten_features(v.features))
+            features = set(_flatten_features(v.features))
             interactions = set(
                 flatten(
                     [i.f1, i.f2] if isinstance(i, FeaturePair) else [i]
                     for i in v.interactions
                 )
             )
-            assert_subset(interactions, features)
+            _assert_subset(interactions, features)
         return v
 
     @validator("models", each_item=True)
@@ -1447,12 +1449,12 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> Model:
         try:
-            assert_subset(
+            _assert_subset(
                 set(v.train),
                 set(cast(LabeledQueryMap, values["labeled_queries"])),
             )
             for t in v.train:
-                assert_keypattern(t)
+                _assert_keypattern(t)
         except KeyError:
             pass
         return v
@@ -1468,9 +1470,9 @@ class StratoMod(_BaseModel):
             ls = set(cast(LabeledQueryMap, values["labeled_queries"]))
             us = set(cast(UnlabeledQueryMap, values["unlabeled_queries"]))
             all_queries = ls | us
-            assert_subset(set(tests), all_queries)
+            _assert_subset(set(tests), all_queries)
             for t in tests:
-                assert_keypattern(t)
+                _assert_keypattern(t)
         except KeyError:
             pass
         return v
@@ -1508,7 +1510,7 @@ class StratoMod(_BaseModel):
         v: dict[ModelKey, Model],
     ) -> dict[ModelKey, Model]:
         for k in v:
-            assert_keypattern(k)
+            _assert_keypattern(k)
         return v
 
     # various mapping functions
