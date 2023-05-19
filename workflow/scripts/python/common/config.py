@@ -88,6 +88,7 @@ ChrPrefix = NewType("ChrPrefix", str)  # the "chr" (or something) prefix for chr
 PandasColumn = NewType("PandasColumn", str)  # the name of a pandas column
 FeatureDesc = NewType("FeatureDesc", str)  # a description for a feature
 
+DescribedFeature = tuple[FeatureKey, FeatureDesc]
 
 # helper functions
 
@@ -902,10 +903,6 @@ class RMSKGroup(_FeatureGroup):
         )
 
 
-DescribedFeature = tuple[FeatureKey, FeatureDesc]
-DescribedColumn = tuple[PandasColumn, FeatureDesc]
-
-
 class MergedFeatureGroup(_ConstFeatureGroup, Generic[X]):
     "Superclass for feature group which supports bedtools merge"
     operations: set[BedMergeOp]
@@ -1184,7 +1181,7 @@ FormatFields = dict[str, FormatField | str | None]
 class UnlabeledVCFQuery(VCFFile):
     "A vcf to be used as the query for a model without labels."
     refset: RefsetKey
-    variables: dict[VarKey, VarVal]
+    variables: dict[VarKey, VarVal] = {}
     max_ref: Annotated[int, Field(ge=0)] = 50
     max_alt: Annotated[int, Field(ge=0)] = 50
     format_fields: FormatFields = {

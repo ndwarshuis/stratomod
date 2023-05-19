@@ -129,7 +129,6 @@ unlabeled_queries:
       DP: null
       GT: null
       GQ: null
-    variables: {}
 
 # Model run specification. Each key represents a particular modul configuration.
 # More deeply nested keys encode the inputs (which utilize the data in the
