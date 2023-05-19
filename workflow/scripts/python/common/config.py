@@ -90,6 +90,7 @@ IndexCol = NewType("IndexCol", str)  # the name of a non-feature/label column
 FeatureDesc = NewType("FeatureDesc", str)  # a description for a feature
 
 DescribedFeature = tuple[FeatureKey, FeatureDesc]
+FeatureMap = dict[FeatureKey, FeatureDesc]
 
 # helper functions
 
@@ -702,6 +703,11 @@ class Reference(_BaseModel):
     benchmarks: dict[BenchKey, Benchmark]
 
 
+class ColumnSpec(_BaseModel):
+    name: NonEmptyStr
+    description: FeatureDesc
+
+
 class _FeatureGroup(_BaseModel):
     "Superclass for feature groups (which in turn define valid feature names)"
     prefix: FeaturePrefix
@@ -710,16 +716,14 @@ class _FeatureGroup(_BaseModel):
     def fmt_feature(self, rest: str) -> FeatureKey:
         return FeatureKey(f"{self.prefix}_{rest}")
 
+    def fmt_feature_desc(self, c: ColumnSpec) -> DescribedFeature:
+        return (self.fmt_feature(c.name), c.description)
+
 
 class _ConstFeatureGroup(_FeatureGroup):
     @property
-    def features(self) -> dict[FeatureKey, FeatureDesc]:
+    def features(self) -> FeatureMap:
         return {}
-
-
-class ColumnSpec(_BaseModel):
-    name: NonEmptyStr
-    description: FeatureDesc
 
 
 class VCFColumns(_BaseModel):
@@ -744,27 +748,30 @@ class VCFGroup(_FeatureGroup):
     columns: VCFColumns = VCFColumns()
     description: NonEmptyStr = "Features obtained from the query VCF file."
 
-    def fmt_name(
-        self: Self,
-        f: Callable[[VCFColumns], str],
-    ) -> IndexCol:
-        return IndexCol(f(self.columns))
+    @property
+    def filter(self) -> IndexCol:
+        return IndexCol(self.fmt_feature(self.columns.filter))
 
-    def fmt_name_desc(
-        self: Self,
-        f: Callable[[VCFColumns], ColumnSpec],
-    ) -> tuple[FeatureKey, FeatureDesc]:
-        c = f(self.columns)
-        return (self.fmt_feature(c.name), c.description)
+    @property
+    def info(self) -> IndexCol:
+        return IndexCol(self.fmt_feature(self.columns.info))
+
+    @property
+    def qual(self) -> DescribedFeature:
+        return self.fmt_feature_desc(self.columns.qual)
+
+    @property
+    def indel_length(self) -> DescribedFeature:
+        return self.fmt_feature_desc(self.columns.len)
 
     @property
     def str_features(self) -> list[IndexCol]:
-        return [self.fmt_name(x) for x in [lambda x: x.filter, lambda x: x.info]]
+        return [self.filter, self.info]
 
     def field_features(
         self,
         format_fields: set[str],
-    ) -> dict[FeatureKey, FeatureDesc]:
+    ) -> FeatureMap:
         return {
             self.fmt_feature(f): FeatureDesc(
                 f"The value of field '{f}' in the FORMAT/SAMPLE columns of the vcf"
@@ -772,9 +779,9 @@ class VCFGroup(_FeatureGroup):
             for f in format_fields
         }
 
-    def features(self, format_fields: set[str]) -> dict[FeatureKey, FeatureDesc]:
+    def features(self, format_fields: set[str]) -> FeatureMap:
         return {
-            **dict(self.fmt_name_desc(x) for x in [lambda x: x.qual, lambda x: x.len]),
+            **dict([self.qual, self.indel_length]),
             **self.field_features(format_fields),
         }
 
@@ -803,7 +810,7 @@ class MapGroup(_ConstFeatureGroup):
         return self.fmt_feature(self.suffixes.high)
 
     @property
-    def features(self) -> dict[FeatureKey, FeatureDesc]:
+    def features(self) -> FeatureMap:
         return {
             self.low: FeatureDesc(
                 (
@@ -846,7 +853,7 @@ class HomopolyGroup(_ConstFeatureGroup):
         return self.fmt_feature(f"{b.value}_{f(self.suffixes)}")
 
     @property
-    def features(self) -> dict[FeatureKey, FeatureDesc]:
+    def features(self) -> FeatureMap:
         def fmt_len(b: Base) -> FeatureDesc:
             return FeatureDesc(
                 (
@@ -885,7 +892,7 @@ class RMSKGroup(_FeatureGroup):
         rest = maybe(grp, lambda f: f"{grp}_{fam}", fam)
         return self.fmt_feature(f"{rest}_length")
 
-    def features(self, f: RMSKFile) -> dict[FeatureKey, FeatureDesc]:
+    def features(self, f: RMSKFile) -> FeatureMap:
         def fmt(cls: str, fam: str | None) -> tuple[FeatureKey, FeatureDesc]:
             k = FeatureKey(self.fmt_name(f, cls, fam))
             d = (
@@ -919,8 +926,7 @@ class MergedFeatureGroup(_ConstFeatureGroup, Generic[X]):
         )
 
     def fmt_col(self, f: Callable[[X], ColumnSpec]) -> DescribedFeature:
-        c = f(self.columns)
-        return (self.fmt_feature(c.name), c.description)
+        return self.fmt_feature_desc(f(self.columns))
 
     def fmt_merged_feature(self, middle: str, op: BedMergeOp) -> FeatureKey:
         return FeatureKey(f"{middle}_{op.value}")
@@ -929,8 +935,8 @@ class MergedFeatureGroup(_ConstFeatureGroup, Generic[X]):
     # dict?
     def ops_product(
         self,
-        xs: dict[FeatureKey, FeatureDesc],
-    ) -> dict[FeatureKey, FeatureDesc]:
+        xs: FeatureMap,
+    ) -> FeatureMap:
         return {
             FeatureKey(f"{f}_{o.value}"): FeatureDesc(f"{d} ({o.value})")
             for (f, d), o in product(xs.items(), self.operations)
@@ -939,14 +945,9 @@ class MergedFeatureGroup(_ConstFeatureGroup, Generic[X]):
     def merged_features(
         self,
         column_getters: list[Callable[[X], ColumnSpec]],
-        other_columns: dict[FeatureKey, FeatureDesc] = {},
-    ) -> dict[FeatureKey, FeatureDesc]:
-        cs = dict(
-            [
-                (FeatureKey(self.fmt_feature(c.name)), c.description)
-                for c in [f(self.columns) for f in column_getters]
-            ]
-        )
+        other_columns: FeatureMap = {},
+    ) -> FeatureMap:
+        cs = dict([self.fmt_feature_desc(f(self.columns)) for f in column_getters])
         cnt = self.count_feature
         return {**self.ops_product({**cs, **other_columns}), cnt[0]: cnt[1]}
 
@@ -986,7 +987,7 @@ class SegDupsGroup(MergedFeatureGroup[SegDupsColumns]):
     )
 
     @property
-    def features(self) -> dict[FeatureKey, FeatureDesc]:
+    def features(self) -> FeatureMap:
         return self.merged_features([lambda x: x.alignL, lambda x: x.fracMatchIndel])
 
 
@@ -1081,7 +1082,7 @@ class TandemRepeatGroup(MergedFeatureGroup[TandemRepeatColumns]):
         )
 
     @property
-    def features(self) -> dict[FeatureKey, FeatureDesc]:
+    def features(self) -> FeatureMap:
         return self.merged_features(
             [
                 lambda x: x.period,
@@ -1136,7 +1137,7 @@ class VariableGroup(_ConstFeatureGroup):
         return list(self.continuous) + list(self.categorical)
 
     @property
-    def features(self) -> dict[FeatureKey, FeatureDesc]:
+    def features(self) -> FeatureMap:
         # return dict(self.fmt_feature(x) for x in self.all_keys())
         conts = [(k, v.description) for k, v in self.continuous.items()]
         cats = [(k, v.description) for k, v in self.categorical.items()]
@@ -1281,17 +1282,15 @@ class StratoMod(_BaseModel):
         rm: RefMap,
         rsm: RefsetMap,
         ks: list[QueryKey],
-    ) -> dict[FeaturePrefix, tuple[str, dict[FeatureKey, FeatureDesc]]]:
-        def to_keys(
-            f: Callable[[QueryKey], dict[FeatureKey, FeatureDesc]]
-        ) -> dict[FeatureKey, FeatureDesc]:
+    ) -> dict[FeaturePrefix, tuple[str, FeatureMap]]:
+        def to_keys(f: Callable[[QueryKey], FeatureMap]) -> FeatureMap:
             return dict(ChainMap(*[f(k) for k in ks]))
 
-        def querykey_to_vcf(k: QueryKey) -> dict[FeatureKey, FeatureDesc]:
+        def querykey_to_vcf(k: QueryKey) -> FeatureMap:
             x = set(cls._lookup_vcfquery(lm, um, k).format_fields)
             return fs.vcf.features(x)
 
-        def querykey_to_rmsk(k: QueryKey) -> dict[FeatureKey, FeatureDesc]:
+        def querykey_to_rmsk(k: QueryKey) -> FeatureMap:
             rsk = cls._lookup_vcfquery(lm, um, k).refset
             rk = rsm[rsk].ref
             rmsk = rm[rk].feature_data.repeat_masker
@@ -1616,7 +1615,7 @@ class StratoMod(_BaseModel):
     def modelkey_to_features(
         self,
         k: ModelKey,
-    ) -> dict[FeaturePrefix, tuple[str, dict[FeatureKey, FeatureDesc]]]:
+    ) -> dict[FeaturePrefix, tuple[str, FeatureMap]]:
         return self._merge_features(
             self.feature_definitions,
             self.labeled_queries,

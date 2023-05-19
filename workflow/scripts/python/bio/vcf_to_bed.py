@@ -1,4 +1,4 @@
-from typing import Any, TextIO, Callable
+from typing import Any, TextIO
 import common.config as cfg
 from common.io import with_gzip_maybe, setup_logging
 
@@ -149,18 +149,15 @@ def parse(smk: Any, sconf: cfg.StratoMod, fi: TextIO, fo: TextIO) -> None:
     ]
 
     # write header
-    def fmt(f: Callable[[cfg.VCFColumns], cfg.ColumnSpec]) -> str:
-        return defs.vcf.fmt_name(f)[0]
-
     write_row(
         fo,
         cfg.BED_CHROM,
         cfg.BED_START,
         cfg.BED_END,
-        fmt(lambda x: x.qual),
-        fmt(lambda x: x.filter),
-        fmt(lambda x: x.info),
-        fmt(lambda x: x.len),
+        defs.vcf.qual[0],
+        defs.vcf.filter,
+        defs.vcf.info,
+        defs.vcf.indel_length[0],
         [f[0] for f in parse_fields],
         [f[0] for f in const_fields],
         None if label is None else defs.label_name,
