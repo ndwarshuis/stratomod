@@ -4,7 +4,7 @@ from typing import Any, cast
 import numpy as np
 from common.tsv import write_tsv
 from pybedtools import BedTool as bt  # type: ignore
-from common.cli import setup_logging
+from common.io import setup_logging
 import common.config as cfg
 
 logger = setup_logging(snakemake.log[0])  # type: ignore
@@ -60,19 +60,15 @@ def intersect_tsvs(
 ) -> None:
     target_df = pd.read_table(ifile)
     new_df = reduce(left_outer_intersect, tsv_paths, target_df)
-    new_df.insert(
-        loc=0,
-        column=config.feature_names.raw_index,
-        value=new_df.index,
-    )
+    new_df.insert(loc=0, column=cfg.VAR_IDX, value=new_df.index)
     write_tsv(ofile, new_df)
 
 
 def main(smk: Any, config: cfg.StratoMod) -> None:
-    tsvs = smk.input.annotations
+    fs = smk.input.features
     vcf = smk.input.variants[0]
     logger.info("Adding annotations to %s\n", vcf)
-    intersect_tsvs(config, vcf, smk.output[0], tsvs)
+    intersect_tsvs(config, vcf, smk.output[0], fs)
 
 
 main(snakemake, snakemake.config)  # type: ignore

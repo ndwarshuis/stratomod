@@ -18,6 +18,8 @@ has_label <- "truth_y" %in% names(snakemake@input)
 pred_y <- read_df(snakemake@input[["predictions"]])
 explain_x <- read_df(snakemake@input[["explanations"]])
 
+query_key <- snakemake@params[["query_key"]]
+
 ```
 
 ```{r, include = FALSE, eval = has_label}
@@ -32,10 +34,10 @@ y <- tibble(label = truth_y$label, prob = pred_y$`1`)
 
 # Model Overview
 
-* Variant Type: `r snakemake@wildcards$filter_key`
-* Input Key: `r snakemake@wildcards$input_key`
+* Variant Type: `r snakemake@wildcards$vartype_key`
+* Query Key: `r query_key`
 * Test Key: `r snakemake@wildcards$test_key`
-* EBM Run Key: `r snakemake@wildcards$run_key`
+* Model Key: `r snakemake@wildcards$model_key`
 
 # Model Statistics
 

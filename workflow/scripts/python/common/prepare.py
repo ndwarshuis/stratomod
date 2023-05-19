@@ -12,7 +12,7 @@ def process_series(opts: cfg.Feature, ser: "pd.Series[float]") -> "pd.Series[flo
     trans = opts.transform
     _ser = pd.to_numeric(ser, errors="coerce")
     if trans == cfg.Transform.BINARY:
-        return (~_ser.isnull()).astype(int)
+        return (~_ser.isnull()).astype(float)
     else:
         fillval = opts.fill_na
         return cast(

@@ -41,7 +41,7 @@ if [ -n "$1" ]; then
     prefix="$1"
 fi
 
-for base in bedtools ebm; do
+for base in bio ebm; do
     echo "Testing scripts for env: $base"
     echo ""
     

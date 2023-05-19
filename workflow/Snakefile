@@ -3,9 +3,6 @@ from snakemake.utils import min_version
 min_version("7.20")
 
 
-configfile: "config/static.yml"
-
-
 # TODO this is a hack (required for depickling to work when sending the config
 # to scripts)
 sys.path.extend(["./workflow/scripts/python"])
@@ -17,7 +14,7 @@ config = StratoMod.parse_obj(config)
 
 include: "rules/wildcards.smk"
 include: "rules/inputs.smk"
-include: "rules/annotations/main.smk"
+include: "rules/features/main.smk"
 include: "rules/train_ebm.smk"
 
 
@@ -53,11 +50,10 @@ rule all_resources:
                 *rules.download_bench_bed.output,
             ],
         ),
-        # reference and reference-dependent annotation files
+        # reference and reference-dependent feature data
         expand(
             [
                 *rules.download_ref_sdf.output,
-                *rules.download_genome.output,
                 *rules.download_mappability_high.output,
                 *rules.download_mappability_low.output,
                 *rules.download_repeat_masker.output,

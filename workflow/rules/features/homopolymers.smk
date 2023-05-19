@@ -1,17 +1,17 @@
-from scripts.python.common.config import attempt_mem_gb, wildcard_format_ext
+from scripts.python.common.config import wildcard_format_ext
 
 hp_dir = "homopolymers"
-hp_res = config.annotation_dir(hp_dir, log=False)
-hp_log = config.annotation_dir(hp_dir, log=True)
+hp_res = config.features_res_dir(log=False) / hp_dir
+hp_log = config.features_res_dir(log=True) / hp_dir
 
 
 rule download_repseq:
     output:
-        config.tool_resource_dir / "repseq.tar.gz",
+        config.tool_src_dir(log=False) / "repseq.tar.gz",
     params:
         url=config.tools.repseq,
     conda:
-        config.env_file("utils")
+        "../../envs/utils.yml"
     shell:
         "curl -sS -L -o {output} {params.url}"
 
@@ -20,7 +20,7 @@ rule unpack_repseq:
     input:
         rules.download_repseq.output,
     output:
-        directory(config.tool_dir(log=False) / "make" / "repseq"),
+        directory(config.tool_res_dir(log=False) / "make" / "repseq"),
     shell:
         """
         mkdir {output} && \
@@ -32,34 +32,32 @@ rule build_repseq:
     input:
         rules.unpack_repseq.output,
     output:
-        config.tool_dir(log=False) / "bin" / "repseq",
+        config.tool_res_dir(log=False) / "bin" / "repseq",
     conda:
-        config.env_file("build")
+        "../../envs/build.yml"
     log:
-        config.tool_dir(log=True) / "repseq.log",
+        config.tool_res_dir(log=True) / "repseq.log",
     shell:
         "make -C {input} > {log} && mv {input}/repseq {output}"
 
 
-# ASSUME the FASTA input to this is already standardized and filtered
+# ASSUME the FASTA input to this is already standardized/filtered/sorted
 rule find_simple_repeats:
     input:
-        ref=partial(expand_refkey_from_refsetkey, rules.sdf_to_fasta.output),
+        ref=partial(expand_refkey_from_refsetkey, rules.filter_sort_ref.output),
         bin=rules.build_repseq.output,
     output:
-        hp_res / "simple_repeats_p3.bed",
+        hp_res / "simple_repeats_p3.bed.gz",
     benchmark:
         hp_log / "find_regions.bench"
     log:
         hp_log / "find_regions.log",
-    resources:
-        mem_mb=attempt_mem_gb(4),
     shell:
         """
-        {input.bin} 1 4 {input.ref} 2> {log} | \
+        gunzip -c {input.ref} | \
+        {input.bin} 1 4 - 2> {log} | \
         sed '/^#/d' | \
-        sort -k 1,1n -k 2,2n -k 3,3n \
-        > {output}
+        gzip -c > {output}
         """
 
 
@@ -70,16 +68,14 @@ def homopolymer_file(ext):
 rule get_homopolymers:
     input:
         bed=rules.find_simple_repeats.output,
-        genome=rules.get_genome.output,
+        genome=rules.fasta_to_genome.output,
     output:
         ensure(hp_res / homopolymer_file("tsv.gz"), non_empty=True),
     conda:
-        config.env_file("bedtools")
+        "../../envs/bio.yml"
     log:
         hp_log / homopolymer_file("log"),
     benchmark:
         hp_log / homopolymer_file("bench")
-    resources:
-        mem_mb=attempt_mem_gb(16),
     script:
-        config.python_script("bedtools/get_homopoly_features.py")
+        "../../scripts/python/bio/get_homopoly_features.py"

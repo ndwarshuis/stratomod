@@ -1,7 +1,7 @@
 import pandas as pd
 from typing import Any
 from common.tsv import write_tsv
-from common.cli import setup_logging
+from common.io import setup_logging
 import common.config as cfg
 from common.prepare import process_labeled_data, process_unlabeled_data
 
@@ -15,13 +15,13 @@ def write_labeled(
     rconf: cfg.Model,
     df: pd.DataFrame,
 ) -> None:
-    filter_col = sconf.feature_names.vcf.fmt_name(lambda x: x.filter)
-    label_col = sconf.feature_names.label_name
+    filter_col = sconf.feature_definitions.vcf.filter
+    label_col = sconf.feature_definitions.label_name
     processed = process_labeled_data(
         rconf.features,
         rconf.error_labels,
         rconf.filtered_are_candidates,
-        [cfg.FeatureKey(x) for x in sconf.feature_names.all_index_cols()],
+        [cfg.FeatureKey(c) for c in cfg.IDX_COLS],
         filter_col,
         cfg.FeatureKey(label_col),
         df,
@@ -38,7 +38,7 @@ def write_unlabeled(
 ) -> None:
     processed = process_unlabeled_data(
         rconf.features,
-        [cfg.FeatureKey(x) for x in sconf.feature_names.all_index_cols()],
+        [cfg.FeatureKey(c) for c in cfg.IDX_COLS],
         df,
     )
     write_tsv(xpath, processed)
@@ -50,7 +50,6 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
     wcs = smk.wildcards
     variables = sconf.testkey_to_variables(
         cfg.ModelKey(wcs["model_key"]),
-        cfg.RunKey(wcs["run_key"]),
         cfg.TestKey(wcs["test_key"]),
     )
     df = pd.read_table(sin["annotated"][0]).assign(

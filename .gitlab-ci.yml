@@ -10,7 +10,7 @@ stages:
 variables:
   ENV_DIR: ./this-env
   LINT_DIR: ./lint
-  TESTCONF: config/dynamic-testing.yml
+  TESTCONF: config/testing.yml
   # speed up cache compression
   FF_USE_FASTZIP: "true"
   ARTIFACT_COMPRESSION_LEVEL: "fast"
@@ -47,8 +47,7 @@ image: condaforge/mambaforge:4.12.0-0
     - resources
   key:
     files:
-      - config/static.yml
-      - config/dynamic-testing.yml
+      - config/testing.yml
 
 .lint_cache: &lint_cache
   paths:
