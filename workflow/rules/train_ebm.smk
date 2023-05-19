@@ -93,6 +93,7 @@ rule summarize_labeled_annotated_variants:
     params:
         label_col=config.feature_definitions.label,
         columns=config.feature_definitions.non_summary_cols,
+        query_key=lambda w: w.l_query_key,
     script:
         "../scripts/rmarkdown/summary/input_summary.Rmd"
 
@@ -107,6 +108,7 @@ use rule summarize_labeled_annotated_variants as summarize_unlabeled_annotated_v
     params:
         label_col=None,
         columns=config.feature_definitions.non_summary_cols,
+        query_key=lambda w: w.ul_query_key,
 
 
 ################################################################################

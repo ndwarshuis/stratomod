@@ -76,6 +76,7 @@ label_summary_table <- function(y) {
 }
 
 columns <- snakemake@params[["columns"]]
+query_key <- snakemake@params[["query_key"]]
 label_col <- snakemake@params[["label_col"]]
 path <- snakemake@input[[1]]
 has_label <- !is.null(label_col)
@@ -105,8 +106,8 @@ y_labels <- unique(df_y)
 
 # Dataframe Overview
 
-* Variant Type: `r snakemake@wildcards$filter_key`
-* Input Key: `r snakemake@wildcards$input_key`
+* Variant Type: `r snakemake@wildcards$vartype_key`
+* Query Key: `r query_key`
 * N Rows: `r N`
 * N Features: `r length(names(df_x))`
 
