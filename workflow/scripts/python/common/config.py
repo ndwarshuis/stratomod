@@ -85,7 +85,8 @@ UnlabeledQueryKey = NewType("UnlabeledQueryKey", str)  # key for query w/o bench
 QueryKey = UnlabeledQueryKey | LabeledQueryKey
 
 ChrPrefix = NewType("ChrPrefix", str)  # the "chr" (or something) prefix for chromosomes
-PandasColumn = NewType("PandasColumn", str)  # the name of a pandas column
+LabelCol = NewType("LabelCol", str)  # the name of the label column
+IndexCol = NewType("IndexCol", str)  # the name of a non-feature/label column
 FeatureDesc = NewType("FeatureDesc", str)  # a description for a feature
 
 DescribedFeature = tuple[FeatureKey, FeatureDesc]
@@ -723,17 +724,11 @@ class ColumnSpec(_BaseModel):
 
 class VCFColumns(_BaseModel):
     "Columns for a vcf file"
+    filter: NonEmptyStr = "FILTER"
+    info: NonEmptyStr = "INFO"
     qual: ColumnSpec = ColumnSpec(
         name="QUAL",
         description=FeatureDesc("The value of the QUAL column in the VCF file"),
-    )
-    filter: ColumnSpec = ColumnSpec(
-        name="FILTER",
-        description=FeatureDesc("The value of the FILTER column in the VCF file"),
-    )
-    info: ColumnSpec = ColumnSpec(
-        name="INFO",
-        description=FeatureDesc("The value of the INFO column in the VCF file"),
     )
     len: ColumnSpec = ColumnSpec(
         name="indel_length",
@@ -751,14 +746,20 @@ class VCFGroup(_FeatureGroup):
 
     def fmt_name(
         self: Self,
+        f: Callable[[VCFColumns], str],
+    ) -> IndexCol:
+        return IndexCol(f(self.columns))
+
+    def fmt_name_desc(
+        self: Self,
         f: Callable[[VCFColumns], ColumnSpec],
     ) -> tuple[FeatureKey, FeatureDesc]:
         c = f(self.columns)
         return (self.fmt_feature(c.name), c.description)
 
     @property
-    def str_features(self) -> dict[FeatureKey, FeatureDesc]:
-        return dict(self.fmt_name(x) for x in [lambda x: x.filter, lambda x: x.info])
+    def str_features(self) -> list[IndexCol]:
+        return [self.fmt_name(x) for x in [lambda x: x.filter, lambda x: x.info]]
 
     def field_features(
         self,
@@ -773,8 +774,7 @@ class VCFGroup(_FeatureGroup):
 
     def features(self, format_fields: set[str]) -> dict[FeatureKey, FeatureDesc]:
         return {
-            **self.str_features,
-            **dict(self.fmt_name(x) for x in [lambda x: x.qual, lambda x: x.len]),
+            **dict(self.fmt_name_desc(x) for x in [lambda x: x.qual, lambda x: x.len]),
             **self.field_features(format_fields),
         }
 
@@ -880,10 +880,10 @@ class RMSKGroup(_FeatureGroup):
         f: RMSKFile,
         grp: str,
         fam: str | None,
-    ) -> PandasColumn:
+    ) -> FeatureKey:
         assert grp in f.class_families, f"{grp} not a valid RMSK class"
         rest = maybe(grp, lambda f: f"{grp}_{fam}", fam)
-        return PandasColumn(self.fmt_feature(f"{rest}_length"))
+        return self.fmt_feature(f"{rest}_length")
 
     def features(self, f: RMSKFile) -> dict[FeatureKey, FeatureDesc]:
         def fmt(cls: str, fam: str | None) -> tuple[FeatureKey, FeatureDesc]:
@@ -918,9 +918,9 @@ class MergedFeatureGroup(_ConstFeatureGroup, Generic[X]):
             ),
         )
 
-    def fmt_col(self, f: Callable[[X], ColumnSpec]) -> tuple[PandasColumn, FeatureDesc]:
+    def fmt_col(self, f: Callable[[X], ColumnSpec]) -> DescribedFeature:
         c = f(self.columns)
-        return (PandasColumn(self.fmt_feature(c.name)), c.description)
+        return (self.fmt_feature(c.name), c.description)
 
     def fmt_merged_feature(self, middle: str, op: BedMergeOp) -> FeatureKey:
         return FeatureKey(f"{middle}_{op.value}")
@@ -1215,16 +1215,16 @@ class FeatureDefs(_BaseModel):
     variables: VariableGroup = VariableGroup()
 
     @property
-    def label_name(self: Self) -> PandasColumn:
-        return PandasColumn(self.label)
+    def label_name(self: Self) -> FeatureKey:
+        return FeatureKey(self.label)
 
     @property
-    def index_cols(self) -> list[PandasColumn]:
-        return [*[PandasColumn(c) for c in BED_COLS], PandasColumn(VAR_IDX)]
+    def index_cols(self) -> list[IndexCol]:
+        return [*[IndexCol(c) for c in BED_COLS], IndexCol(VAR_IDX)]
 
     @property
-    def non_summary_cols(self) -> list[PandasColumn]:
-        return self.index_cols + [PandasColumn(x) for x in self.vcf.str_features]
+    def non_summary_cols(self) -> list[IndexCol]:
+        return self.index_cols + self.vcf.str_features
 
 
 # mypy be stupid here, see https://github.com/pydantic/pydantic/issues/1684

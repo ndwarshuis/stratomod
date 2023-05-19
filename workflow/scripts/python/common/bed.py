@@ -40,7 +40,7 @@ def with_bgzip_maybe(f: Callable[[TextIO, TextIO], X], i: str, o: str) -> X:
 def read_bed(
     path: Path,
     b: cfg.BedFileParams = cfg.BedFileParams(),
-    more: dict[int, cfg.PandasColumn] = {},
+    more: dict[int, str] = {},
     chr_indices: list[cfg.ChrIndex] = [],
 ) -> pd.DataFrame:
     """Read a bed file as a pandas dataframe.

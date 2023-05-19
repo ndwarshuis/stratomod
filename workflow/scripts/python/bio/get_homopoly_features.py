@@ -20,7 +20,7 @@ SLOP = 1
 
 def read_input(path: Path) -> pd.DataFrame:
     logger.info("Reading dataframe from %s", path)
-    return read_bed(path, more={3: cfg.PandasColumn(BASE_COL)})
+    return read_bed(path, more={3: BASE_COL})
 
 
 def merge_base(

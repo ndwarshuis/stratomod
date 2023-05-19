@@ -24,7 +24,7 @@ def main(smk: Any, config: cfg.StratoMod) -> None:
     cs = config.refsetkey_to_chr_indices(rsk)
 
     def read_rmsk_df(path: Path) -> pd.DataFrame:
-        cols = {11: cfg.PandasColumn(CLASSCOL), 12: cfg.PandasColumn(FAMCOL)}
+        cols = {11: CLASSCOL, 12: FAMCOL}
         return read_bed(path, src.params, cols, cs)
 
     def merge_and_write_group(

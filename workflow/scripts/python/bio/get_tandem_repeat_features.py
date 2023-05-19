@@ -30,10 +30,10 @@ def read_tandem_repeats(
     ss = sconf.references[rk].feature_data.tandem_repeats
     ocs = ss.other_cols
     fmt_col = fconf.fmt_col
-    perc_a_col = cfg.PandasColumn(fconf.A[0])
-    perc_t_col = cfg.PandasColumn(fconf.T[0])
-    perc_c_col = cfg.PandasColumn(fconf.C[0])
-    perc_g_col = cfg.PandasColumn(fconf.G[0])
+    perc_a_col = str(fconf.A[0])
+    perc_t_col = str(fconf.T[0])
+    perc_c_col = str(fconf.C[0])
+    perc_g_col = str(fconf.G[0])
     unit_size_col = fmt_col(lambda x: x.period)[0]
     feature_cols = {
         ocs.period: unit_size_col,
