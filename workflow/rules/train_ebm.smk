@@ -199,11 +199,11 @@ rule summarize_model:
         config.model_train_res_dir(log=True) / "summary.bench"
     params:
         # TODO this is because we can't convert enums yet
-        features=lambda wildcards: {
-            k: v.r_dict for k, v in config.models[wildcards.model_key].features.items()
+        features=lambda w: {
+            k: v.r_dict for k, v in config.models[w.model_key].features.items()
         },
-        error_labels=lambda wildcards: [
-            x.value for x in config.models[wildcards.model_key].error_labels
+        error_labels=lambda w: [
+            x.value for x in config.models[w.model_key].error_labels
         ],
     script:
         "../scripts/rmarkdown/summary/train_summary.Rmd"
@@ -335,6 +335,8 @@ rule summarize_labeled_test:
         "../envs/summary.yml"
     benchmark:
         config.model_test_res_dir(labeled=True, log=True) / test_summary_bench
+    params:
+        query_key=lambda w: config.testkey_to_querykey(w.model_key, w.test_key),
     script:
         "../scripts/rmarkdown/summary/test_summary.Rmd"
 
