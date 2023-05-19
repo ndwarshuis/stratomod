@@ -23,8 +23,8 @@ def write_row(
     start: str,
     end: str,
     qual: str,
-    info: str,
     filt: str,
+    info: str,
     indel_length: str,
     parse_fields: list[str],
     const_fields: list[str],
@@ -38,10 +38,15 @@ def write_row(
 
 def lookup_field(f: cfg.FormatField, d: dict[str, str]) -> str:
     try:
-        v = d[f.field_name]
-        return v if is_real(v) else ""
+        v = d[f.name]
+        if is_real(v):
+            return v
+        try:
+            return str(f.mapper[v])
+        except KeyError:
+            return ""
     except KeyError:
-        return none_to_blank(f.field_missing)
+        return none_to_blank(f.missing)
 
 
 def line_to_bed_row(
@@ -153,8 +158,8 @@ def parse(smk: Any, sconf: cfg.StratoMod, fi: TextIO, fo: TextIO) -> None:
         cfg.BED_START,
         cfg.BED_END,
         fmt(lambda x: x.qual),
-        fmt(lambda x: x.info),
         fmt(lambda x: x.filter),
+        fmt(lambda x: x.info),
         fmt(lambda x: x.len),
         [f[0] for f in parse_fields],
         [f[0] for f in const_fields],

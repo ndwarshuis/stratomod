@@ -1170,8 +1170,9 @@ class FormatField(_BaseModel):
     field_missing: value to use if 'field_name' is not in FORMAT
     """
 
-    field_name: str
-    field_missing: str | None = None
+    name: str
+    missing: str | None = None
+    mapper: dict[str, int] = {}
 
 
 FormatFields = dict[str, FormatField | str | None]
@@ -1184,10 +1185,13 @@ class UnlabeledVCFQuery(VCFFile):
     max_ref: Annotated[int, Field(ge=0)] = 50
     max_alt: Annotated[int, Field(ge=0)] = 50
     format_fields: FormatFields = {
-        "VAF": FormatField(field_name="VAF"),
-        "DP": FormatField(field_name="DP"),
-        "GT": FormatField(field_name="GT"),
-        "GQ": FormatField(field_name="GQ"),
+        "VAF": FormatField(name="VAF"),
+        "DP": FormatField(name="DP"),
+        "GT": FormatField(
+            name="GT",
+            mapper={"0/0": 1, "0/1": 2, "1/1": 3, "1/2": 4},
+        ),
+        "GQ": FormatField(name="GQ"),
     }
 
 
