@@ -1109,8 +1109,8 @@ class TandemRepeatGroup(MergedFeatureGroup[TandemRepeatColumns]):
 class VariableGroup(_ConstFeatureGroup):
     "Feature and column names for vcf manually-assigned variable dataframes"
     prefix: NonEmptyStr = "VAR"
-    continuous: dict[VarKey, ContVar]
-    categorical: dict[VarKey, CatVar]
+    continuous: dict[VarKey, ContVar] = {}
+    categorical: dict[VarKey, CatVar] = {}
     description: NonEmptyStr = (
         "Custom features to add to the query dataset. "
         "Each of these will be added as a new column with a single constant value. "
@@ -1212,7 +1212,7 @@ class FeatureDefs(_BaseModel):
     repeat_masker: RMSKGroup = RMSKGroup()
     segdups: SegDupsGroup = SegDupsGroup()
     tandem_repeats: TandemRepeatGroup = TandemRepeatGroup()
-    variables: VariableGroup
+    variables: VariableGroup = VariableGroup()
 
     @property
     def label_name(self: Self) -> PandasColumn:
@@ -1254,7 +1254,7 @@ class StratoMod(_BaseModel):
     paths: Paths = Paths()
     tools: Tools = Tools()
     references: RefMap
-    feature_definitions: FeatureDefs
+    feature_definitions: FeatureDefs = FeatureDefs()
     reference_sets: RefsetMap
     labeled_queries: LabeledQueries
     unlabeled_queries: UnlabeledQueries = {}
