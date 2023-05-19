@@ -5,6 +5,10 @@ from common.io import with_gzip_maybe, setup_logging
 logger = setup_logging(snakemake.log[0])  # type: ignore
 
 
+def is_real(s: str) -> bool:
+    return s.removeprefix("-").replace(".", "", 1).isdigit()
+
+
 def dot_to_blank(s: str) -> str:
     return "" if s == "." else s
 
@@ -32,12 +36,20 @@ def write_row(
     fo.write("\t".join(cols) + "\n")
 
 
+def lookup_field(f: cfg.FormatField, d: dict[str, str]) -> str:
+    try:
+        v = d[f.field_name]
+        return v if is_real(v) else ""
+    except KeyError:
+        return none_to_blank(f.field_missing)
+
+
 def line_to_bed_row(
     fo: TextIO,
     ls: list[str],
     vcf: cfg.UnlabeledVCFQuery,
     vtk: cfg.VartypeKey,
-    parse_fields: list[tuple[str, cfg.FormatField]],
+    parse_fields: list[cfg.FormatField],
     const_field_values: list[str],
     label: str | None,
 ) -> bool:
@@ -90,17 +102,10 @@ def line_to_bed_row(
         # ASSUME any FORMAT/SAMPLE columns with different lengths are screwed
         # up in some way
         if len(fmt_col) != len(smpl_col):
-            logger.error(
-                "FORMAT/SAMPLE have different cardinality at %s, %s", chrom, start
-            )
+            logger.error("FORMAT/SAMPLE have different lengths at %s, %s", chrom, start)
             return True
         d = dict(zip(fmt_col, smpl_col))
-        parsed_field_values = [
-            d[field.field_name]
-            if field.field_name in d
-            else none_to_blank(field.field_missing)
-            for col, field in parse_fields
-        ]
+        parsed_field_values = [lookup_field(f, d) for f in parse_fields]
     else:
         parsed_field_values = []
 
@@ -137,9 +142,6 @@ def parse(smk: Any, sconf: cfg.StratoMod, fi: TextIO, fo: TextIO) -> None:
     const_fields = [
         (k, none_to_blank(v)) for k, v in fields if not isinstance(v, cfg.FormatField)
     ]
-    # unzip only works on non-empty lists :(
-    const_field_names = [f[0] for f in const_fields]
-    const_field_values = [f[1] for f in const_fields]
 
     # write header
     def fmt(f: Callable[[cfg.VCFColumns], cfg.ColumnSpec]) -> str:
@@ -155,7 +157,7 @@ def parse(smk: Any, sconf: cfg.StratoMod, fi: TextIO, fo: TextIO) -> None:
         fmt(lambda x: x.filter),
         fmt(lambda x: x.len),
         [f[0] for f in parse_fields],
-        list(const_field_names),
+        [f[0] for f in const_fields],
         None if label is None else defs.label_name,
     )
 
@@ -168,8 +170,8 @@ def parse(smk: Any, sconf: cfg.StratoMod, fi: TextIO, fo: TextIO) -> None:
             ln.rstrip().split("\t"),
             vcf,
             vtk,
-            parse_fields,
-            list(const_field_values),
+            [f[1] for f in parse_fields],
+            [f[1] for f in const_fields],
             label,
         )
 
