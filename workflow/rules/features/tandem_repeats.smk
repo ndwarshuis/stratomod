@@ -11,7 +11,6 @@ use rule download_mappability_high as download_tandem_repeats with:
     localrule: True
 
 
-# NOTE sorting is done internally by the script
 rule get_tandem_repeats:
     input:
         src=partial(

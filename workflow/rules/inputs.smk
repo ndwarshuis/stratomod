@@ -3,15 +3,6 @@ import scripts.python.common.config as cfg
 from scripts.python.common.functional import flip, compose
 
 
-# def lookup_benchmark_vcf(wildcards):
-#     cor = (
-#         config.refsetkey_to_ref(wildcards.refset_key)
-#         .benchmarks[wildcards.bench_key]
-#         .corrections.strip_IPS
-#     )
-#     return rules.fix_HG005_bench_vcf.output if cor else rules.filter_bench_vcf.output
-
-
 def expand_benchmark_path(path, wildcards):
     return expand(
         path,
@@ -20,8 +11,12 @@ def expand_benchmark_path(path, wildcards):
     )
 
 
-# def rule_output_suffix(rulename, suffix):
-#     return f"{getattr(rules, rulename).output[0]}.{suffix}"
+def labeled_file(ext):
+    return cfg.wildcard_format_ext(f"{{}}_{{}}", ["vartype_key", "label"], ext)
+
+
+def unlabeled_file(ext):
+    return cfg.wildcard_ext("vartype_key", ext)
 
 
 ################################################################################
@@ -179,40 +174,8 @@ use rule filter_labeled_query_vcf as filter_unlabeled_query_vcf with:
         vcf=lambda w: config.querykey_to_vcf(w.ul_query_key),
 
 
-# # TODO this is (probably) just for DV VCFs
-# rule fix_refcall_query_vcf:
-#     input:
-#         rules.filter_labeled_query_vcf.output,
-#     output:
-#         config.query_prepare_res_dir(log=False, labeled=True) / "fixed_refcall.vcf",
-#     conda:
-#         "../envs/utils.yml"
-#     shell:
-#         f"""
-#         cat {{input}} | \
-#         sed -e '/.RefCall./ s/\.\/\./0\/1/g' | \
-#         sed -e '/.RefCall./ s/0\/0/0\/1/g' \
-#         > {{output}}
-#         """
-
-
 ################################################################################
 # query vcf label preprocessing
-
-# NOTE: Tabix won't work unless the input vcf is compressed, which is why we
-# need to do this weird bgzip acrobatics with the query/bench
-
-
-# # this isn't necessary...
-# rule zip_labeled_query_vcf:
-#     input:
-#         rules.filter_labeled_query_vcf.output,
-#     output:
-#         rule_output_suffix("filter_labeled_query_vcf", "gz"),
-#     conda:
-#         "../envs/bio.yml"
-#     shell:
-#         "bgzip -c {input} > {output}"
 
 
 rule generate_query_tbi:
@@ -247,33 +210,6 @@ use rule filter_labeled_query_vcf as filter_bench_vcf with:
         config.bench_res_dir(log=False) / "filtered.vcf.gz",
     params:
         vcf=lambda w: config.benchkey_to_vcf(w.refset_key, w.bench_key),
-
-
-# # NOTE: this avoids an error caused by vcfeval where it will strip out any
-# # fields in the SAMPLE column that end in a dot, which in turn will result in a
-# # FORMAT/SAMPLE cardinality mismatch.
-# rule fix_HG005_bench_vcf:
-#     input:
-#         rules.filter_bench_vcf.output,
-#     output:
-#         config.bench_res_dir(log=False) / "HG005_fixed.vcf",
-#     conda:
-#         "../envs/utils.yml"
-#     shell:
-#         """
-#         cat {input} | \
-#         sed 's/:IPS\t/\t/' | \
-#         sed 's/:[^:]\+$//' \
-#         > {output}
-#         """
-
-
-# # TODO not necessary...
-# use rule zip_labeled_query_vcf as zip_bench_vcf with:
-#     input:
-#         rules.filter_bench_vcf.output,
-#     output:
-#         config.bench_res_dir(log=False) / "final_bench.vcf.gz",
 
 
 use rule generate_query_tbi as generate_bench_tbi with:
@@ -318,14 +254,13 @@ rule subtract_mhc_bench_bed:
         bed=rules.filter_bench_bed.output,
         mhc=partial(expand_refkey_from_refsetkey, rules.write_mhc_strat.output),
     output:
-        config.bench_res_dir(log=False) / "noMHC.bed",
+        config.bench_res_dir(log=False) / "noMHC.bed.gz",
     conda:
         "../envs/bio.yml"
     shell:
         """
-        gunzip {input.mhc} -c | \
-        bedtools subtract -a {input.bed} -b - \
-        > {output}
+        bedtools subtract -a {input.bed} -b {input.mhc} | \
+        bgzip > {output}
         """
 
 
@@ -361,9 +296,9 @@ rule label_vcf:
         unpack(vcf_bench_targets),
         query_vcf=rules.filter_labeled_query_vcf.output,
         query_tbi=rules.generate_query_tbi.output,
-        sdf=lambda wildcards: expand(
+        sdf=lambda w: expand(
             rules.fasta_to_sdf.output,
-            refset_key=config.querykey_to_refsetkey(wildcards.l_query_key),
+            refset_key=config.querykey_to_refsetkey(w.l_query_key),
         ),
     output:
         [
@@ -374,7 +309,7 @@ rule label_vcf:
         "../envs/bio.yml"
     params:
         extra="--ref-overlap --all-records",
-        tmp_dir=lambda wildcards: f"/tmp/vcfeval_{wildcards.l_query_key}",
+        tmp_dir=lambda w: f"/tmp/vcfeval_{w.l_query_key}",
         output_dir=lambda _, output: Path(output[0]).parent,
     log:
         config.vcfeval_res_dir(log=True) / "vcfeval.log",
@@ -400,10 +335,6 @@ rule label_vcf:
 
         rm -r {params.tmp_dir}
         """
-
-
-def labeled_file(ext):
-    return cfg.wildcard_format_ext(f"{{}}_{{}}", ["vartype_key", "label"], ext)
 
 
 rule parse_labeled_vcf:
@@ -448,10 +379,6 @@ rule concat_labeled_tsvs:
 
 ################################################################################
 # vcf -> tsv (unlabeled)
-
-
-def unlabeled_file(ext):
-    return cfg.wildcard_ext("vartype_key", ext)
 
 
 use rule parse_labeled_vcf as parse_unlabeled_vcf with:

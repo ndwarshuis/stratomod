@@ -1,7 +1,6 @@
 from typing import Any, cast, TextIO
 from common.config import StratoMod, RefsetKey, VCFFile
 from common.bed import with_bgzip_maybe
-from functools import partial
 
 
 def fix_DV_refcall(filter_col: str, sample_col: str) -> str:
