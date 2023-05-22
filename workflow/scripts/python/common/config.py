@@ -33,7 +33,6 @@ from typing import (
     Sequence,
     Collection,
     Callable,
-    Optional,
     NamedTuple,
     NewType,
     Any,
@@ -46,16 +45,25 @@ from itertools import product
 from .functional import maybe
 from snakemake.io import expand, InputFiles  # type: ignore
 from pydantic import BaseModel as PydanticBaseModel
-from pydantic import validator, HttpUrl, PositiveFloat, NonNegativeInt, Field
+from pydantic import validator, HttpUrl, PositiveFloat, NonNegativeInt, Field, FilePath
 from enum import Enum, unique
+from collections import ChainMap
 
+# constants
+
+BED_CHROM = "chrom"
+BED_START = "chromStart"
+BED_END = "chromEnd"
+VAR_IDX = "variant_index"
+
+BED_COLS = [BED_CHROM, BED_START, BED_END]
+IDX_COLS = [VAR_IDX, *BED_COLS]
 
 # various types
 
-X = TypeVar("X")
-
 Fraction = Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)]
 NonEmptyStr = Annotated[str, Field(min_length=1)]
+FeaturePrefix = Annotated[str, Field(regex="^[A-Z]+$")]
 
 # newtype string wrappers for different purposes
 
@@ -67,7 +75,6 @@ RefsetKey = NewType("RefsetKey", str)  # key for reference set (reference + filt
 TestKey = NewType("TestKey", str)  # key for a model test
 BenchKey = NewType("BenchKey", str)  # key for a benchmark (within a given reference)
 ModelKey = NewType("ModelKey", str)  # key for a model and its parameters
-RunKey = NewType("RunKey", str)  # key for a model run (eg parameters + queries)
 FeatureKey = NewType("FeatureKey", str)  # key for a feature in the model
 
 VarKey = NewType("VarKey", str)  # key for a VCF variable
@@ -78,7 +85,47 @@ UnlabeledQueryKey = NewType("UnlabeledQueryKey", str)  # key for query w/o bench
 QueryKey = UnlabeledQueryKey | LabeledQueryKey
 
 ChrPrefix = NewType("ChrPrefix", str)  # the "chr" (or something) prefix for chromosomes
-PandasColumn = NewType("PandasColumn", str)  # the name of a pandas column
+LabelCol = NewType("LabelCol", str)  # the name of the label column
+IndexCol = NewType("IndexCol", str)  # the name of a non-feature/label column
+FeatureDesc = NewType("FeatureDesc", str)  # a description for a feature
+
+DescribedFeature = tuple[FeatureKey, FeatureDesc]
+FeatureMap = dict[FeatureKey, FeatureDesc]
+
+# helper functions
+
+X = TypeVar("X")
+
+
+def _assert_empty(xs: Collection[X], msg: str) -> None:
+    assert len(xs) == 0, f"{msg}: {xs}"
+
+
+def _assert_no_dups(xs: Collection[X], msg: str) -> None:
+    _assert_empty(set(duplicates_everseen(xs)), msg)
+
+
+def _assert_match(pat: str, s: str) -> str:
+    res = re.match(pat, s)
+    assert res is not None, f"match failed for pattern '{pat}' and query '{s}'"
+    return res[0]
+
+
+def _assert_subset(xs: set[X], ys: set[X]) -> None:
+    assert xs <= ys, f"not a subset - extra members: {xs - ys}"
+
+
+def _assert_member(x: X, xs: Sequence[X]) -> None:
+    assert x in xs, f"'{x}' is not one of {xs}"
+
+
+def _assert_keypattern(x: str) -> None:
+    assert re.fullmatch(KEY_CONSTR, x), f"key '{x}' does not match {KEY_CONSTR}"
+
+
+def bed_cols_indexed(indices: tuple[int, int, int]) -> dict[int, str]:
+    return dict(zip(indices, BED_COLS))
+
 
 # enums to prevent runaway strings
 
@@ -115,8 +162,11 @@ class ChrIndex(Enum):
     def chr_name_full(self, prefix: str) -> str:
         return f"{prefix}{self.chr_name}"
 
+    def __lt__(self, other: Self) -> bool:
+        return cast(bool, self.value < other.value)
 
-class FilterKey(_ListEnum):
+
+class VartypeKey(_ListEnum):
     SNV = "SNV"
     INDEL = "INDEL"
 
@@ -178,33 +228,34 @@ class ChrFilter(NamedTuple):
     Set of chromosomes and a prefix.
 
     Together these fully specify the desired chromosomes in a bed/ref.
+
+    The indices are assumed to be ordered.
     """
 
     prefix: ChrPrefix
-    indices: set[ChrIndex]
+    indices: list[ChrIndex]
 
 
-class RunKeyCombo(NamedTuple):
+class ModelKeyCombo(NamedTuple):
     "The keys needed to uniquely specify a model run"
     model_key: ModelKey
-    filter_key: FilterKey
-    run_key: RunKey
+    vartype_key: VartypeKey
 
 
 class TrainKeyCombo(NamedTuple):
     "The keys needed to uniquely specify a train query for a run"
-    run_combo: RunKeyCombo
+    run_combo: ModelKeyCombo
     labeled_query_key: LabeledQueryKey
 
 
 class TestKeyCombo(NamedTuple):
     "The keys needed to uniquely specify a test query for a run"
-    run_combo: RunKeyCombo
+    run_combo: ModelKeyCombo
     test_key: TestKey
     query_key: QueryKey
 
 
-# wildcards: all wildcards ever used in the pipeline should be in this dict
+# wildcards: common wildcards used in the pipeline should be in this dict
 
 
 def alternate_constraint(xs: list[str]) -> str:
@@ -227,16 +278,12 @@ _constraints: dict[str, str] = {
     "query_key": KEY_CONSTR,
     "ul_query_key": KEY_CONSTR,
     "l_query_key": KEY_CONSTR,
-    # refers to a collection of input data input to an ebm model configuration
-    # (composed of multiple train/test keys + associated data)
-    "run_key": KEY_CONSTR,
     # refers to a benchmark vcf (within the context of a given reference)
     "bench_key": KEY_CONSTR,
-    # refers to an EBM model and its parameters
+    # refers to an EBM model and its parameters and inputs
     "model_key": KEY_CONSTR,
     # refers to the variant type (SNP or INDEL, for now)
-    # TODO ...why "filter"? (I can't think of anything better)
-    "filter_key": alternate_constraint(FilterKey.all()),
+    "vartype_key": alternate_constraint(VartypeKey.all()),
     # refers to a variant benchmarking label (tp, fp, etc)
     "label": alternate_constraint(VCFLabel.all()),
     # refers to a nucleotide base
@@ -273,15 +320,15 @@ class _BaseModel(PydanticBaseModel):
 
 class _Range(_BaseModel):
     "Superclass for things with a lower and upper bound."
-    lower: Optional[float] = None
-    upper: Optional[float] = None
+    lower: float | None = None
+    upper: float | None = None
 
     @validator("upper")
     def lower_less_than_upper(
         cls,
-        v: Optional[float],
+        v: float | None,
         values: dict[str, Any],
-    ) -> Optional[float]:
+    ) -> float | None:
         lower = values["lower"]
         if v is not None and values["lower"] is not None:
             assert lower <= v
@@ -295,9 +342,9 @@ class _Range(_BaseModel):
 
 class Paths(_BaseModel):
     "Paths snakemake will use for disk IO"
-    resources: Path
-    results: Path
-    log: Path
+    resources: Path = Path("resources")
+    results: Path = Path("results")
+    log: Path = Path("log")
 
 
 class Refset(_BaseModel):
@@ -309,34 +356,29 @@ class Refset(_BaseModel):
 class CatVar(_BaseModel):
     "A categorical VCF variable"
     levels: Annotated[list[str], Field(min_items=1, unique_items=True)]
+    description: FeatureDesc | None = None
 
 
 class ContVar(_Range):
     "A continuous VCF variable"
-    pass
+    description: FeatureDesc | None = None
 
 
 class TestDataQuery(_BaseModel):
     "Specifies a test to run within a model."
     query_key: QueryKey
-    variables: dict[VarKey, VarVal]
-
-
-class ModelRun(_BaseModel):
-    "Specifies train and test queries to run in a model"
-    train: Annotated[set[LabeledQueryKey], Field(min_items=1)]
-    test: dict[TestKey, TestDataQuery]
+    variables: dict[VarKey, VarVal] = {}
 
 
 class EBMMiscParams(_BaseModel):
     "EBM parameters that aren't specified in the classifier object"
-    downsample: Optional[Fraction] = None
+    downsample: Fraction | None = None
 
 
 class EBMSplitParams(_BaseModel):
     "Parameters for the EBM train/test split"
     test_size: Fraction = 0.2
-    random_state: Optional[int] = random.randrange(0, 420420)
+    random_state: int | None = random.randrange(0, 420420)
 
 
 class EBMClassifierParams(_BaseModel):
@@ -382,7 +424,7 @@ class Visualization(_BaseModel):
     "Specifies how to plot a feature in the final report"
     truncate: Truncation = Truncation()
     plot_type: PlotType = PlotType.STEP
-    split_missing: Optional[Fraction] = None
+    split_missing: Fraction | None = None
 
     # convert to R-friendly dict for use in rmarkdown scripts
     @property
@@ -393,10 +435,10 @@ class Visualization(_BaseModel):
 class Feature(_BaseModel):
     "A model feature"
     feature_type: FeatureType = FeatureType.CONTINUOUS
-    fill_na: Optional[float] = 0.0
-    alt_name: Optional[FeatureKey] = None
+    fill_na: float | None = 0.0
+    alt_name: FeatureKey | None = None
     visualization: Visualization = Visualization()
-    transform: Optional[Transform] = None
+    transform: Transform | None = None
 
     # convert to R-friendly dict for use in rmarkdown scripts
     @property
@@ -427,9 +469,10 @@ InteractionSpec = Annotated[list[InteractionSpec_], Field(unique_items=True)]
 
 class Model(_BaseModel):
     "A fully specified model, including parameters and queries to run"
-    runs: dict[RunKey, ModelRun]
-    filter: set[FilterKey]
-    ebm_settings: EBMsettings
+    train: Annotated[set[LabeledQueryKey], Field(min_items=1)]
+    test: dict[TestKey, TestDataQuery]
+    vartypes: set[VartypeKey]
+    ebm_settings: EBMsettings = EBMsettings()
     error_labels: Annotated[set[ErrorLabel], Field(min_items=1)]
     filtered_are_candidates: bool
     interactions: NonNegativeInt | InteractionSpec = 0
@@ -442,38 +485,200 @@ class Model(_BaseModel):
         for k, v in fs.items():
             alt = v.alt_name
             if alt is not None:
-                prefix = assert_match("^[^_]+", k)
-                alt_prefix = assert_match("^[^_]+", alt)
+                prefix = _assert_match("^[^_]+", k)
+                alt_prefix = _assert_match("^[^_]+", alt)
                 assert alt_prefix == prefix, f"Alt prefix must match for {k}"
         return fs
 
 
-class BedFile(_BaseModel):
-    """A bed(like) file.
+class HashedSrc(_BaseModel):
+    md5: str | None = None
+
+
+class LocalSrc(HashedSrc):
+    filepath: FilePath
+
+
+class HTTPSrc(HashedSrc):
+    url: HttpUrl
+
+
+FileSrc = LocalSrc | HTTPSrc
+
+
+class BedColumns(_BaseModel):
+    """Denotes coordinate columns in a bed file (0-indexed)."""
+
+    chrom: NonNegativeInt = 0
+    start: NonNegativeInt = 1
+    end: NonNegativeInt = 2
+
+    @validator("start")
+    def start_different(
+        cls,
+        v: NonNegativeInt,
+        values: dict[str, int],
+    ) -> NonNegativeInt:
+        try:
+            assert values["chr"] != v, "Bed columns must be different"
+        except KeyError:
+            pass
+        return v
+
+    @validator("end")
+    def end_different(
+        cls,
+        v: NonNegativeInt,
+        values: dict[str, int],
+    ) -> NonNegativeInt:
+        try:
+            assert (
+                values["chr"] != v and values["start"] != v
+            ), "Bed columns must be different"
+        except KeyError:
+            pass
+        return v
+
+    def assert_different(self, x: int) -> None:
+        assert (
+            self.chrom != x and self.start != x and self.end != x
+        ), "Column must be different index"
+
+    @property
+    def typed(self) -> dict[int, Type[int | str]]:
+        return {self.chrom: str, self.start: int, self.end: int}
+
+    @property
+    def indexed(self) -> dict[int, str]:
+        return bed_cols_indexed((self.chrom, self.start, self.end))
+
+
+class VCFCorrections(_BaseModel):
+    "Corrections to apply to a given vcf file"
+    strip_format_fields: set[str] = set()
+    fix_refcall_gt: bool = False
+
+
+class VCFFile(_BaseModel):
+    """A VCF file.
 
     'chr_prefix' must correspond to the prefix in the first column.
     """
 
-    url: Optional[HttpUrl]
-    chr_prefix: ChrPrefix
+    src: FileSrc
+    chr_prefix: ChrPrefix = ChrPrefix("chr")
+    corrections: VCFCorrections = VCFCorrections()
+
+
+class BedFileParams(_BaseModel):
+    """Parameters decribing how to parse a bed-like file.
+
+    Members:
+    chr_prefix - the prefix on the chromosomes
+    bed_cols - the columns for the bed coordinates
+    skip_lines - how many input lines to skip
+    sep - column separator regexp (for "beds" with spaces instead of tabs)
+    """
+
+    chr_prefix: ChrPrefix = ChrPrefix("chr")
+    bed_cols: BedColumns = BedColumns()
+    skip_lines: NonNegativeInt = 0
+    sep: str = "\t"
+
+
+class BedFile(_BaseModel):
+    """A bed(like) file."""
+
+    src: FileSrc
+    params: BedFileParams = BedFileParams()
+
+
+class TRFColumns(_BaseModel):
+    period: NonNegativeInt = 5
+    copy_num: NonNegativeInt = 6
+    per_match: NonNegativeInt = 8
+    per_indel: NonNegativeInt = 9
+    score: NonNegativeInt = 10
+    per_A: NonNegativeInt = 11
+    per_C: NonNegativeInt = 12
+    per_G: NonNegativeInt = 13
+    per_T: NonNegativeInt = 14
+
+
+class TandemRepeatsFile(BedFile):
+    """A tandem-repeat-finder output file (or similar)"""
+
+    other_cols: TRFColumns = TRFColumns()
+
+
+class SegdupsColumns(_BaseModel):
+    align_L: NonNegativeInt = 18
+    frac_match_indel: NonNegativeInt = 27
+
+
+class SegdupsFile(BedFile):
+    """A superdups-like file"""
+
+    other_cols: SegdupsColumns = SegdupsColumns()
+
+
+class RMSKColumns(_BaseModel):
+    cls: NonNegativeInt = 11
+    family: NonNegativeInt = 12
+
+
+class RMSKFile(BedFile):
+    """A repeat-masker-like output file"""
+
+    other_cols: RMSKColumns = RMSKColumns()
+    class_families: dict[str, list[str]]
+
+
+class RefFile(_BaseModel):
+    src: FileSrc
+    is_fasta: bool
+    chr_prefix: ChrPrefix = ChrPrefix("chr")
+
+
+class BedRegion(_BaseModel):
+    chrom: ChrIndex
+    start: NonNegativeInt
+    end: NonNegativeInt
+
+    @validator("end")
+    def positive_region(cls, v: int, values: dict[Any, Any]) -> int:
+        try:
+            start = cast(BedRegion, values["feature_definitions"]).start
+        except KeyError:
+            pass
+        else:
+            assert v > start, "End must be greater than start"
+        return v
+
+    def fmt(self) -> str:
+        return "\t".join(map(str, [self.chrom.value, self.start, self.start]))
+
+    def __lt__(self, other: Self) -> bool:
+        return (
+            self.chrom,
+            self.start,
+            self.end,
+        ) < (
+            other.chrom,
+            other.start,
+            other.end,
+        )
 
 
 class Strats(_BaseModel):
     "Stratifications for a given reference"
-    mhc: BedFile
-
-
-class BenchmarkCorrections(_BaseModel):
-    "Corrections to apply to a given benchmark file"
-    strip_IPS: bool
+    mhc: list[BedRegion]
 
 
 class Benchmark(_BaseModel):
     "Benchmark files for a given reference"
-    vcf_url: Optional[HttpUrl]
-    bed_url: Optional[HttpUrl]
-    chr_prefix: ChrPrefix
-    corrections: BenchmarkCorrections
+    vcf: VCFFile
+    bed: BedFile
 
 
 class Mappability(_BaseModel):
@@ -482,101 +687,119 @@ class Mappability(_BaseModel):
     high: BedFile
 
 
-class Annotations(_BaseModel):
+class FeatureData(_BaseModel):
     "Bed files for feature generation"
     mappability: Mappability
-    superdups: BedFile
-    simreps: BedFile
-    repeat_masker: BedFile
+    segdups: SegdupsFile
+    tandem_repeats: TandemRepeatsFile
+    repeat_masker: RMSKFile
 
 
 class Reference(_BaseModel):
     "A genome reference, including all associated bed/benchmark files"
-    sdf: BedFile
-    genome: BedFile
+    sdf: RefFile
     strats: Strats
-    annotations: Annotations
+    feature_data: FeatureData
     benchmarks: dict[BenchKey, Benchmark]
 
 
-FeaturePrefix = Annotated[str, Field(regex="^[A-Z]+$")]
-
-
-class BedIndex(_BaseModel):
-    "Metadata to track the first three columns of bed(like) dataframes"
-    chr: PandasColumn
-    start: PandasColumn
-    end: PandasColumn
-
-    def bed_cols_ordered(self) -> list[PandasColumn]:
-        return [self.chr, self.start, self.end]
-
-    def bed_cols_indexed(
-        self, indices: tuple[int, int, int]
-    ) -> dict[int, PandasColumn]:
-        return dict(zip(indices, self.bed_cols_ordered()))
+class ColumnSpec(_BaseModel):
+    name: NonEmptyStr
+    description: FeatureDesc
 
 
 class _FeatureGroup(_BaseModel):
     "Superclass for feature groups (which in turn define valid feature names)"
     prefix: FeaturePrefix
+    description: NonEmptyStr
 
     def fmt_feature(self, rest: str) -> FeatureKey:
         return FeatureKey(f"{self.prefix}_{rest}")
 
+    def fmt_feature_desc(self, c: ColumnSpec) -> DescribedFeature:
+        return (self.fmt_feature(c.name), c.description)
+
+
+class _ConstFeatureGroup(_FeatureGroup):
+    @property
+    def features(self) -> FeatureMap:
+        return {}
+
 
 class VCFColumns(_BaseModel):
     "Columns for a vcf file"
-    qual: NonEmptyStr
-    filter: NonEmptyStr
-    info: NonEmptyStr
-    gt: NonEmptyStr
-    gq: NonEmptyStr
-    dp: NonEmptyStr
-    vaf: NonEmptyStr
-    len: NonEmptyStr
+    filter: NonEmptyStr = "FILTER"
+    info: NonEmptyStr = "INFO"
+    qual: ColumnSpec = ColumnSpec(
+        name="QUAL",
+        description=FeatureDesc("The value of the QUAL column in the VCF file"),
+    )
+    len: ColumnSpec = ColumnSpec(
+        name="indel_length",
+        description=FeatureDesc(
+            "The difference between the lengths of the ALT and REF columns in the VCF file."
+        ),
+    )
 
 
 class VCFGroup(_FeatureGroup):
     "Feature and column names for VCF files"
-    columns: VCFColumns
-
-    def fmt_name(self: Self, f: Callable[[VCFColumns], str]) -> FeatureKey:
-        return self.fmt_feature(f(self.columns))
+    prefix: FeaturePrefix = "VCF"
+    columns: VCFColumns = VCFColumns()
+    description: NonEmptyStr = "Features obtained from the query VCF file."
 
     @property
-    def str_feature_names(self) -> list[FeatureKey]:
-        return [
-            self.fmt_name(x)
-            for x in [
-                lambda x: x.filter,
-                lambda x: x.info,
-                lambda x: x.gt,
-                lambda x: x.gq,
-            ]
-        ]
+    def filter(self) -> IndexCol:
+        return IndexCol(self.fmt_feature(self.columns.filter))
 
-    def feature_names(self) -> list[FeatureKey]:
-        return self.str_feature_names + [
-            self.fmt_name(x)
-            for x in [
-                lambda x: x.qual,
-                lambda x: x.dp,
-                lambda x: x.vaf,
-                lambda x: x.len,
-            ]
-        ]
+    @property
+    def info(self) -> IndexCol:
+        return IndexCol(self.fmt_feature(self.columns.info))
+
+    @property
+    def qual(self) -> DescribedFeature:
+        return self.fmt_feature_desc(self.columns.qual)
+
+    @property
+    def indel_length(self) -> DescribedFeature:
+        return self.fmt_feature_desc(self.columns.len)
+
+    @property
+    def str_features(self) -> list[IndexCol]:
+        return [self.filter, self.info]
+
+    def field_features(
+        self,
+        format_fields: set[str],
+    ) -> FeatureMap:
+        return {
+            self.fmt_feature(f): FeatureDesc(
+                f"The value of field '{f}' in the FORMAT/SAMPLE columns of the vcf"
+            )
+            for f in format_fields
+        }
+
+    def features(self, format_fields: set[str]) -> FeatureMap:
+        return {
+            **dict([self.qual, self.indel_length]),
+            **self.field_features(format_fields),
+        }
 
 
 class MapSuffixes(_BaseModel):
     "Suffixes corresponding to low-map regions"
-    low: NonEmptyStr
-    high: NonEmptyStr
+    low: NonEmptyStr = "difficult_100bp"
+    high: NonEmptyStr = "difficult_250bp"
 
 
-class MapGroup(_FeatureGroup):
+class MapGroup(_ConstFeatureGroup):
     "Feature and column names for low-map dataframes"
-    suffixes: MapSuffixes
+    prefix: FeaturePrefix = "MAP"
+    suffixes: MapSuffixes = MapSuffixes()
+    description: NonEmptyStr = (
+        "Features pertaining to hard-to-map regions of the genome. "
+        "These were obtained from the v3.0 GIAB stratification bed files."
+    )
 
     @property
     def low(self) -> FeatureKey:
@@ -586,164 +809,314 @@ class MapGroup(_FeatureGroup):
     def high(self) -> FeatureKey:
         return self.fmt_feature(self.suffixes.high)
 
-    def feature_names(self) -> list[FeatureKey]:
-        return [self.low, self.high]
+    @property
+    def features(self) -> FeatureMap:
+        return {
+            self.low: FeatureDesc(
+                (
+                    "A low hard-to-map region is a 100bp sequence which "
+                    "maps to at least one other region in the genome with "
+                    "at most two substitutions and one gap. This is a binary "
+                    "feature, so if a variant intersect with a low mappability "
+                    "region, it gets a 1, otherwise 0."
+                )
+            ),
+            self.high: FeatureDesc(
+                (
+                    "A high hard-to-map region is a 250bp sequence which "
+                    "exactly maps to at least one other region in the genome. "
+                    "This is a binary feature, so if a variant intersect with "
+                    "a low mappability region, it gets a 1, otherwise 0."
+                )
+            ),
+        }
 
 
 class HomopolySuffixes(_BaseModel):
     "Suffixes corresponding to homopolymer regions"
-    len: NonEmptyStr
-    imp_frac: NonEmptyStr
+    len: NonEmptyStr = "length"
+    imp_frac: NonEmptyStr = "imperfect_frac"
 
 
-class HomopolyGroup(_FeatureGroup):
+class HomopolyGroup(_ConstFeatureGroup):
     "Feature and column names for homopolymer dataframes"
-    bases: set[Base]
-    suffixes: HomopolySuffixes
+    prefix: FeaturePrefix = "HOMOPOL"
+    bases: set[Base] = set(b for b in Base)
+    suffixes: HomopolySuffixes = HomopolySuffixes()
+    description: NonEmptyStr = (
+        "Features pertaining to homopolymers (eg AAAA or TTTT). "
+        "Unlike many other features, these are created manually from the "
+        "reference genome using a script to count long stretches of the same base."
+    )
 
     def fmt_name(self, b: Base, f: Callable[[HomopolySuffixes], str]) -> FeatureKey:
         return self.fmt_feature(f"{b.value}_{f(self.suffixes)}")
 
-    def feature_names(self) -> list[FeatureKey]:
-        return [
-            self.fmt_name(b, f)
-            for f, b in product([lambda x: x.len, lambda x: x.imp_frac], self.bases)
-        ]
+    @property
+    def features(self) -> FeatureMap:
+        def fmt_len(b: Base) -> FeatureDesc:
+            return FeatureDesc(
+                (
+                    f"The length of a homopolymer of {b.value}s. "
+                    "This includes all homopolymers of the same base as well "
+                    f"as 'imperfect homopolymers' which have non-{b.value}s "
+                    "separated by at least 4bp. Note that minimum length of "
+                    "a homopolymer is 4bp."
+                )
+            )
+
+        def fmt_imp_frac(b: Base) -> FeatureDesc:
+            return FeatureDesc(
+                f"The number of of non-{b.value}s over the length of the homopolymer."
+            )
+
+        fs = [(lambda x: x.len, fmt_len), (lambda x: x.imp_frac, fmt_imp_frac)]
+        return {self.fmt_name(b, nf): df(b) for (nf, df), b in product(fs, self.bases)}
 
 
 class RMSKGroup(_FeatureGroup):
     "Feature and column names for repeat masker dataframes"
-    classes: dict[str, set[NonEmptyStr]] = {
-        k: set() for k in ["SINE", "LINE", "LTR", "Satellite"]
-    }
+    prefix: FeaturePrefix = "REPMASK"
+    description: NonEmptyStr = (
+        "Features obtained from the repeat masker track for the reference genome. "
+        "(eg https://genome.ucsc.edu/cgi-bin/hgTables?db=hg38&hgta_group=rep&hgta_track=rmsk&hgta_table=rmsk&hgta_doSchema=describe+table+schema)"
+    )
 
     def fmt_name(
         self,
+        f: RMSKFile,
         grp: str,
-        fam: Optional[str],
-    ) -> PandasColumn:
-        assert grp in self.classes, f"{grp} not a valid RMSK class"
+        fam: str | None,
+    ) -> FeatureKey:
+        assert grp in f.class_families, f"{grp} not a valid RMSK class"
         rest = maybe(grp, lambda f: f"{grp}_{fam}", fam)
-        return PandasColumn(self.fmt_feature(f"{rest}_length"))
+        return self.fmt_feature(f"{rest}_length")
 
-    def feature_names(self) -> list[FeatureKey]:
-        def fmt(grp: str, fam: Optional[str]) -> FeatureKey:
-            return FeatureKey(self.fmt_name(grp, fam))
+    def features(self, f: RMSKFile) -> FeatureMap:
+        def fmt(cls: str, fam: str | None) -> tuple[FeatureKey, FeatureDesc]:
+            k = FeatureKey(self.fmt_name(f, cls, fam))
+            d = (
+                FeatureDesc(f"The length of an intersecting region in class '{cls}'")
+                if fam is not None
+                else FeatureDesc(
+                    f"The length of an intersecting region from family '{fam}' in class '{cls}'"
+                )
+            )
+            return (k, d)
 
-        return [
-            *[fmt(c, None) for c in self.classes],
-            *[fmt(c, f) for c, fs in self.classes.items() for f in fs],
-        ]
+        return dict(
+            [fmt(c, None) for c in f.class_families]
+            + [fmt(c, f) for c, fs in f.class_families.items() for f in fs]
+        )
 
 
-class MergedFeatureGroup(_FeatureGroup, Generic[X]):
+class MergedFeatureGroup(_ConstFeatureGroup, Generic[X]):
     "Superclass for feature group which supports bedtools merge"
     operations: set[BedMergeOp]
+    what: NonEmptyStr = "segmental duplications"
     columns: X
 
-    def fmt_col(self, f: Callable[[X], str]) -> PandasColumn:
-        return PandasColumn(self.fmt_feature(f(self.columns)))
+    @property
+    def count_feature(self) -> DescribedFeature:
+        return (
+            FeatureKey(self.fmt_feature("count")),
+            FeatureDesc(
+                f"The number of overlapping {self.description} regions used to make this feature."
+            ),
+        )
 
-    def fmt_count_feature(self) -> FeatureKey:
-        return self.fmt_feature("count")
+    def fmt_col(self, f: Callable[[X], ColumnSpec]) -> DescribedFeature:
+        return self.fmt_feature_desc(f(self.columns))
 
     def fmt_merged_feature(self, middle: str, op: BedMergeOp) -> FeatureKey:
         return FeatureKey(f"{middle}_{op.value}")
 
-    def merged_feature_col_names(
+    # TODO generalize this so it can take any sequence rather than a hardcoded
+    # dict?
+    def ops_product(
         self,
-        fs: list[Callable[[X], str]],
-    ) -> list[FeatureKey]:
-        return self.merged_feature_names([self.fmt_col(f) for f in fs])
+        xs: FeatureMap,
+    ) -> FeatureMap:
+        return {
+            FeatureKey(f"{f}_{o.value}"): FeatureDesc(f"{d} ({o.value})")
+            for (f, d), o in product(xs.items(), self.operations)
+        }
 
-    def merged_feature_names(self, names: list[PandasColumn]) -> list[FeatureKey]:
-        return [
-            *[
-                self.fmt_merged_feature(n, o)
-                for n, o in product(names, self.operations)
-            ],
-            self.fmt_count_feature(),
-        ]
+    def merged_features(
+        self,
+        column_getters: list[Callable[[X], ColumnSpec]],
+        other_columns: FeatureMap = {},
+    ) -> FeatureMap:
+        cs = dict([self.fmt_feature_desc(f(self.columns)) for f in column_getters])
+        cnt = self.count_feature
+        return {**self.ops_product({**cs, **other_columns}), cnt[0]: cnt[1]}
 
 
 class SegDupsColumns(_BaseModel):
     "Columns corresponding to the superdups files"
-    alignL: NonEmptyStr
-    fracMatchIndel: NonEmptyStr
+    alignL: ColumnSpec = ColumnSpec(
+        name="size",
+        description=FeatureDesc(
+            (
+                "The fraction (a float between 0 and 1) between this "
+                "segmental duplication and another in a different part "
+                "of the genome. Corresponds to 'alignL' in superdups database."
+            )
+        ),
+    )
+    fracMatchIndel: ColumnSpec = ColumnSpec(
+        name="identity",
+        description=FeatureDesc(
+            (
+                "Spaces/positions in the alignment (positive integer). "
+                "Corresponds to 'fracMatchIndel' in superdups database."
+            )
+        ),
+    )
 
 
 class SegDupsGroup(MergedFeatureGroup[SegDupsColumns]):
     "Feature and column names for segdups dataframes"
-    columns: SegDupsColumns
+    prefix: FeaturePrefix = "SEGDUP"
+    columns: SegDupsColumns = SegDupsColumns()
+    operations: set[BedMergeOp] = {BedMergeOp.MIN, BedMergeOp.MAX, BedMergeOp.MEAN}
+    what: NonEmptyStr = "segmental duplications"
+    description: NonEmptyStr = (
+        "Features pertaining to segmental duplications as defined in the genome superdups database "
+        "(eg http://genome.ucsc.edu/cgi-bin/hgTables?hgta_doSchemaDb=hg38&hgta_doSchemaTable=genomicSuperDups)."
+    )
 
-    def feature_names(self) -> list[FeatureKey]:
-        return self.merged_feature_col_names(
-            [lambda x: x.alignL, lambda x: x.fracMatchIndel]
-        )
+    @property
+    def features(self) -> FeatureMap:
+        return self.merged_features([lambda x: x.alignL, lambda x: x.fracMatchIndel])
 
 
 class TandemRepeatColumns(_BaseModel):
     "Columns corresponding to the simple_repeats files"
-    period: NonEmptyStr
-    copyNum: NonEmptyStr
-    perMatch: NonEmptyStr
-    perIndel: NonEmptyStr
-    score: NonEmptyStr
+    period: ColumnSpec = ColumnSpec(
+        name="unit_size",
+        description=FeatureDesc(
+            "Length of the repeat unit. Corresponds to 'period' in TRF."
+        ),
+    )
+    copyNum: ColumnSpec = ColumnSpec(
+        name="unit_copies",
+        description=FeatureDesc(
+            "Mean number of copies of the repeated unit. Corresponds to 'copyNum' in TRF."
+        ),
+    )
+    perMatch: ColumnSpec = ColumnSpec(
+        name="identity",
+        description=FeatureDesc(
+            "Percentage match (integer between 0 and 100). Corresponds to 'perMatch' in TRF."
+        ),
+    )
+    perIndel: ColumnSpec = ColumnSpec(
+        name="per_indel_mismatch",
+        description=FeatureDesc(
+            "Percentage INDEL (integer between 0 and 100). Corresponds to 'perIndel' in TRF."
+        ),
+    )
+    score: ColumnSpec = ColumnSpec(
+        name="score",
+        description=FeatureDesc(
+            "Alignment score (integer with minimum of 50). Corresponds to 'score' in TRF."
+        ),
+    )
 
 
 class TandemRepeatGroup(MergedFeatureGroup[TandemRepeatColumns]):
     "Feature and column names for segdups dataframes"
-    columns: TandemRepeatColumns
+    prefix: FeaturePrefix = "TR"
+    columns: TandemRepeatColumns = TandemRepeatColumns()
+    operations: set[BedMergeOp] = {BedMergeOp.MIN, BedMergeOp.MAX, BedMergeOp.MEDIAN}
+    what: NonEmptyStr = "tandem repeats"
+    description: NonEmptyStr = (
+        "Features created from the TRF/simple repeats database "
+        "(eg https://genome.ucsc.edu/cgi-bin/hgTables?db=hg38&hgta_group=rep&hgta_track=simpleRepeat&hgta_table=simpleRepeat&hgta_doSchema=describe+table+schema)."
+    )
 
-    def _base_name(self, base: str) -> PandasColumn:
-        return PandasColumn(self.fmt_feature(f"percent_{base}"))
-
-    @property
-    def AT_name(self) -> PandasColumn:
-        return self._base_name("AT")
-
-    @property
-    def GC_name(self) -> PandasColumn:
-        return self._base_name("GC")
-
-    @property
-    def AG_name(self) -> PandasColumn:
-        return self._base_name("AG")
+    def _base_name(self, bs: list[Base]) -> DescribedFeature:
+        b = "".join(b.value for b in bs)
+        f = self.fmt_feature(f"percent_{b}")
+        d = f"The percentage of {b} in the repeat (integer from 0 to 100)."
+        return (FeatureKey(f), FeatureDesc(d))
 
     @property
-    def CT_name(self) -> PandasColumn:
-        return self._base_name("CT")
+    def A(self) -> DescribedFeature:
+        return self._base_name([Base.A])
 
     @property
-    def length_name(self) -> PandasColumn:
-        return PandasColumn(self.fmt_feature("length"))
+    def T(self) -> DescribedFeature:
+        return self._base_name([Base.T])
 
-    def fmt_base_col(self, b: Base) -> PandasColumn:
-        return self._base_name(b.value)
+    @property
+    def C(self) -> DescribedFeature:
+        return self._base_name([Base.C])
 
-    def feature_names(self) -> list[FeatureKey]:
-        single_base = [self.fmt_base_col(b) for b in Base]
-        # lombardo quit to become a bioinformatician...
-        double_base = [self.AT_name, self.GC_name, self.AG_name, self.CT_name]
-        noncols = self.merged_feature_names(
-            single_base + double_base + [self.length_name]
+    @property
+    def G(self) -> DescribedFeature:
+        return self._base_name([Base.G])
+
+    @property
+    def AT(self) -> DescribedFeature:
+        return self._base_name([Base.A, Base.T])
+
+    @property
+    def GC(self) -> DescribedFeature:
+        return self._base_name([Base.G, Base.C])
+
+    @property
+    def AG(self) -> DescribedFeature:
+        return self._base_name([Base.A, Base.G])
+
+    @property
+    def CT(self) -> DescribedFeature:
+        return self._base_name([Base.C, Base.T])
+
+    @property
+    def length(self) -> DescribedFeature:
+        return (
+            FeatureKey(self.fmt_feature("length")),
+            FeatureDesc("The length of the this merged region of tandem repeats"),
         )
-        cols = self.merged_feature_col_names(
+
+    @property
+    def features(self) -> FeatureMap:
+        return self.merged_features(
             [
                 lambda x: x.period,
                 lambda x: x.copyNum,
                 lambda x: x.perMatch,
                 lambda x: x.perIndel,
                 lambda x: x.score,
-            ]
+            ],
+            dict(
+                [
+                    self.A,
+                    self.T,
+                    self.G,
+                    self.C,
+                    self.AT,
+                    self.AG,
+                    self.CT,
+                    self.GC,
+                    self.length,
+                ]
+            ),
         )
-        return noncols + cols
 
 
-class VariableGroup(_FeatureGroup):
+class VariableGroup(_ConstFeatureGroup):
     "Feature and column names for vcf manually-assigned variable dataframes"
-    continuous: dict[VarKey, ContVar]
-    categorical: dict[VarKey, CatVar]
+    prefix: NonEmptyStr = "VAR"
+    continuous: dict[VarKey, ContVar] = {}
+    categorical: dict[VarKey, CatVar] = {}
+    description: NonEmptyStr = (
+        "Custom features to add to the query dataset. "
+        "Each of these will be added as a new column with a single constant value. "
+        "This is useful to distinguish b/t multiple VCF query input files in the training dataset"
+    )
 
     # not a pydantic validator; requires lots of data from parent classes
     def validate_variable(self, varname: VarKey, varval: VarVal) -> None:
@@ -759,11 +1132,19 @@ class VariableGroup(_FeatureGroup):
         else:
             assert False, f"'{varname}' not a valid variable name"
 
+    @property
     def all_keys(self) -> list[VarKey]:
         return list(self.continuous) + list(self.categorical)
 
-    def feature_names(self) -> list[FeatureKey]:
-        return [self.fmt_feature(x) for x in self.all_keys()]
+    @property
+    def features(self) -> FeatureMap:
+        # return dict(self.fmt_feature(x) for x in self.all_keys())
+        conts = [(k, v.description) for k, v in self.continuous.items()]
+        cats = [(k, v.description) for k, v in self.categorical.items()]
+        return {
+            self.fmt_feature(f): FeatureDesc("<No description>") if d is None else d
+            for f, d in conts + cats
+        }
 
     # ASSUME we don't need to check the incoming varkeys or varvals since they
     # will be validated on model creation
@@ -779,34 +1160,40 @@ class VariableGroup(_FeatureGroup):
         return {self.fmt_feature(k): self._parse_var(k, v) for k, v in kvs.items()}
 
 
-class FormatFields(_BaseModel):
-    "Specifies the names of fields in the FORMAT column of a VCF file"
-    vaf: Optional[str] = "VAF"
-    dp: Optional[str] = "DP"
-    gt: Optional[str] = "GT"
-    gq: Optional[str] = "GQ"
+class FormatField(_BaseModel):
+    """Means to parse a field in the FORMAT/SAMPLE columns of a VCF.
 
-    def vcf_fields(self, vcf: VCFGroup) -> dict[PandasColumn, Optional[str]]:
-        return {
-            PandasColumn(vcf.fmt_name(f)): v
-            for f, v in [
-                (lambda x: x.vaf, self.vaf),
-                (lambda x: x.dp, self.dp),
-                (lambda x: x.gt, self.gt),
-                (lambda x: x.gq, self.gq),
-            ]
-        }
+    Members:
+    name: member of the FORMAT column to be parsed from SAMPLE
+    missing: value to use if 'name' is not in FORMAT
+    mapper: if given, will be used to map the value of the field to a number;
+      if not given the field is assumed to be a number, and filled with a blank
+      if it isn't actually a number
+    """
+
+    name: str
+    missing: str | None = None
+    mapper: dict[str, float] = {}
 
 
-class UnlabeledVCFQuery(_BaseModel):
+FormatFields = dict[str, FormatField | str | None]
+
+
+class UnlabeledVCFQuery(VCFFile):
     "A vcf to be used as the query for a model without labels."
     refset: RefsetKey
-    chr_prefix: ChrPrefix
-    url: Optional[HttpUrl]
-    variables: dict[VarKey, VarVal]
-    format_fields: FormatFields = FormatFields()
+    variables: dict[VarKey, VarVal] = {}
     max_ref: Annotated[int, Field(ge=0)] = 50
     max_alt: Annotated[int, Field(ge=0)] = 50
+    format_fields: FormatFields = {
+        "VAF": FormatField(name="VAF"),
+        "DP": FormatField(name="DP"),
+        "GT": FormatField(
+            name="GT",
+            mapper={"0/0": 1, "0/1": 2, "1/1": 3, "1/2": 4},
+        ),
+        "GQ": FormatField(name="GQ"),
+    }
 
 
 class LabeledVCFQuery(UnlabeledVCFQuery):
@@ -817,96 +1204,128 @@ class LabeledVCFQuery(UnlabeledVCFQuery):
 VCFQuery = UnlabeledVCFQuery | LabeledVCFQuery
 
 
-class FeatureNames(_BaseModel):
+class FeatureDefs(_BaseModel):
     "Defines valid feature names to be specified in models"
-    label: NonEmptyStr
-    raw_index: NonEmptyStr
-    bed_index: BedIndex
-    vcf: VCFGroup
-    mappability: MapGroup
-    homopolymers: HomopolyGroup
-    repeat_masker: RMSKGroup
-    segdups: SegDupsGroup
-    tandem_repeats: TandemRepeatGroup
-    variables: VariableGroup
+    label: NonEmptyStr = "label"
+    vcf: VCFGroup = VCFGroup()
+    mappability: MapGroup = MapGroup()
+    homopolymers: HomopolyGroup = HomopolyGroup()
+    repeat_masker: RMSKGroup = RMSKGroup()
+    segdups: SegDupsGroup = SegDupsGroup()
+    tandem_repeats: TandemRepeatGroup = TandemRepeatGroup()
+    variables: VariableGroup = VariableGroup()
 
     @property
-    def label_name(self: Self) -> PandasColumn:
-        return PandasColumn(self.label)
-
-    def all_index_cols(self) -> list[PandasColumn]:
-        return [PandasColumn(self.raw_index), *self.bed_index.bed_cols_ordered()]
-
-    def all_feature_names(self) -> set[FeatureKey]:
-        return set(
-            [
-                *self.vcf.feature_names(),
-                *self.mappability.feature_names(),
-                *self.homopolymers.feature_names(),
-                *self.repeat_masker.feature_names(),
-                *self.segdups.feature_names(),
-                *self.tandem_repeats.feature_names(),
-                *self.variables.feature_names(),
-            ]
-        )
+    def label_name(self: Self) -> FeatureKey:
+        return FeatureKey(self.label)
 
     @property
-    def non_summary_cols(self) -> list[PandasColumn]:
-        return self.all_index_cols() + [
-            PandasColumn(x) for x in self.vcf.str_feature_names
-        ]
+    def index_cols(self) -> list[IndexCol]:
+        return [*[IndexCol(c) for c in BED_COLS], IndexCol(VAR_IDX)]
+
+    @property
+    def non_summary_cols(self) -> list[IndexCol]:
+        return self.index_cols + self.vcf.str_features
 
 
+# mypy be stupid here, see https://github.com/pydantic/pydantic/issues/1684
 class Tools(_BaseModel):
     "Various tools that need to be downloaded for the pipeline to work"
-    repseq: HttpUrl
+    repseq: HttpUrl = "https://github.com/ndwarshuis/repseq/archive/refs/tags/v1.1.0.tar.gz"  # type: ignore
 
 
 LabeledQueries = dict[LabeledQueryKey, LabeledVCFQuery]
 UnlabeledQueries = dict[UnlabeledQueryKey, UnlabeledVCFQuery]
 
 
-def assert_empty(xs: Collection[X], msg: str) -> None:
-    assert len(xs) == 0, f"{msg}: {xs}"
-
-
-def assert_no_dups(xs: Collection[X], msg: str) -> None:
-    assert_empty(set(duplicates_everseen(xs)), msg)
-
-
-def assert_match(pat: str, s: str) -> str:
-    res = re.match(pat, s)
-    assert res is not None, f"match failed for pattern '{pat}' and query '{s}'"
-    return res[0]
-
-
-def assert_subset(xs: set[X], ys: set[X]) -> None:
-    assert xs <= ys, f"not a subset - extra members: {xs - ys}"
-
-
-def assert_member(x: X, xs: Sequence[X]) -> None:
-    assert x in xs, f"'{x}' is not one of {xs}"
-
-
-def flatten_features(fs: dict[FeatureKey, Feature]) -> list[FeatureKey]:
+def _flatten_features(fs: dict[FeatureKey, Feature]) -> list[FeatureKey]:
     return [k if v.alt_name is None else v.alt_name for k, v in fs.items()]
 
 
-def assert_keypattern(x: str) -> None:
-    assert re.fullmatch(KEY_CONSTR, x), f"key '{x}' does not match {KEY_CONSTR}"
+LabeledQueryMap = dict[LabeledQueryKey, LabeledVCFQuery]
+UnlabeledQueryMap = dict[UnlabeledQueryKey, UnlabeledVCFQuery]
+RefMap = dict[RefKey, Reference]
+RefsetMap = dict[RefsetKey, Refset]
+ModelMap = dict[ModelKey, Model]
 
 
 class StratoMod(_BaseModel):
     "Root config for the stratomod pipeline."
 
-    paths: Paths
-    tools: Tools
-    references: dict[RefKey, Reference]
-    feature_names: FeatureNames
-    reference_sets: dict[RefsetKey, Refset]
+    paths: Paths = Paths()
+    tools: Tools = Tools()
+    references: RefMap
+    feature_definitions: FeatureDefs = FeatureDefs()
+    reference_sets: RefsetMap
     labeled_queries: LabeledQueries
-    unlabeled_queries: UnlabeledQueries
-    models: dict[ModelKey, Model]
+    unlabeled_queries: UnlabeledQueries = {}
+    models: ModelMap
+
+    @classmethod
+    def _lookup_vcfquery(
+        cls,
+        labeled: dict[LabeledQueryKey, LabeledVCFQuery],
+        unlabeled: dict[UnlabeledQueryKey, UnlabeledVCFQuery],
+        k: QueryKey,
+    ) -> VCFQuery:
+        try:
+            return labeled[cast(LabeledQueryKey, k)]
+        except KeyError:
+            return unlabeled[cast(UnlabeledQueryKey, k)]
+
+    @classmethod
+    def _merge_features(
+        cls,
+        fs: FeatureDefs,
+        lm: LabeledQueryMap,
+        um: UnlabeledQueryMap,
+        rm: RefMap,
+        rsm: RefsetMap,
+        ks: list[QueryKey],
+    ) -> dict[FeaturePrefix, tuple[str, FeatureMap]]:
+        def to_keys(f: Callable[[QueryKey], FeatureMap]) -> FeatureMap:
+            return dict(ChainMap(*[f(k) for k in ks]))
+
+        def querykey_to_vcf(k: QueryKey) -> FeatureMap:
+            x = set(cls._lookup_vcfquery(lm, um, k).format_fields)
+            return fs.vcf.features(x)
+
+        def querykey_to_rmsk(k: QueryKey) -> FeatureMap:
+            rsk = cls._lookup_vcfquery(lm, um, k).refset
+            rk = rsm[rsk].ref
+            rmsk = rm[rk].feature_data.repeat_masker
+            return fs.repeat_masker.features(rmsk)
+
+        vcf_features = to_keys(querykey_to_vcf)
+        rmsk_features = to_keys(querykey_to_rmsk)
+        return {
+            fs.vcf.prefix: (fs.vcf.description, vcf_features),
+            fs.repeat_masker.prefix: (fs.repeat_masker.description, rmsk_features),
+            **{
+                g.prefix: (g.description, g.features)
+                for g in [
+                    fs.mappability,
+                    fs.homopolymers,
+                    fs.segdups,
+                    fs.tandem_repeats,
+                    fs.variables,
+                ]
+            },
+        }
+
+    @classmethod
+    def _merge_feature_names(
+        cls,
+        fs: FeatureDefs,
+        lm: LabeledQueryMap,
+        um: UnlabeledQueryMap,
+        rm: RefMap,
+        rsm: RefsetMap,
+        ks: list[QueryKey],
+    ) -> set[FeatureKey]:
+        return set.union(
+            *[set(x[1]) for x in cls._merge_features(fs, lm, um, rm, rsm, ks).values()]
+        )
 
     @validator("reference_sets", each_item=True)
     def refsets_have_valid_refkeys(
@@ -915,8 +1334,8 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> Refset:
         try:
-            assert_member(v.ref, values["references"])
-            assert_keypattern(v.ref)
+            _assert_member(v.ref, list(cast(RefMap, values["references"])))
+            _assert_keypattern(v.ref)
         except KeyError:
             pass
         return v
@@ -928,8 +1347,8 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> VCFQuery:
         try:
-            assert_member(v.refset, values["reference_sets"])
-            assert_keypattern(v.refset)
+            _assert_member(v.refset, list(cast(RefsetMap, values["reference_sets"])))
+            _assert_keypattern(v.refset)
         except KeyError:
             pass
         return v
@@ -941,7 +1360,7 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> VCFQuery:
         try:
-            var_root = cast(FeatureNames, values["feature_names"]).variables
+            var_root = cast(FeatureDefs, values["feature_definitions"]).variables
         except KeyError:
             pass
         else:
@@ -956,15 +1375,15 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> LabeledVCFQuery:
         try:
-            refsets = values["reference_sets"]
-            refs = values["references"]
+            refsets = cast(RefsetMap, values["reference_sets"])
+            refs = cast(RefMap, values["references"])
         except KeyError:
             pass
         else:
             ref_key = refsets[v.refset].ref
             ref_benchmarks = refs[ref_key].benchmarks
-            assert_member(v.benchmark, ref_benchmarks)
-            assert_keypattern(v.benchmark)
+            _assert_member(v.benchmark, list(ref_benchmarks))
+            _assert_keypattern(v.benchmark)
         return v
 
     @validator("unlabeled_queries")
@@ -975,7 +1394,7 @@ class StratoMod(_BaseModel):
     ) -> UnlabeledQueries:
         try:
             assert set(v).isdisjoint(
-                set(values["labeled_queries"])
+                set(cast(LabeledQueryMap, values["labeled_queries"]))
             ), "labeled and unlabeled query keys overlap"
         except KeyError:
             pass
@@ -988,17 +1407,25 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> Model:
         try:
-            features = values["feature_names"].all_feature_names()
+            query_keys = list(v.train) + [t.query_key for t in v.test.values()]
+            features = cls._merge_feature_names(
+                cast(FeatureDefs, values["feature_definitions"]),
+                cast(LabeledQueryMap, values["labeled_queries"]),
+                cast(UnlabeledQueryMap, values["unlabeled_queries"]),
+                cast(RefMap, values["references"]),
+                cast(RefsetMap, values["reference_sets"]),
+                query_keys,
+            )
         except KeyError:
             pass
         else:
-            assert_subset(set(v.features), features)
+            _assert_subset(set(v.features), features)
         return v
 
     @validator("models", each_item=True)
     def models_have_valid_features_alt(cls: Type[Self], v: Model) -> Model:
         # TODO dry?
-        assert_no_dups(flatten_features(v.features), "Duplicated features")
+        _assert_no_dups(_flatten_features(v.features), "Duplicated features")
         return v
 
     @validator("models", each_item=True)
@@ -1008,14 +1435,14 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> Model:
         if isinstance(v.interactions, set):
-            features = set(flatten_features(v.features))
+            features = set(_flatten_features(v.features))
             interactions = set(
                 flatten(
                     [i.f1, i.f2] if isinstance(i, FeaturePair) else [i]
                     for i in v.interactions
                 )
             )
-            assert_subset(interactions, features)
+            _assert_subset(interactions, features)
         return v
 
     @validator("models", each_item=True)
@@ -1025,10 +1452,12 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> Model:
         try:
-            train = [t for r in v.runs.values() for t in r.train]
-            assert_subset(set(train), set(values["labeled_queries"]))
-            for t in train:
-                assert_keypattern(t)
+            _assert_subset(
+                set(v.train),
+                set(cast(LabeledQueryMap, values["labeled_queries"])),
+            )
+            for t in v.train:
+                _assert_keypattern(t)
         except KeyError:
             pass
         return v
@@ -1040,13 +1469,13 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> Model:
         try:
-            tests = [t.query_key for r in v.runs.values() for t in r.test.values()]
-            all_queries = set(values["labeled_queries"]) | set(
-                values["unlabeled_queries"]
-            )
-            assert_subset(set(tests), all_queries)
+            tests = [t.query_key for t in v.test.values()]
+            ls = set(cast(LabeledQueryMap, values["labeled_queries"]))
+            us = set(cast(UnlabeledQueryMap, values["unlabeled_queries"]))
+            all_queries = ls | us
+            _assert_subset(set(tests), all_queries)
             for t in tests:
-                assert_keypattern(t)
+                _assert_keypattern(t)
         except KeyError:
             pass
         return v
@@ -1062,18 +1491,17 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> Model:
         try:
-            var_root = cast(FeatureNames, values["feature_names"]).variables
+            var_root = cast(FeatureDefs, values["feature_definitions"]).variables
         except KeyError:
             pass
         else:
             varpairs = [
                 (varname, varval)
-                for r in v.runs.values()
-                for t in r.test.values()
+                for t in v.test.values()
                 for varname, varval in t.variables.items()
             ]
             assert set([p[0] for p in varpairs]) == set(
-                var_root.all_keys()
+                var_root.all_keys
             ), "missing variables"
             for varname, varval in varpairs:
                 var_root.validate_variable(varname, varval)
@@ -1085,15 +1513,7 @@ class StratoMod(_BaseModel):
         v: dict[ModelKey, Model],
     ) -> dict[ModelKey, Model]:
         for k in v:
-            assert_keypattern(k)
-        return v
-
-    @validator("models", each_item=True)
-    def run_and_test_keys_are_valid(cls: Type[Self], v: Model) -> Model:
-        for rk, r in v.runs.items():
-            assert_keypattern(rk)
-            for tk in r.test:
-                assert_keypattern(tk)
+            _assert_keypattern(k)
         return v
 
     # various mapping functions
@@ -1104,18 +1524,27 @@ class StratoMod(_BaseModel):
     def refsetkey_to_refset(self, key: RefsetKey) -> Refset:
         return self.reference_sets[key]
 
-    def _querykey_to_input(self, key: QueryKey) -> VCFQuery:
-        try:
-            return self.labeled_queries[cast(LabeledQueryKey, key)]
-        except KeyError:
-            return self.unlabeled_queries[cast(UnlabeledQueryKey, key)]
+    def querykey_to_vcf(self, k: QueryKey) -> VCFQuery:
+        return self._lookup_vcfquery(
+            self.labeled_queries,
+            self.unlabeled_queries,
+            k,
+        )
 
     def refsetkey_to_refkey(self, key: RefsetKey) -> RefKey:
         return self.refsetkey_to_refset(key).ref
 
-    def refsetkey_to_chr_indices(self, key: RefsetKey) -> set[ChrIndex]:
+    def refsetkey_to_chr_indices(self, key: RefsetKey) -> list[ChrIndex]:
         f = self.refsetkey_to_refset(key).chr_filter
-        return set(x for x in ChrIndex) if len(f) == 0 else f
+        return sorted([x for x in ChrIndex] if len(f) == 0 else list(f))
+
+    def refsetkey_to_chr_name_mapper(
+        self,
+        k: RefsetKey,
+        p: ChrPrefix,
+    ) -> dict[str, int]:
+        cs = self.refsetkey_to_chr_indices(k)
+        return {c.chr_name_full(p): c.value for c in cs}
 
     def refsetkey_to_chr_filter(
         self,
@@ -1126,139 +1555,125 @@ class StratoMod(_BaseModel):
         prefix = get_prefix(self.refsetkey_to_ref(key))
         return ChrFilter(prefix, indices)
 
-    def refsetkey_to_sdf_chr_filter(self, key: RefsetKey) -> set[str]:
+    def refsetkey_to_sdf_chr_filter(self, key: RefsetKey) -> list[str]:
         prefix, indices = self.refsetkey_to_chr_filter(lambda r: r.sdf.chr_prefix, key)
-        return set(i.chr_name_full(prefix) for i in indices)
+        return list(i.chr_name_full(prefix) for i in indices)
 
-    def benchkey_to_chr_prefix(self, rkey: RefsetKey, bkey: BenchKey) -> str:
-        return self.refsetkey_to_ref(rkey).benchmarks[bkey].chr_prefix
+    def benchkey_to_vcf(self, rkey: RefsetKey, bkey: BenchKey) -> VCFFile:
+        return self.refsetkey_to_ref(rkey).benchmarks[bkey].vcf
 
-    def refkey_to_annotations(self, key: RefKey) -> Annotations:
-        return self.references[key].annotations
+    def benchkey_to_vcf_chr_prefix(self, rkey: RefsetKey, bkey: BenchKey) -> str:
+        return self.refsetkey_to_ref(rkey).benchmarks[bkey].vcf.chr_prefix
+
+    def benchkey_to_bed_chr_prefix(self, rkey: RefsetKey, bkey: BenchKey) -> str:
+        return self.refsetkey_to_ref(rkey).benchmarks[bkey].bed.params.chr_prefix
+
+    def refkey_to_feature_data(self, key: RefKey) -> FeatureData:
+        return self.references[key].feature_data
 
     def querykey_to_refkey(self, key: QueryKey) -> RefKey:
         rk = self.querykey_to_refsetkey(key)
         return self.refsetkey_to_refkey(rk)
 
     def querykey_to_refsetkey(self, key: QueryKey) -> RefsetKey:
-        return self._querykey_to_input(key).refset
+        return self.querykey_to_vcf(key).refset
 
     def querykey_to_benchkey(self, key: LabeledQueryKey) -> BenchKey:
         return self.labeled_queries[key].benchmark
 
     def querykey_to_chr_prefix(self, key: QueryKey) -> str:
-        return self._querykey_to_input(key).chr_prefix
+        return self.querykey_to_vcf(key).chr_prefix
 
     def querykey_to_variables(self, input_key: QueryKey) -> dict[FeatureKey, float]:
-        vs = self._querykey_to_input(input_key).variables
-        return self.feature_names.variables.parse_vars(vs)
-
-    def querykey_to_bench_correction(
-        self,
-        key: LabeledQueryKey,
-    ) -> BenchmarkCorrections:
-        bkey = self.labeled_queries[key].benchmark
-        rkey = self.querykey_to_refsetkey(key)
-        return self.refsetkey_to_ref(rkey).benchmarks[bkey].corrections
+        vs = self.querykey_to_vcf(input_key).variables
+        return self.feature_definitions.variables.parse_vars(vs)
 
     def testkey_to_variables(
         self,
         mkey: ModelKey,
-        rkey: RunKey,
         tkey: TestKey,
     ) -> dict[FeatureKey, float]:
-        test = self.models[mkey].runs[rkey].test[tkey]
+        test = self.models[mkey].test[tkey]
         qs = self.querykey_to_variables(test.query_key)
-        return {**qs, **self.feature_names.variables.parse_vars(test.variables)}
+        return {**qs, **self.feature_definitions.variables.parse_vars(test.variables)}
 
-    def runkey_to_train_querykeys(
+    def modelkey_to_train_querykeys(self, k: ModelKey) -> list[LabeledQueryKey]:
+        return [t for t in self.models[k].train]
+
+    def modelkey_to_test_querykeys(self, k: ModelKey) -> list[QueryKey]:
+        return [t.query_key for t in self.models[k].test.values()]
+
+    def modelkey_to_querykeys(self, k: ModelKey) -> list[QueryKey]:
+        train = self.modelkey_to_train_querykeys(k)
+        test = self.modelkey_to_test_querykeys(k)
+        ks = train + test
+        return ks
+
+    def testkey_to_querykey(self, mkey: ModelKey, tkey: TestKey) -> QueryKey:
+        return self.models[mkey].test[tkey].query_key
+
+    def modelkey_to_features(
         self,
-        mkey: ModelKey,
-        rkey: RunKey,
-    ) -> list[LabeledQueryKey]:
-        return [t for t in self.models[mkey].runs[rkey].train]
+        k: ModelKey,
+    ) -> dict[FeaturePrefix, tuple[str, FeatureMap]]:
+        return self._merge_features(
+            self.feature_definitions,
+            self.labeled_queries,
+            self.unlabeled_queries,
+            self.references,
+            self.reference_sets,
+            self.modelkey_to_querykeys(k),
+        )
 
-    def runkey_to_test_querykeys(self, mkey: ModelKey, rkey: RunKey) -> list[QueryKey]:
-        return [t.query_key for t in self.models[mkey].runs[rkey].test.values()]
+    def modelkey_to_feature_names(self, k: ModelKey) -> set[FeatureKey]:
+        return self._merge_feature_names(
+            self.feature_definitions,
+            self.labeled_queries,
+            self.unlabeled_queries,
+            self.references,
+            self.reference_sets,
+            self.modelkey_to_querykeys(k),
+        )
 
-    def testkey_to_querykey(
-        self,
-        mkey: ModelKey,
-        rkey: RunKey,
-        tkey: TestKey,
-    ) -> QueryKey:
-        return self.models[mkey].runs[rkey].test[tkey].query_key
+    # src getters
 
-    # path expansion
+    def benchkey_to_vcf_src(self, rk: RefKey, bk: BenchKey) -> FileSrc:
+        return self.references[rk].benchmarks[bk].vcf.src
 
-    def _workflow_path(self, components: list[str]) -> Path:
-        p = Path(*components).resolve()
-        assert p.exists(), f"{p} does not exist"
-        return p
+    def benchkey_to_bed_src(self, rk: RefKey, bk: BenchKey) -> FileSrc:
+        return self.references[rk].benchmarks[bk].bed.src
 
-    def env_file(self, envname: str) -> Path:
-        return self._workflow_path(["workflow/envs", f"{envname}.yml"])
+    def refkey_to_mappability_src(self, rk: RefKey, high: bool) -> FileSrc:
+        return (
+            self.references[rk].feature_data.mappability.high.src
+            if high
+            else self.references[rk].feature_data.mappability.low.src
+        )
 
-    def _scripts_dir(self, rest: list[str]) -> Path:
-        return self._workflow_path(["workflow/scripts", *rest])
+    def refkey_to_segdups_src(self, rk: RefKey) -> FileSrc:
+        return self.references[rk].feature_data.segdups.src
 
-    def python_script(self, basename: str) -> Path:
-        return self._scripts_dir(["python", basename])
+    def refkey_to_simreps_src(self, rk: RefKey) -> FileSrc:
+        return self.references[rk].feature_data.tandem_repeats.src
 
-    def rmd_script(self, basename: str) -> Path:
-        return self._scripts_dir(["rmarkdown", basename])
+    def refkey_to_rmsk_src(self, rk: RefKey) -> FileSrc:
+        return self.references[rk].feature_data.repeat_masker.src
 
-    @property
-    def labeled_query_resource_dir(self) -> Path:
-        return self.paths.resources / "labeled_queries"
-
-    @property
-    def unlabeled_query_resource_dir(self) -> Path:
-        return self.paths.resources / "unlabeled_queries"
-
-    @property
-    def ref_resource_dir(self) -> Path:
-        return self.paths.resources / "reference" / get_wildcard("ref_key")
-
-    @property
-    def bench_resource_dir(self) -> Path:
-        return self.ref_resource_dir / "bench"
-
-    def annotation_resource_dir(self, which: str) -> Path:
-        return self.paths.resources / "annotations" / get_wildcard("ref_key") / which
+    # paths
 
     @property
-    def tool_resource_dir(self) -> Path:
-        return self.paths.resources / "tools"
+    def _log_dir(self) -> Path:
+        return self.paths.results / "log"
 
-    def tool_dir(self, log: bool) -> Path:
-        return self._result_or_log_dir(log) / "tools"
+    def _resource_or_log_dir(self, log: bool) -> Path:
+        return self._log_dir / "resource" if log else self.paths.resources
 
     def _result_or_log_dir(self, log: bool) -> Path:
-        return self.paths.results / self.paths.log if log else self.paths.results
-
-    def bench_dir(self, log: bool) -> Path:
-        return (
-            self._result_or_log_dir(log)
-            / "bench"
-            / get_wildcard("refset_key")
-            / get_wildcard("bench_key")
-        )
-
-    def annotation_dir(self, which: str, log: bool) -> Path:
-        return (
-            self._result_or_log_dir(log)
-            / "annotations"
-            / get_wildcard("refset_key")
-            / which
-        )
+        return self._log_dir / "results" if log else self.paths.results
 
     def _labeled_dir(self, labeled: bool) -> Path:
-        return (
-            Path("labeled") / get_wildcard("l_query_key")
-            if labeled
-            else Path("unlabeled") / get_wildcard("ul_query_key")
-        )
+        d, w = ("labeled", "l_query_key") if labeled else ("unlabeled", "ul_query_key")
+        return Path(d) / get_wildcard(w)
 
     def _query_dir(self, labeled: bool, log: bool) -> Path:
         return (
@@ -1268,31 +1683,64 @@ class StratoMod(_BaseModel):
             / self._labeled_dir(labeled)
         )
 
-    def query_prepare_dir(self, labeled: bool, log: bool) -> Path:
+    def query_src_dir(self, labeled: bool, log: bool) -> Path:
+        return self._resource_or_log_dir(log) / "queries" / self._labeled_dir(labeled)
+
+    def ref_src_dir(self, log: bool) -> Path:
+        return self._resource_or_log_dir(log) / "reference" / get_wildcard("ref_key")
+
+    def bench_src_dir(self, log: bool) -> Path:
+        return self.ref_src_dir(log) / "bench" / get_wildcard("bench_key")
+
+    def features_src_dir(self, log: bool) -> Path:
+        return self.ref_src_dir(log) / "feature_data"
+
+    def tool_src_dir(self, log: bool) -> Path:
+        return self._resource_or_log_dir(log) / "tools"
+
+    def tool_res_dir(self, log: bool) -> Path:
+        return self._result_or_log_dir(log) / "tools"
+
+    def bench_res_dir(self, log: bool) -> Path:
+        return (
+            self._result_or_log_dir(log)
+            / "bench"
+            / get_wildcard("refset_key")
+            / get_wildcard("bench_key")
+        )
+
+    def features_res_dir(self, log: bool) -> Path:
+        return self._result_or_log_dir(log) / "features" / get_wildcard("refset_key")
+
+    def query_prepare_res_dir(self, labeled: bool, log: bool) -> Path:
         return self._query_dir(labeled, log) / "prepare"
 
-    def query_parsed_dir(self, labeled: bool, log: bool) -> Path:
+    def query_parsed_res_dir(self, labeled: bool, log: bool) -> Path:
         return self._query_dir(labeled, log) / "parsed"
 
-    def vcfeval_dir(self, log: bool) -> Path:
+    def vcfeval_res_dir(self, log: bool) -> Path:
         return self._query_dir(True, log) / "vcfeval"
 
-    def refset_dir(self, log: bool) -> Path:
+    def refset_res_dir(self, log: bool) -> Path:
         return self._result_or_log_dir(log) / "references" / get_wildcard("refset_key")
 
-    def annotated_dir(self, labeled: bool, log: bool) -> Path:
-        return self._result_or_log_dir(log) / "annotated" / self._labeled_dir(labeled)
+    def annotated_res_dir(self, labeled: bool, log: bool) -> Path:
+        return (
+            self._result_or_log_dir(log)
+            / "annotated_variants"
+            / self._labeled_dir(labeled)
+        )
 
-    def model_train_dir(self, log: bool) -> Path:
+    def model_train_res_dir(self, log: bool) -> Path:
         return (
             self._result_or_log_dir(log)
             / "model"
-            / wildcard_format("{}-{}-{}", "model_key", "filter_key", "run_key")
+            / wildcard_format("{}-{}", "model_key", "vartype_key")
         )
 
-    def model_test_dir(self, labeled: bool, log: bool) -> Path:
+    def model_test_res_dir(self, labeled: bool, log: bool) -> Path:
         return (
-            self.model_train_dir(log)
+            self.model_train_res_dir(log)
             / "test"
             / ("labeled" if labeled else "unlabeled")
             / get_wildcard("test_key")
@@ -1303,18 +1751,17 @@ class StratoMod(_BaseModel):
     def querykey_is_labeled(self, k: QueryKey) -> bool:
         return k in self.labeled_queries
 
-    @property
-    def _all_runs(self) -> list[ModelRun]:
-        return [r for m in self.models.values() for r in m.runs.values()]
+    # @property
+    # def _all_runs(self) -> list[ModelRun]:
+    #     return [r for m in self.models.values() for r in m.runs.values()]
 
     @property
     def all_labeled_querykeys(self) -> set[LabeledQueryKey]:
-        runs = self._all_runs
-        train_keys = [k for r in runs for k in r.train]
+        train_keys = [k for m in self.models.values() for k in m.train]
         test_keys = [
             LabeledQueryKey(k)
-            for r in runs
-            for t in r.test.values()
+            for m in self.models.values()
+            for t in m.test.values()
             if self.querykey_is_labeled(k := t.query_key)
         ]
         return set(train_keys + test_keys)
@@ -1324,8 +1771,8 @@ class StratoMod(_BaseModel):
         return set(
             [
                 UnlabeledQueryKey(k)
-                for r in self._all_runs
-                for t in r.test.values()
+                for m in self.models.values()
+                for t in m.test.values()
                 if not self.querykey_is_labeled(k := t.query_key)
             ]
         )
@@ -1344,10 +1791,9 @@ class StratoMod(_BaseModel):
     @property
     def _all_model_combos(self) -> tuple[list[TrainKeyCombo], list[TestKeyCombo]]:
         models = [
-            (RunKeyCombo(model_key, filter_key, run_key), rest)
+            (ModelKeyCombo(model_key, vartype_key), model)
             for model_key, model in self.models.items()
-            for filter_key in model.filter
-            for run_key, rest in model.runs.items()
+            for vartype_key in model.vartypes
         ]
         train = [
             TrainKeyCombo(r, train_key)
@@ -1389,7 +1835,7 @@ class StratoMod(_BaseModel):
                 target,
                 zip,
                 model_key=map(lambda x: x.run_combo.model_key, key_set),
-                filter_key=map(lambda x: x.run_combo.filter_key.value, key_set),
+                vartype_key=map(lambda x: x.run_combo.vartype_key.value, key_set),
                 l_query_key=map(lambda x: x.labeled_query_key, key_set),
             )
 
@@ -1403,7 +1849,7 @@ class StratoMod(_BaseModel):
                 target,
                 zip,
                 model_key=map(lambda x: x.run_combo.model_key, key_set),
-                filter_key=map(lambda x: x.run_combo.filter_key.value, key_set),
+                vartype_key=map(lambda x: x.run_combo.vartype_key.value, key_set),
                 **{qkey: map(lambda x: x.query_key, key_set)},
             )
 
@@ -1446,8 +1892,7 @@ class StratoMod(_BaseModel):
                 path,
                 zip,
                 model_key=map(lambda x: x.run_combo.model_key, key_set),
-                filter_key=map(lambda x: x.run_combo.filter_key.value, key_set),
-                run_key=map(lambda x: x.run_combo.run_key, key_set),
+                vartype_key=map(lambda x: x.run_combo.vartype_key.value, key_set),
                 test_key=map(lambda x: x.test_key, key_set),
                 refset_key=all_refset_keys(train_set),
                 **{qkey: map(lambda x: x.query_key, key_set)},
@@ -1459,8 +1904,7 @@ class StratoMod(_BaseModel):
             train_target,
             zip,
             model_key=map(lambda x: x.run_combo.model_key, train_set),
-            filter_key=map(lambda x: x.run_combo.filter_key.value, train_set),
-            run_key=map(lambda x: x.run_combo.run_key, train_set),
+            vartype_key=map(lambda x: x.run_combo.vartype_key.value, train_set),
         )
 
         # TODO these should eventually point to the test summary htmls
@@ -1475,11 +1919,3 @@ class StratoMod(_BaseModel):
     # but not all will convert to R types (eg enum, which is silly)
     def items(self: Self) -> Any:
         return {}.items()
-
-
-# other random functions
-
-
-def attempt_mem_gb(mem_gb: int) -> Callable[[dict[str, str], int], int]:
-    # double initial memory on each attempt
-    return lambda _, attempt: cast(int, mem_gb * 1000 * 2 ** (attempt - 1))

@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from numpy.typing import NDArray
 from typing import Any, Hashable, cast, TypedDict
-from common.cli import setup_logging
+from common.io import setup_logging
 from common.ebm import read_model
 from common.tsv import write_tsv
 import common.config as cfg
@@ -240,11 +240,10 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
     ebm = read_model(sin["model"])
     write_model_json(sout["model"], ebm)
 
-    label = sconf.feature_names.label
-    bed_cols = sconf.feature_names.all_index_cols()
+    label = sconf.feature_definitions.label
 
     def write_predictions(xpath: str, ypath: str, out_path: str) -> None:
-        X = pd.read_table(xpath).drop(columns=bed_cols)
+        X = pd.read_table(xpath).drop(columns=cfg.IDX_COLS)
         y = pd.read_table(ypath)
         y_pred = pd.DataFrame(
             {

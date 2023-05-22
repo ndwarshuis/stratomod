@@ -5,7 +5,7 @@ from more_itertools import flatten
 from sklearn.model_selection import train_test_split  # type: ignore
 from interpret.glassbox import ExplainableBoostingClassifier  # type: ignore
 from common.tsv import write_tsv
-from common.cli import setup_logging
+from common.io import setup_logging
 from common.ebm import write_model
 import common.config as cfg
 
@@ -45,10 +45,10 @@ def train_ebm(
     rconf: cfg.Model,
     df: pd.DataFrame,
 ) -> None:
-    label = sconf.feature_names.label
+    label = sconf.feature_definitions.label
 
     def strip_coords(df: pd.DataFrame) -> pd.DataFrame:
-        return df.drop(columns=sconf.feature_names.all_index_cols())
+        return df.drop(columns=cfg.IDX_COLS)
 
     features = rconf.features
     feature_names = [

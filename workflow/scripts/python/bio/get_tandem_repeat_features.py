@@ -1,9 +1,10 @@
+from pathlib import Path
 import pandas as pd
 from typing import Any, cast
 import common.config as cfg
 from common.tsv import write_tsv
-from common.bed import read_bed_df, merge_and_apply_stats
-from common.cli import setup_logging
+from common.bed import read_bed, merge_and_apply_stats
+from common.io import setup_logging
 
 # Input dataframe documented here:
 # https://genome.ucsc.edu/cgi-bin/hgTables?db=hg38&hgta_group=rep&hgta_track=simpleRepeat&hgta_table=simpleRepeat&hgta_doSchema=describe+table+schema
@@ -20,40 +21,38 @@ SLOP = 5
 
 def read_tandem_repeats(
     smk: Any,
-    path: str,
+    path: Path,
     fconf: cfg.TandemRepeatGroup,
-    bed_cols: cfg.BedIndex,
     sconf: cfg.StratoMod,
 ) -> pd.DataFrame:
-    fmt_base = fconf.fmt_base_col
+    rsk = cfg.RefsetKey(smk.wildcards["refset_key"])
+    rk = sconf.refsetkey_to_refkey(rsk)
+    ss = sconf.references[rk].feature_data.tandem_repeats
+    ocs = ss.other_cols
     fmt_col = fconf.fmt_col
-    perc_a_col = fmt_base(cfg.Base.A)
-    perc_t_col = fmt_base(cfg.Base.T)
-    perc_c_col = fmt_base(cfg.Base.C)
-    perc_g_col = fmt_base(cfg.Base.G)
-    unit_size_col = fmt_col(lambda x: x.period)
-    feature_cols: dict[int, cfg.PandasColumn] = {
-        5: unit_size_col,
-        6: fmt_col(lambda x: x.copyNum),
-        8: fmt_col(lambda x: x.perMatch),
-        9: fmt_col(lambda x: x.perIndel),
-        10: fmt_col(lambda x: x.score),
-        11: perc_a_col,
-        12: perc_c_col,
-        13: perc_g_col,
-        14: perc_t_col,
+    perc_a_col = str(fconf.A[0])
+    perc_t_col = str(fconf.T[0])
+    perc_c_col = str(fconf.C[0])
+    perc_g_col = str(fconf.G[0])
+    unit_size_col = fmt_col(lambda x: x.period)[0]
+    feature_cols = {
+        ocs.period: unit_size_col,
+        ocs.copy_num: fmt_col(lambda x: x.copyNum)[0],
+        ocs.per_match: fmt_col(lambda x: x.perMatch)[0],
+        ocs.per_indel: fmt_col(lambda x: x.perIndel)[0],
+        ocs.score: fmt_col(lambda x: x.score)[0],
+        ocs.per_A: perc_a_col,
+        ocs.per_C: perc_c_col,
+        ocs.per_G: perc_g_col,
+        ocs.per_T: perc_t_col,
     }
-    bed_mapping = bed_cols.bed_cols_indexed((1, 2, 3))
-    chr_filter = sconf.refsetkey_to_chr_filter(
-        lambda r: r.annotations.simreps.chr_prefix,
-        cfg.RefsetKey(smk.wildcards["refset_key"]),
-    )
-    df = read_bed_df(path, bed_mapping, feature_cols, chr_filter)
+    cs = sconf.refsetkey_to_chr_indices(rsk)
+    df = read_bed(path, ss.params, feature_cols, cs)
     base_groups = [
-        (fconf.AT_name, perc_a_col, perc_t_col),
-        (fconf.AG_name, perc_a_col, perc_g_col),
-        (fconf.CT_name, perc_c_col, perc_t_col),
-        (fconf.GC_name, perc_c_col, perc_g_col),
+        (fconf.AT[0], perc_a_col, perc_t_col),
+        (fconf.AG[0], perc_a_col, perc_g_col),
+        (fconf.CT[0], perc_c_col, perc_t_col),
+        (fconf.GC[0], perc_c_col, perc_g_col),
     ]
     for double, single1, single2 in base_groups:
         df[double] = df[single1] + df[single2]
@@ -70,21 +69,19 @@ def merge_tandem_repeats(
     gfile: str,
     df: pd.DataFrame,
     fconf: cfg.TandemRepeatGroup,
-    bed_cols: cfg.BedIndex,
 ) -> pd.DataFrame:
-    bed, names = merge_and_apply_stats(bed_cols, fconf, df)
+    bed, names = merge_and_apply_stats(fconf, df)
     merged_df = cast(pd.DataFrame, bed.slop(b=SLOP, g=gfile).to_dataframe(names=names))
-    len_col = fconf.length_name
-    merged_df[len_col] = merged_df[bed_cols.end] - merged_df[bed_cols.start] - SLOP * 2
+    len_col = fconf.length[0]
+    merged_df[len_col] = merged_df[cfg.BED_END] - merged_df[cfg.BED_START] - SLOP * 2
     return merged_df
 
 
 def main(smk: Any, sconf: cfg.StratoMod) -> None:
     i = smk.input
-    bed_cols = sconf.feature_names.bed_index
-    fconf = sconf.feature_names.tandem_repeats
-    repeat_df = read_tandem_repeats(smk, i.src[0], fconf, bed_cols, sconf)
-    merged_df = merge_tandem_repeats(i.genome[0], repeat_df, fconf, bed_cols)
+    fconf = sconf.feature_definitions.tandem_repeats
+    repeat_df = read_tandem_repeats(smk, Path(i.src[0]), fconf, sconf)
+    merged_df = merge_tandem_repeats(i.genome[0], repeat_df, fconf)
     write_tsv(smk.output[0], merged_df, header=True)
 
 

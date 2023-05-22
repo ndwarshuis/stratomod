@@ -96,7 +96,7 @@ A sample configuration file may be found in `config/dynamic-testing.yml` which
 may be copied as a starting point and modified to one's liking. This file is
 heavily annotated to explain all the options/flags and their purpose.
 
-For a list of hardcoded features which may be used, see `FEATURES.md`.
+For a list of features which may be used, see `FEATURES.md`.
 
 ### Running
 

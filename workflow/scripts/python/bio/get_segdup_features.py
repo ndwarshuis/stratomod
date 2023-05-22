@@ -1,9 +1,10 @@
 import pandas as pd
+from pathlib import Path
 from typing import Any, cast
 import common.config as cfg
 from common.tsv import write_tsv
-from common.bed import read_bed_df, merge_and_apply_stats
-from common.cli import setup_logging
+from common.bed import read_bed, merge_and_apply_stats
+from common.io import setup_logging
 
 # This database is documented here:
 # http://genome.ucsc.edu/cgi-bin/hgTables?hgta_doSchemaDb=hg38&hgta_doSchemaTable=genomicSuperDups
@@ -19,36 +20,33 @@ logger = setup_logging(snakemake.log[0])  # type: ignore
 def read_segdups(
     smk: Any,
     config: cfg.StratoMod,
-    path: str,
+    path: Path,
     fconf: cfg.SegDupsGroup,
-    bed_cols: cfg.BedIndex,
 ) -> pd.DataFrame:
+    rsk = cfg.RefsetKey(smk.wildcards["refset_key"])
+    rk = config.refsetkey_to_refkey(rsk)
+    s = config.references[rk].feature_data.segdups
+    ocs = s.other_cols
     feature_cols = {
-        18: fconf.fmt_col(lambda x: x.alignL),
-        27: fconf.fmt_col(lambda x: x.fracMatchIndel),
+        ocs.align_L: str(fconf.fmt_col(lambda x: x.alignL)[0]),
+        ocs.frac_match_indel: str(fconf.fmt_col(lambda x: x.fracMatchIndel)[0]),
     }
-    bed_mapping = bed_cols.bed_cols_indexed((1, 2, 3))
-    chr_filter = config.refsetkey_to_chr_filter(
-        lambda r: r.annotations.superdups.chr_prefix,
-        cfg.RefsetKey(smk.wildcards["refset_key"]),
-    )
-    return read_bed_df(path, bed_mapping, feature_cols, chr_filter)
+    cs = config.refsetkey_to_chr_indices(rsk)
+    return read_bed(path, s.params, feature_cols, cs)
 
 
 def merge_segdups(
     df: pd.DataFrame,
     fconf: cfg.SegDupsGroup,
-    bed_cols: cfg.BedIndex,
 ) -> pd.DataFrame:
-    bed, names = merge_and_apply_stats(bed_cols, fconf, df)
+    bed, names = merge_and_apply_stats(fconf, df)
     return cast(pd.DataFrame, bed.to_dataframe(names=names))
 
 
 def main(smk: Any, config: cfg.StratoMod) -> None:
-    fconf = config.feature_names.segdups
-    bed_cols = config.feature_names.bed_index
-    repeat_df = read_segdups(smk, config, smk.input[0], fconf, bed_cols)
-    merged_df = merge_segdups(repeat_df, fconf, bed_cols)
+    fconf = config.feature_definitions.segdups
+    repeat_df = read_segdups(smk, config, smk.input[0], fconf)
+    merged_df = merge_segdups(repeat_df, fconf)
     write_tsv(smk.output[0], merged_df, header=True)
 
 

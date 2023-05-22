@@ -1,3 +1,16 @@
+# 8.0.0
+
+- made configuration file more intuitive/powerful
+  - defaulted all unnecessary blocks
+  - added lots of documentation
+  - merged "static" and "dynamic" configs (static things are part of pydantic
+    class)
+  - remove run_key level of configuration in each model
+  - can now specify repeat_masker features on a per-reference basis
+- vcf standardization and correction are now in a single rule
+- simplify/speed up vcf parser
+- simplify output directory layout
+
 # 7.1.0
 
 - clean up repository and present it more as a tool
