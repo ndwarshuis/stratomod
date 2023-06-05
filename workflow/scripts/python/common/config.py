@@ -470,7 +470,7 @@ InteractionSpec = Annotated[list[InteractionSpec_], Field(unique_items=True)]
 class Model(_BaseModel):
     "A fully specified model, including parameters and queries to run"
     train: Annotated[set[LabeledQueryKey], Field(min_items=1)]
-    test: dict[TestKey, TestDataQuery]
+    test: dict[TestKey, TestDataQuery] = {}
     vartypes: set[VartypeKey]
     ebm_settings: EBMsettings = EBMsettings()
     error_labels: Annotated[set[ErrorLabel], Field(min_items=1)]
@@ -1500,9 +1500,10 @@ class StratoMod(_BaseModel):
                 for t in v.test.values()
                 for varname, varval in t.variables.items()
             ]
-            assert set([p[0] for p in varpairs]) == set(
-                var_root.all_keys
-            ), "missing variables"
+            extra_vars = set([p[0] for p in varpairs]) - set(var_root.all_keys)
+            assert (
+                len(extra_vars) == 0
+            ), f"extra variables in for test run: {', '.join(extra_vars)}"
             for varname, varval in varpairs:
                 var_root.validate_variable(varname, varval)
         return v
