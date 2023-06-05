@@ -1,9 +1,26 @@
 import re
 import json
+import sys
+import os
+from pathlib import Path
 import subprocess as sp
 from collections import namedtuple
 from more_itertools import flatten, partition, unzip
 import scripts.python.common.config as cfg
+
+# giant hack to allow sourcing other files in rmd scripts (seems like this
+# should be built-in...oh well)
+
+_python_path = next(
+    (
+        p
+        for p in map(lambda p: Path(os.getcwd()) / p, sys.path)
+        if p.is_absolute() and p.exists() and p.name == "python"
+    ),
+    None,
+)
+assert _python_path is not None
+rmd_lib_path = _python_path.parent / "rmarkdown" / "common"
 
 
 ################################################################################
@@ -94,6 +111,7 @@ rule summarize_labeled_annotated_variants:
         label_col=config.feature_definitions.label,
         columns=config.feature_definitions.non_summary_cols,
         query_key=lambda w: w.l_query_key,
+        lib_path=rmd_lib_path,
     script:
         "../scripts/rmarkdown/summary/input_summary.Rmd"
 
@@ -205,6 +223,7 @@ rule summarize_model:
         error_labels=lambda w: [
             x.value for x in config.models[w.model_key].error_labels
         ],
+        lib_path=rmd_lib_path,
     script:
         "../scripts/rmarkdown/summary/train_summary.Rmd"
 
@@ -337,6 +356,7 @@ rule summarize_labeled_test:
         config.model_test_res_dir(labeled=True, log=True) / test_summary_bench
     params:
         query_key=lambda w: config.testkey_to_querykey(w.model_key, w.test_key),
+        lib_path=rmd_lib_path,
     script:
         "../scripts/rmarkdown/summary/test_summary.Rmd"
 
