@@ -1,3 +1,7 @@
+# 8.0.1
+
+- fix bug in test model specification and variable set check
+
 # 8.0.0
 
 - made configuration file more intuitive/powerful
