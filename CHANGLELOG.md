@@ -1,3 +1,7 @@
+# 8.0.3
+
+- fix plot display bug in train reports
+
 # 8.0.2
 
 - fix bug when using only one limit in plotting
