@@ -7,7 +7,8 @@ output: "html_document"
 library(tidyverse)
 library(ggpubr)
 
-source("workflow/scripts/rmarkdown/common/plots.r")
+root = snakemake@params$lib_path
+source(file.path(root, "plots.r"))
 
 to_tibble <- function(lst) {
     do.call(tibble, lst)
@@ -445,8 +446,8 @@ print_cont_cont_plot <- function(df, left_name, right_name) {
     y_tr <- df %>%
         rename(value = right_value) %>%
         truncate_maybe(right_name)
-    lims <- coord_trans(xlim = c(x_tr$lower, x_tr$upper),
-                        ylim = c(y_tr$lower, y_tr$upper))
+    lims <- coord_trans(xlim = c(null2na(x_tr$lower), null2na(x_tr$upper)),
+                        ylim = c(null2na(y_tr$lower), null2na(y_tr$upper)))
     if (!is.null(x_tr$caption)) {
         cat(sprintf("%s: %s\n\n", left_name, x_tr$caption))
     }

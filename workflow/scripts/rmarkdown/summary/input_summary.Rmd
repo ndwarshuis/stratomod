@@ -11,9 +11,9 @@ library(infotheo)
 `:=` = rlang::`:=`
 `!!` = rlang::`!!`
 
-## gross...
-source("workflow/scripts/rmarkdown/common/colocalization.r")
-source("workflow/scripts/rmarkdown/common/plots.r")
+root = snakemake@params$lib_path
+source(file.path(root, "colocalization.r"))
+source(file.path(root, "plots.r"))
 
 format_perc <- function(x) {
     sprintf("%.4f", x)

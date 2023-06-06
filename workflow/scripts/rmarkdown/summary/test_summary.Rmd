@@ -7,7 +7,8 @@ output: "html_document"
 library(tidyverse)
 library(ggpubr)
 
-source("workflow/scripts/rmarkdown/common/plots.r")
+root = snakemake@params$lib_path
+source(file.path(root, "plots.r"))
 
 read_df <- function(path) {
     readr::read_tsv(path, col_types = cols(.default = "d"))

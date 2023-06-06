@@ -1,3 +1,8 @@
+# 8.0.2
+
+- fix bug when using only one limit in plotting
+- fix absolute paths when using rmd outputs in subworkflows
+
 # 8.0.1
 
 - fix bug in test model specification and variable set check
