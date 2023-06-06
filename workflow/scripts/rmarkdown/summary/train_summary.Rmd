@@ -419,24 +419,25 @@ walk(univariate, ~ print_uv_plot(.x$meta$vartype, .x$df, .x$meta$name))
 ```{r, echo = FALSE, results = "asis", fig.width = 8, fig.height = 4}
 
 cont_cont_plot <- function(df, yvar, left_name, right_name) {
-    # poor-mans 2d step heatmap plot thing
-    df %>%
-        group_by(right_value) %>%
-        mutate(left_upper = lead(left_value)) %>%
-        ungroup() %>%
-        group_by(left_value) %>%
-        mutate(right_upper = lead(right_value)) %>%
-        ungroup() %>%
-        filter(!is.na(left_upper)) %>%
-        filter(!is.na(right_upper)) %>%
-        ggplot() +
-        geom_rect(aes_string(xmin = "left_value",
-                             xmax = "left_upper",
-                             ymin = "right_value",
-                             ymax = "right_upper",
-                             fill = yvar)) +
-        xlab(left_name) +
-        ylab(right_name)
+  # poor-mans 2d step heatmap plot thing
+  .yvar <- sym(yvar)
+  df %>%
+    group_by(right_value) %>%
+    mutate(left_upper = lead(left_value)) %>%
+    ungroup() %>%
+    group_by(left_value) %>%
+    mutate(right_upper = lead(right_value)) %>%
+    ungroup() %>%
+    filter(!is.na(left_upper)) %>%
+    filter(!is.na(right_upper)) %>%
+    ggplot() +
+    geom_rect(aes(xmin = left_value,
+                  xmax = left_upper,
+                  ymin = right_value,
+                  ymax = right_upper,
+                  fill = {{ .yvar }})) +
+    xlab(left_name) +
+    ylab(right_name)
 }
 
 print_cont_cont_plot <- function(df, left_name, right_name) {
