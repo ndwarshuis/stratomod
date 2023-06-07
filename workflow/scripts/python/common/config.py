@@ -1083,28 +1083,30 @@ class TandemRepeatGroup(MergedFeatureGroup[TandemRepeatColumns]):
 
     @property
     def features(self) -> FeatureMap:
-        return self.merged_features(
-            [
-                lambda x: x.period,
-                lambda x: x.copyNum,
-                lambda x: x.perMatch,
-                lambda x: x.perIndel,
-                lambda x: x.score,
-            ],
-            dict(
+        return {
+            **dict([self.length]),
+            **self.merged_features(
                 [
-                    self.A,
-                    self.T,
-                    self.G,
-                    self.C,
-                    self.AT,
-                    self.AG,
-                    self.CT,
-                    self.GC,
-                    self.length,
-                ]
+                    lambda x: x.period,
+                    lambda x: x.copyNum,
+                    lambda x: x.perMatch,
+                    lambda x: x.perIndel,
+                    lambda x: x.score,
+                ],
+                dict(
+                    [
+                        self.A,
+                        self.T,
+                        self.G,
+                        self.C,
+                        self.AT,
+                        self.AG,
+                        self.CT,
+                        self.GC,
+                    ]
+                ),
             ),
-        )
+        }
 
 
 class VariableGroup(_ConstFeatureGroup):
