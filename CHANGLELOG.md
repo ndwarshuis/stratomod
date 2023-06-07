@@ -1,3 +1,7 @@
+# 8.0.4
+
+- fix TR_length not being a valid feature
+
 # 8.0.3
 
 - fix plot display bug in train reports
