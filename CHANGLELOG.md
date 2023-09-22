@@ -1,3 +1,7 @@
+# 8.0.5
+
+- fix missing bsdtar tool
+
 # 8.0.4
 
 - fix TR_length not being a valid feature
