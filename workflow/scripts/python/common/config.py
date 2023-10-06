@@ -567,6 +567,7 @@ class VCFFile(_BaseModel):
 
     src: FileSrc
     chr_prefix: ChrPrefix = ChrPrefix("chr")
+    split_biallelics: bool = False
     corrections: VCFCorrections = VCFCorrections()
 
 

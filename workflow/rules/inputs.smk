@@ -157,6 +157,9 @@ rule filter_labeled_query_vcf:
         rules.download_labeled_query_vcf.output,
     output:
         config.query_prepare_res_dir(log=False, labeled=True) / "filtered.vcf.gz",
+    log:
+        split=config.query_prepare_res_dir(log=True, labeled=True) / "split.log",
+        filtered=config.query_prepare_res_dir(log=True, labeled=True) / "filtered.log",
     params:
         vcf=lambda w: config.querykey_to_vcf(w.l_query_key),
     conda:
@@ -170,6 +173,9 @@ use rule filter_labeled_query_vcf as filter_unlabeled_query_vcf with:
         rules.download_unlabeled_query_vcf.output,
     output:
         config.query_prepare_res_dir(log=False, labeled=False) / "filtered.vcf.gz",
+    log:
+        split=config.query_prepare_res_dir(log=True, labeled=False) / "split.log",
+        filtered=config.query_prepare_res_dir(log=True, labeled=False) / "filtered.log",
     params:
         vcf=lambda w: config.querykey_to_vcf(w.ul_query_key),
 
@@ -208,6 +214,9 @@ use rule filter_labeled_query_vcf as filter_bench_vcf with:
         partial(expand_benchmark_path, rules.download_bench_vcf.output),
     output:
         config.bench_res_dir(log=False) / "filtered.vcf.gz",
+    log:
+        split=config.bench_res_dir(log=True) / "split.log",
+        filtered=config.bench_res_dir(log=True) / "filtered.log",
     params:
         vcf=lambda w: config.benchkey_to_vcf(w.refset_key, w.bench_key),
 

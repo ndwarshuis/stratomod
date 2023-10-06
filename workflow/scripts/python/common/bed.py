@@ -1,12 +1,14 @@
 import logging
 import csv
 import gzip
+from threading import Thread
 from pathlib import Path
-from typing import TypeVar, Callable, TextIO
+from typing import TypeVar, Callable, IO, Any
 from itertools import product
 from more_itertools import unzip
 import pandas as pd
 import common.config as cfg
+from common.io import temp_fifo
 from pybedtools import BedTool as bt  # type: ignore
 from Bio import bgzf  # type: ignore
 
@@ -25,7 +27,7 @@ def is_bgzip(p: Path) -> bool:
             return False
 
 
-def with_bgzip_maybe(f: Callable[[TextIO, TextIO], X], i: str, o: str) -> X:
+def with_bgzip_maybe(f: Callable[[IO[str], IO[str]], X], i: str, o: str) -> X:
     # bgzf only understands latin1, so read everything as such
     hi = (
         gzip.open(i, "rt", encoding="latin1")
@@ -33,8 +35,26 @@ def with_bgzip_maybe(f: Callable[[TextIO, TextIO], X], i: str, o: str) -> X:
         else open(i, "rt", encoding="latin1")
     )
     ho = bgzf.open(o, "wt") if o.endswith(".gz") else open(o, "wt")
-    with hi as fi, ho as fo:
-        return f(fi, fo)
+
+    # NOTE: the bgzip python wrapper is actually not a real file object despite
+    # the fact that it has a write() method. Writing to it as a normal file
+    # descriptor will totally bypass compression and write in plain text
+    # (surprisingly, it seems it should just blow up). To get around this, make
+    # silly loop that reads a FIFO line by line and calls write() manually. The
+    # input end of the FIFO is the presented to the callable as the 'file
+    # handle' for the bgzip-ed output path.
+    def cat_bgzip(fifo: Path, fo: Any) -> None:
+        with open(fifo, "r") as fi:
+            for ln in fi:
+                fo.write(ln)
+
+    with hi as fi, ho as fo, temp_fifo() as fifo_path:
+        t = Thread(target=cat_bgzip, args=(fifo_path, fo))
+        t.start()
+        with open(fifo_path, "w") as fifo_write:
+            res = f(fi, fifo_write)
+        t.join()
+        return res
 
 
 def read_bed(
