@@ -202,11 +202,11 @@ truncate_maybe <- function(df, name) {
     lower <- t[["lower"]]
     upper <- t[["upper"]]
     caption <- if (!is.null(lower) && !is.null(upper)) {
-                   sprintf("Truncated from %d to %d", lower, upper)
+                   sprintf("Truncated from %f to %f", lower, upper)
                } else if (!is.null(lower)) {
-                   sprintf("Truncated from %d to -Inf", lower)
+                   sprintf("Truncated from %f to -Inf", lower)
                } else if (!is.null(upper)) {
-                   sprintf("Truncated from -Inf to %d", upper)
+                   sprintf("Truncated from -Inf to %f", upper)
                }
     .df <- if (is.null(lower) && is.null(upper)) {
                df
