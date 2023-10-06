@@ -1,3 +1,7 @@
+# 8.1.1
+
+- fix missing bcftools
+
 # 8.1.0
 
 - add biallelic split option
