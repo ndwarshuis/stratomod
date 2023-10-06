@@ -1,10 +1,26 @@
 import gzip
+import os
+from tempfile import mkdtemp
 import hashlib
-from typing import Callable, TextIO, TypeVar
+from typing import Callable, TextIO, TypeVar, Generator
 from pathlib import Path
 from logging import Logger
+from contextlib import contextmanager
 
 X = TypeVar("X")
+
+
+@contextmanager
+def temp_fifo() -> Generator[Path, None, None]:
+    """Context Manager for creating named pipes with temporary names."""
+    tmpdir = mkdtemp()
+    filename = Path(tmpdir) / "fifo"
+    os.mkfifo(filename)
+    try:
+        yield filename
+    finally:
+        os.unlink(filename)
+        os.rmdir(tmpdir)
 
 
 def with_gzip_maybe(f: Callable[[TextIO, TextIO], X], i: str, o: str) -> X:

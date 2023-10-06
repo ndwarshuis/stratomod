@@ -1,3 +1,9 @@
+# 8.1.0
+
+- add biallelic split option
+- fix sloppy env definitions
+- fix float bug in truncation annotation for plots
+
 # 8.0.5
 
 - fix missing bsdtar tool

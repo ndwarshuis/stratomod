@@ -127,6 +127,7 @@ use rule summarize_labeled_annotated_variants as summarize_unlabeled_annotated_v
         label_col=None,
         columns=config.feature_definitions.non_summary_cols,
         query_key=lambda w: w.ul_query_key,
+        lib_path=rmd_lib_path,
 
 
 ################################################################################

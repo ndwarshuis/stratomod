@@ -31,6 +31,13 @@ labeled_queries:
     # reference and benchmark, but not guaranteed)
     chr_prefix: ""
 
+    # Set to true to split biallelic lines with `bcftools norm --biallelics -`
+    # before processing with vcfeval. Note that biallelics cannot be used in the
+    # EBM training set since indel length would make no sense, so unsplit
+    # biallelics are removed after vcfeval regardless of this flag.
+    # Default: false
+    split_biallelics: false
+
     # The location from which to retrieve this query vcf
     src:
       url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh37/SupplementaryFiles/inputvcfsandbeds/HG002_GRCh37_1_22_PacBio_HiFi_DeepVariant.vcf.gz
@@ -94,6 +101,7 @@ labeled_queries:
     chr_prefix: chr
     src:
       url: https://storage.googleapis.com/brain-genomics-public/research/sequencing/grch38/vcf/hiseqx/wgs_pcr_free/40x/HG002.hiseqx.pcr-free.40x.deepvariant-v1.0.grch38.vcf.gz
+    split_biallelics: true
     benchmark: HG002_v421
     variables:
       coverage: 40
@@ -123,6 +131,9 @@ unlabeled_queries:
     src:
       url: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/archive_2.0/2022/clinvar_20220812.vcf.gz
     chr_prefix: '' # isn't genomics wonderful?
+    # NOTE: Clinvar has a wonky header which will make bcftools choke. This
+    # shouldn't be necessary anyway
+    split_biallelics: false
     # don't include any of these fields since they are not defined in clinvar
     format_fields:
       VAF: null
@@ -457,6 +468,7 @@ references:
           src: 
             url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh37/HG002_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
           chr_prefix: ""
+          split_biallelics: true
 
         # where to obtain the bed file
         bed:
