@@ -1,6 +1,6 @@
 from snakemake.utils import min_version
 
-min_version("7.20")
+min_version("7.25")
 
 
 # TODO this is a hack (required for depickling to work when sending the config
@@ -26,6 +26,7 @@ rule all:
     input:
         rules.all_summary.input,
         rules.all_ebm.input,
+    localrule: True
 
 
 ################################################################################
@@ -62,3 +63,4 @@ rule all_resources:
             ],
             ref_key=config.all_refkeys,
         ),
+    localrule: True
