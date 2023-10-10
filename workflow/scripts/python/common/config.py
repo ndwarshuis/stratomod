@@ -657,7 +657,7 @@ class BedRegion(_BaseModel):
         return v
 
     def fmt(self) -> str:
-        return "\t".join(map(str, [self.chrom.value, self.start, self.start]))
+        return "\t".join(map(str, [self.chrom.value, self.start, self.end]))
 
     def __lt__(self, other: Self) -> bool:
         return (

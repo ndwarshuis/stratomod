@@ -1,3 +1,7 @@
+# 8.1.2
+
+- fix strats bug which basically nooped the MHC filter
+
 # 8.1.1
 
 - fix missing bcftools
