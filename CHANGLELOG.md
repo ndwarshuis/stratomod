@@ -1,3 +1,7 @@
+# 8.1.3
+
+- fix vcf contig parsing bug
+
 # 8.1.2
 
 - fix strats bug which basically nooped the MHC filter

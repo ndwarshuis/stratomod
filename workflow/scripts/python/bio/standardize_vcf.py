@@ -46,11 +46,28 @@ def filter_file(env: Env, fi: IO[str], fo: IO[str]) -> None:
     chr_mapper = {c.chr_name_full(chr_prefix): c.value for c in cs}
 
     for ln in fi:
+        # for commented lines, either print it as-is or do this weird dance if
+        # it has a contig parameter (these must be changed to reflect the
+        # integer chromosome numbers we are about to assign as some tools will
+        # complain if there is a mismatch)
         if ln.startswith("#"):
-            if cmatch := re.match("##contig=<ID=([^,]+),length=(\\d+)>", ln):
+            # If a contig line, change the ID field (and hopefully leave
+            # everything else as-is).
+            if cmatch := re.match("##contig=<(.*)>", ln):
+                contig_matches = [
+                    re.match("(.*)=(.*)", c) for c in cmatch[1].split(",")
+                ]
+                if any([x for x in contig_matches if x is None]):
+                    log.error("Invalid contig line: %s" % ln)
+                    exit(1)
+                contig_map = {x[1]: x[2] for x in contig_matches if x is not None}
+                if "ID" not in contig_map:
+                    log.error("ID field not in contig line: %s" % ln)
+                    exit(1)
                 try:
-                    chrom_id = chr_mapper[cmatch[1]]
-                    fo.write(f"##contig=<ID={chrom_id},length={cmatch[2]}>\n")
+                    contig_map["ID"] = chr_mapper[contig_map["ID"]]
+                    new_contig = ",".join([f"{k}={v}" for k, v in contig_map.items()])
+                    fo.write(f"##contig=<{new_contig}>\n")
                 except KeyError:
                     pass
             else:
