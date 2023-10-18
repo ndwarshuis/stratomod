@@ -662,6 +662,45 @@ feature_definitions:
         levels: ["DeepVariant"]
         description: Variant caller used to produce the reads for the VCF file
 
+  virtual:
+    SINE:
+      description: whether or not a variant is in a SINE (of any length)
+      group: REPMASK
+      expression:
+        if:
+          predicate:
+            relation: '>'
+            left: REPMASK_SINE_length
+            right: 0
+          then: 1
+          else: 0
+  
+    LINE_DEC:
+      description: the decade of the length of a LINE (if present)
+      group: REPMASK
+      expression:
+        unary: 
+          function: log
+          arg: REPMASK_LINE_length
+  
+    A_SINE_length:
+      description: length of A homopolymers in SINEs
+      group: HOMOPOL
+      expression:
+        if:
+          predicate: {is_missing: REPMASK_SINE}
+          then: HOMOPOL_A_length
+          else: 0
+
+    A_NONSINE_length:
+      description: length of A homopolymers not in SINEs
+      group: HOMOPOL
+      expression:
+        if:
+          predicate: {is_missing: REPMASK_SINE}
+          then: 0
+          else: HOMOPOL_A_length
+
 # Directories for build targets
 # paths:
 #

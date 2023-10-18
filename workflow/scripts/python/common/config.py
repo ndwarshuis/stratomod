@@ -45,7 +45,14 @@ from itertools import product
 from .functional import maybe
 from snakemake.io import expand, InputFiles  # type: ignore
 from pydantic import BaseModel as PydanticBaseModel
-from pydantic import validator, HttpUrl, PositiveFloat, NonNegativeInt, Field, FilePath
+from pydantic import (
+    validator,
+    HttpUrl,
+    PositiveFloat,
+    NonNegativeInt,
+    Field,
+    FilePath,
+)
 from enum import Enum, unique
 from collections import ChainMap
 
@@ -218,6 +225,31 @@ class Transform(Enum):
     "Available transforms to apply to features"
     LOG = "log"
     BINARY = "binary"
+
+
+class UnaryFunction(Enum):
+    "Available unary functions to generate new features"
+    LOG = "log"
+    BINARY = "binary"
+
+
+class RelationalOperator(Enum):
+    EQ = "="
+    NE = "/="
+    GT = ">"
+    GE = ">="
+    LT = "<"
+    LE = "<="
+
+
+# TODO add VCF to this, and when I do will need to add additional logic to
+# distinguish b/t string and non-string columns
+class VirtualFeatureGroup(Enum):
+    HOMOPOL = "HOMOPOL"
+    TR = "TR"
+    REPMASK = "REPMASK"
+    SEGDUP = "SEGDUP"
+    MAP = "MAP"
 
 
 # useful data bundles
@@ -436,7 +468,7 @@ class Feature(_BaseModel):
     "A model feature"
     feature_type: FeatureType = FeatureType.CONTINUOUS
     fill_na: float | None = 0.0
-    alt_name: FeatureKey | None = None
+    # alt_name: FeatureKey | None = None
     visualization: Visualization = Visualization()
     transform: Transform | None = None
 
@@ -478,17 +510,17 @@ class Model(_BaseModel):
     interactions: NonNegativeInt | InteractionSpec = 0
     features: dict[FeatureKey, Feature]
 
-    @validator("features")
-    def model_has_matching_alt_features(
-        cls, fs: dict[FeatureKey, Feature]
-    ) -> dict[FeatureKey, Feature]:
-        for k, v in fs.items():
-            alt = v.alt_name
-            if alt is not None:
-                prefix = _assert_match("^[^_]+", k)
-                alt_prefix = _assert_match("^[^_]+", alt)
-                assert alt_prefix == prefix, f"Alt prefix must match for {k}"
-        return fs
+    # @validator("features")
+    # def model_has_matching_alt_features(
+    #     cls, fs: dict[FeatureKey, Feature]
+    # ) -> dict[FeatureKey, Feature]:
+    #     for k, v in fs.items():
+    #         alt = v.alt_name
+    #         if alt is not None:
+    #             prefix = _assert_match("^[^_]+", k)
+    #             alt_prefix = _assert_match("^[^_]+", alt)
+    #             assert alt_prefix == prefix, f"Alt prefix must match for {k}"
+    #     return fs
 
 
 class HashedSrc(_BaseModel):
@@ -1207,6 +1239,57 @@ class LabeledVCFQuery(UnlabeledVCFQuery):
 VCFQuery = UnlabeledVCFQuery | LabeledVCFQuery
 
 
+class UnaryExpression(_BaseModel):
+    function: UnaryFunction
+    arg: FeatureKey
+
+
+class IsMissingPredicate(_BaseModel):
+    is_missing: FeatureKey
+
+
+class EquationPredicate(_BaseModel):
+    relation: RelationalOperator
+    left: FeatureKey | float
+    right: FeatureKey | float
+
+
+class AndPredicate(_BaseModel):
+    __annotations__["and"] = ("PredicateExpression", "PredicateExpression")
+
+
+class OrPredicate(_BaseModel):
+    __annotations__["or"] = ("PredicateExpression", "PredicateExpression")
+
+
+class NotPredicate(_BaseModel):
+    __annotations__["not"] = "PredicateExpression"
+
+
+PredicateExpression = (
+    IsMissingPredicate | EquationPredicate | AndPredicate | OrPredicate | NotPredicate
+)
+
+
+class IfThenExpression(_BaseModel):
+    predicate: PredicateExpression
+    then: FeatureKey | float | None
+    __annotations__["else"] = FeatureKey | float | None
+
+
+VirtualExpression = UnaryExpression | IfThenExpression
+
+
+class VirtualFeature(_BaseModel):
+    description: NonEmptyStr
+    group: VirtualFeatureGroup
+    expression: VirtualExpression
+
+
+# TODO this isn't really a full feature key
+VirtualFeatures = dict[FeatureKey, VirtualFeature]
+
+
 class FeatureDefs(_BaseModel):
     "Defines valid feature names to be specified in models"
     label: NonEmptyStr = "label"
@@ -1217,10 +1300,28 @@ class FeatureDefs(_BaseModel):
     segdups: SegDupsGroup = SegDupsGroup()
     tandem_repeats: TandemRepeatGroup = TandemRepeatGroup()
     variables: VariableGroup = VariableGroup()
+    virtual: VirtualFeatures = {}
+
+    @property
+    def _virtual_group_prefixes(self: Self) -> dict[VirtualFeatureGroup, FeaturePrefix]:
+        return {
+            VirtualFeatureGroup.MAP: self.mappability.prefix,
+            VirtualFeatureGroup.HOMOPOL: self.homopolymers.prefix,
+            VirtualFeatureGroup.REPMASK: self.repeat_masker.prefix,
+            VirtualFeatureGroup.SEGDUP: self.segdups.prefix,
+            VirtualFeatureGroup.TR: self.tandem_repeats.prefix,
+        }
 
     @property
     def label_name(self: Self) -> FeatureKey:
         return FeatureKey(self.label)
+
+    @property
+    def virtual_features(self: Self) -> dict[FeatureKey, VirtualFeature]:
+        # ASSUME this will not not fail with KeyError since the enum will
+        # self-validate
+        gs = self._virtual_group_prefixes
+        return {f"{gs[v.group]}_{k}": v for k, v in self.virtual.items()}
 
     @property
     def index_cols(self) -> list[IndexCol]:
@@ -1229,6 +1330,27 @@ class FeatureDefs(_BaseModel):
     @property
     def non_summary_cols(self) -> list[IndexCol]:
         return self.index_cols + self.vcf.str_features
+
+    @property
+    def fixed_feature_map(self) -> FeatureMap:
+        return {
+            g.prefix: (g.description, g.features)
+            for g in [
+                self.mappability,
+                self.homopolymers,
+                self.segdups,
+                self.tandem_repeats,
+                self.repeat_masker,
+            ]
+        }
+
+    @property
+    def full_feature_map(self) -> FeatureMap:
+        vs = self.variables
+        return {
+            vs.prefix: (vs.description, vs.features),
+            **self.fixed_feature_map,
+        }
 
 
 # mypy be stupid here, see https://github.com/pydantic/pydantic/issues/1684
@@ -1241,8 +1363,8 @@ LabeledQueries = dict[LabeledQueryKey, LabeledVCFQuery]
 UnlabeledQueries = dict[UnlabeledQueryKey, UnlabeledVCFQuery]
 
 
-def _flatten_features(fs: dict[FeatureKey, Feature]) -> list[FeatureKey]:
-    return [k if v.alt_name is None else v.alt_name for k, v in fs.items()]
+# def _flatten_features(fs: dict[FeatureKey, Feature]) -> list[FeatureKey]:
+#     return [k if v.alt_name is None else v.alt_name for k, v in fs.items()]
 
 
 LabeledQueryMap = dict[LabeledQueryKey, LabeledVCFQuery]
@@ -1277,7 +1399,7 @@ class StratoMod(_BaseModel):
             return unlabeled[cast(UnlabeledQueryKey, k)]
 
     @classmethod
-    def _merge_features(
+    def _merge_non_virtual_features(
         cls,
         fs: FeatureDefs,
         lm: LabeledQueryMap,
@@ -1317,7 +1439,7 @@ class StratoMod(_BaseModel):
         }
 
     @classmethod
-    def _merge_feature_names(
+    def _merge_non_virtual_feature_names(
         cls,
         fs: FeatureDefs,
         lm: LabeledQueryMap,
@@ -1329,6 +1451,20 @@ class StratoMod(_BaseModel):
         return set.union(
             *[set(x[1]) for x in cls._merge_features(fs, lm, um, rm, rsm, ks).values()]
         )
+
+    @validator("feature_definitions")
+    def virtual_features_are_valid(cls: Type[Self], v: FeatureDefs) -> FeatureDefs:
+        try:
+            # virtual features must depend on any of the fixed features (ie those
+            # that are not dependent on a particular reference/query key) or
+            # any previously defined virtual feature
+            fixed_features = v.fixed_feature_map.keys()
+            for k in v.virtual_features.keys:
+                _assert_member(k, fixed_features)
+                fixed_features += k
+        except KeyError:
+            pass
+        return v
 
     @validator("reference_sets", each_item=True)
     def refsets_have_valid_refkeys(
@@ -1425,11 +1561,11 @@ class StratoMod(_BaseModel):
             _assert_subset(set(v.features), features)
         return v
 
-    @validator("models", each_item=True)
-    def models_have_valid_features_alt(cls: Type[Self], v: Model) -> Model:
-        # TODO dry?
-        _assert_no_dups(_flatten_features(v.features), "Duplicated features")
-        return v
+    # @validator("models", each_item=True)
+    # def models_have_valid_features_alt(cls: Type[Self], v: Model) -> Model:
+    #     # TODO dry?
+    #     _assert_no_dups(_flatten_features(v.features), "Duplicated features")
+    #     return v
 
     @validator("models", each_item=True)
     def models_have_valid_interactions(
