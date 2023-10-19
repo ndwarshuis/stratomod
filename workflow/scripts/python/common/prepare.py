@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import common.config as cfg
 from typing import Optional, cast
+from typing_extensions import assert_never
 from more_itertools import duplicates_everseen
 
 # TODO don't hardcode this (and also turn into a list)
@@ -29,10 +30,110 @@ def process_series(opts: cfg.Feature, ser: "pd.Series[float]") -> "pd.Series[flo
 #     )
 
 
+def unary_to_series(x: cfg.UnaryExpression, df: pd.DataFrame) -> "pd.Series[float]":
+    f = x.function
+    s = df[x.arg]
+    if f is cfg.UnaryFunction.LOG:
+        return cast("pd.Series[float]", np.log10(s))
+    if f is cfg.UnaryFunction.BINARY:
+        return (~s.isnull()).astype(float)
+    else:
+        assert_never(f)
+
+
+def eval_equation_predicate(
+    x: cfg.EquationPredicate, df: pd.DataFrame
+) -> "pd.Series[bool]":
+    def column(c: cfg.FeatureKey | float) -> "pd.Series[float]" | float:
+        if isinstance(c, str):
+            return df[c]
+        elif isinstance(c, float):
+            return c
+        else:
+            assert_never(c)
+
+    left = column(x.left)
+    right = column(x.right)
+
+    r = x.relation
+    if r is cfg.RelationalOperator.GE:
+        a = np.greater_equal(left, right)
+    elif r is cfg.RelationalOperator.GT:
+        a = np.greater(left, right)
+    elif r is cfg.RelationalOperator.EQ:
+        a = np.equal(left, right)
+    elif r is cfg.RelationalOperator.LE:
+        a = np.less_equal(left, right)
+    elif r is cfg.RelationalOperator.LT:
+        a = np.less(left, right)
+    elif r is cfg.RelationalOperator.NE:
+        a = ~np.equal(left, right)
+    else:
+        assert_never(r)
+    return pd.Series(a)
+
+
+def eval_predicate_expression(
+    x: cfg.PredicateExpression, df: pd.DataFrame
+) -> "pd.Series[bool]":
+    if isinstance(x, cfg.IsMissingPredicate):
+        return df[x.is_missing].isnull()
+    elif isinstance(x, cfg.EquationPredicate):
+        return eval_equation_predicate(x, df)
+    elif isinstance(x, cfg.AndPredicate):
+        a = x._and
+        return eval_predicate_expression(a[0], df) & eval_predicate_expression(a[1], df)
+    elif isinstance(x, cfg.OrPredicate):
+        o = x._or
+        return eval_predicate_expression(o[0], df) | eval_predicate_expression(o[1], df)
+    elif isinstance(x, cfg.NotPredicate):
+        return ~eval_predicate_expression(x._not, df)
+    else:
+        assert_never(x)
+
+
+def if_then_to_series(x: cfg.IfThenExpression, df: pd.DataFrame) -> "pd.Series[float]":
+    return pd.Series(
+        np.where(
+            eval_predicate_expression(x.predicate, df),
+            expression_to_series(x.then, df),
+            expression_to_series(x._else, df),
+        )
+    )
+
+
+def const_to_series(
+    x: cfg.ConstExpression, df: pd.DataFrame
+) -> "pd.Series[float]" | float:
+    c = x.const
+    if isinstance(c, str):
+        return df[c]
+    elif isinstance(c, float):
+        return c
+    else:
+        assert_never(c)
+
+
+def expression_to_series(
+    x: cfg.VirtualExpression, df: pd.DataFrame
+) -> "pd.Series[float]" | float:
+    if isinstance(x, cfg.UnaryExpression):
+        return unary_to_series(x, df)
+    elif isinstance(x, cfg.IfThenExpression):
+        return if_then_to_series(x, df)
+    elif isinstance(x, cfg.ConstExpression):
+        return const_to_series(x, df)
+    else:
+        assert_never(x)
+
+
 def process_columns(
     features: dict[cfg.FeatureKey, cfg.Feature],
+    virt_features: dict[cfg.FeatureKey, cfg.VirtualFeature],
     df: pd.DataFrame,
 ) -> pd.DataFrame:
+    for vk, vv in virt_features.items():
+        df[vk] = expression_to_series(vv.expression, df)
     for col, opts in features.items():
         df[col] = process_series(opts, df[col])
     return df
@@ -66,8 +167,7 @@ def select_columns(
     # since this will work with whatever the column represented by "idx_col"
     # to make a complete index mapping back to the input variant
     all_cols = idx_cols + wanted_cols
-    to_rename = {k: n for k, v in features.items() if (n := v.alt_name) is not None}
-    return df[all_cols].rename(columns=to_rename)
+    return df[all_cols]
 
 
 def mask_labels(
@@ -108,6 +208,7 @@ def collapse_labels(
 
 def process_labeled_data(
     features: dict[cfg.FeatureKey, cfg.Feature],
+    virtual_features: dict[cfg.FeatureKey, cfg.VirtualFeature],
     error_labels: set[cfg.ErrorLabel],
     filtered_are_candidates: bool,
     idx_cols: list[cfg.FeatureKey],
@@ -128,7 +229,7 @@ def process_labeled_data(
                 filtered_are_candidates,
                 label_col,
                 filter_col,
-                process_columns(features, df),
+                process_columns(features, virtual_features, df),
             ),
         ),
     )
@@ -136,7 +237,13 @@ def process_labeled_data(
 
 def process_unlabeled_data(
     features: dict[cfg.FeatureKey, cfg.Feature],
+    virtual_features: dict[cfg.FeatureKey, cfg.VirtualFeature],
     idx_cols: list[cfg.FeatureKey],
     df: pd.DataFrame,
 ) -> pd.DataFrame:
-    return select_columns(features, idx_cols, None, process_columns(features, df))
+    return select_columns(
+        features,
+        idx_cols,
+        None,
+        process_columns(features, virtual_features, df),
+    )
