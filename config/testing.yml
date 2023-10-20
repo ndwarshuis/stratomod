@@ -236,12 +236,8 @@ models:
       SINE:
         description: whether or not a variant is in a SINE (of any length)
         expression:
-          if_:
-            relation: '>'
-            left: {column: REPMASK_SINE_length}
-            right: {numeric: 0}
-          then_: {const: {numeric: 1}}
-          else_: {const: {numeric: 0}}
+          function: binary
+          arg: REPMASK_SINE_length
     
       LINE_DEC:
         description: the decade of the length of a LINE (if present)
@@ -252,14 +248,22 @@ models:
       A_SINE_length:
         description: length of A homopolymers in SINEs
         expression:
-          if_: {is_missing: VIRT_SINE}
+          if_:
+            relation: '='
+            left: {const: {column: VIRT_SINE}}
+            right: {const: {numeric: 1}}
           then_: {const: {column: HOMOPOL_A_length}}
           else_: {const: {numeric: 0}}
     
       A_NONSINE_length:
         description: length of A homopolymers not in SINEs
         expression:
-          if_: {is_missing: VIRT_SINE}
+          # this is totally unnecessary but I want to test that 'VIRT_SINE'
+          # is properly used since this was 'defined' above
+          if_:
+            relation: '='
+            left: {const: {column: VIRT_SINE}}
+            right: {const: {numeric: 1}}
           then_: {const: {numeric: 0}}
           else_: {const: {column: HOMOPOL_A_length}}
 
@@ -388,7 +392,6 @@ models:
           truncate: {upper: 50}
 
       VIRT_SINE:
-        transform: binary
         feature_type: categorical
 
       VIRT_A_SINE_length:

@@ -41,33 +41,38 @@ def unary_to_series(x: cfg.UnaryExpression, df: pd.DataFrame) -> "pd.Series[floa
         assert_never(f)
 
 
+def const_to_series(
+    x: cfg.ConstExpression,
+    df: pd.DataFrame,
+) -> "pd.Series[float] | float":
+    c = x.const
+    if isinstance(c, cfg.ExpressionSeries):
+        return df[c.column]
+    elif isinstance(c, cfg.ExpressionScaler):
+        return c.numeric
+    else:
+        assert_never(c)
+
+
 def eval_equation_predicate(
     x: cfg.EquationPredicate, df: pd.DataFrame
 ) -> "pd.Series[bool]":
-    def column(c: cfg.FeatureKey | float) -> "pd.Series[float]" | float:
-        if isinstance(c, str):
-            return df[c]
-        elif isinstance(c, float):
-            return c
-        else:
-            assert_never(c)
-
-    left = column(x.left)
-    right = column(x.right)
+    left = const_to_series(x.left, df)
+    right = const_to_series(x.right, df)
 
     r = x.relation
-    if r is cfg.RelationalOperator.GE:
+    if r is cfg.RelationalOperator.EQ:
+        a = np.equal(left, right)
+    elif r is cfg.RelationalOperator.NE:
+        a = ~np.equal(left, right)
+    elif r is cfg.RelationalOperator.GE:
         a = np.greater_equal(left, right)
     elif r is cfg.RelationalOperator.GT:
         a = np.greater(left, right)
-    elif r is cfg.RelationalOperator.EQ:
-        a = np.equal(left, right)
     elif r is cfg.RelationalOperator.LE:
         a = np.less_equal(left, right)
     elif r is cfg.RelationalOperator.LT:
         a = np.less(left, right)
-    elif r is cfg.RelationalOperator.NE:
-        a = ~np.equal(left, right)
     else:
         assert_never(r)
     return pd.Series(a)
@@ -81,13 +86,13 @@ def eval_predicate_expression(
     elif isinstance(x, cfg.EquationPredicate):
         return eval_equation_predicate(x, df)
     elif isinstance(x, cfg.AndPredicate):
-        a = x._and
+        a = x.and_
         return eval_predicate_expression(a[0], df) & eval_predicate_expression(a[1], df)
     elif isinstance(x, cfg.OrPredicate):
-        o = x._or
+        o = x.or_
         return eval_predicate_expression(o[0], df) | eval_predicate_expression(o[1], df)
     elif isinstance(x, cfg.NotPredicate):
-        return ~eval_predicate_expression(x._not, df)
+        return ~eval_predicate_expression(x.not_, df)
     else:
         assert_never(x)
 
@@ -95,28 +100,16 @@ def eval_predicate_expression(
 def if_then_to_series(x: cfg.IfThenExpression, df: pd.DataFrame) -> "pd.Series[float]":
     return pd.Series(
         np.where(
-            eval_predicate_expression(x.predicate, df),
-            expression_to_series(x.then, df),
-            expression_to_series(x._else, df),
+            eval_predicate_expression(x.if_, df),
+            expression_to_series(x.then_, df),
+            expression_to_series(x.else_, df),
         )
     )
 
 
-def const_to_series(
-    x: cfg.ConstExpression, df: pd.DataFrame
-) -> "pd.Series[float]" | float:
-    c = x.const
-    if isinstance(c, str):
-        return df[c]
-    elif isinstance(c, float):
-        return c
-    else:
-        assert_never(c)
-
-
 def expression_to_series(
     x: cfg.VirtualExpression, df: pd.DataFrame
-) -> "pd.Series[float]" | float:
+) -> "pd.Series[float] | float":
     if isinstance(x, cfg.UnaryExpression):
         return unary_to_series(x, df)
     elif isinstance(x, cfg.IfThenExpression):
@@ -210,7 +203,7 @@ def collapse_labels(
 
 def process_labeled_data(
     features: dict[cfg.FeatureKey, cfg.Feature],
-    virtual_features: dict[cfg.FeatureKey, cfg.VirtualFeature],
+    virtual_features: cfg.VirtualFeatures,
     error_labels: set[cfg.ErrorLabel],
     filtered_are_candidates: bool,
     idx_cols: list[cfg.FeatureKey],
@@ -239,7 +232,7 @@ def process_labeled_data(
 
 def process_unlabeled_data(
     features: dict[cfg.FeatureKey, cfg.Feature],
-    virtual_features: dict[cfg.FeatureKey, cfg.VirtualFeature],
+    virtual_features: cfg.VirtualFeatures,
     idx_cols: list[cfg.FeatureKey],
     df: pd.DataFrame,
 ) -> pd.DataFrame:

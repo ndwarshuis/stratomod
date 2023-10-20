@@ -29,6 +29,7 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
     raw_df = read_queries(sconf, smk.input)
     processed = process_labeled_data(
         rconf.features,
+        rconf.all_virtual_features(fconf),
         rconf.error_labels,
         rconf.filtered_are_candidates,
         [cfg.FeatureKey(c) for c in cfg.IDX_COLS],

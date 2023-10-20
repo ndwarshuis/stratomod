@@ -13,12 +13,14 @@ def write_labeled(
     ypath: str,
     sconf: cfg.StratoMod,
     rconf: cfg.Model,
+    fconf: cfg.FeatureDefs,
     df: pd.DataFrame,
 ) -> None:
     filter_col = sconf.feature_definitions.vcf.filter
     label_col = sconf.feature_definitions.label_name
     processed = process_labeled_data(
         rconf.features,
+        rconf.all_virtual_features(fconf),
         rconf.error_labels,
         rconf.filtered_are_candidates,
         [cfg.FeatureKey(c) for c in cfg.IDX_COLS],
@@ -34,10 +36,12 @@ def write_unlabeled(
     xpath: str,
     sconf: cfg.StratoMod,
     rconf: cfg.Model,
+    fconf: cfg.FeatureDefs,
     df: pd.DataFrame,
 ) -> None:
     processed = process_unlabeled_data(
         rconf.features,
+        rconf.all_virtual_features(fconf),
         [cfg.FeatureKey(c) for c in cfg.IDX_COLS],
         df,
     )
@@ -62,10 +66,17 @@ def main(smk: Any, sconf: cfg.StratoMod) -> None:
             sout["test_y"],
             sconf,
             rconf,
+            sconf.feature_definitions,
             df,
         )
     else:
-        write_unlabeled(sout["test_x"], sconf, rconf, df)
+        write_unlabeled(
+            sout["test_x"],
+            sconf,
+            rconf,
+            sconf.feature_definitions,
+            df,
+        )
 
 
 main(snakemake, snakemake.config)  # type: ignore

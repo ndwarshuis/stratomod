@@ -1333,20 +1333,17 @@ class ExpressionScaler(_BaseModel):
 ExpressionValue = ExpressionSeries | ExpressionScaler
 
 
-def _assert_member_value(x: ExpressionValue, ys: set[FeatureKey]) -> None:
-    if isinstance(x, ExpressionSeries):
-        _assert_member(x.column, ys)
-    elif isinstance(x, ExpressionScaler):
-        pass
-    else:
-        assert_never(x)
-
-
 class ConstExpression(_ExpressionBase):
     const: ExpressionValue
 
     def assert_valid(self, const_features: set[FeatureKey]) -> None:
-        _assert_member_value(self.const, const_features)
+        x = self.const
+        if isinstance(x, ExpressionSeries):
+            _assert_member(x.column, const_features)
+        elif isinstance(x, ExpressionScaler):
+            pass
+        else:
+            assert_never(x)
 
 
 class UnaryExpression(_ExpressionBase):
@@ -1366,12 +1363,12 @@ class IsMissingPredicate(_ExpressionBase):
 
 class EquationPredicate(_ExpressionBase):
     relation: RelationalOperator
-    left: ExpressionValue
-    right: ExpressionValue
+    left: ConstExpression
+    right: ConstExpression
 
     def assert_valid(self, const_features: set[FeatureKey]) -> None:
-        _assert_member_value(self.left, const_features)
-        _assert_member_value(self.right, const_features)
+        self.left.assert_valid(const_features)
+        self.right.assert_valid(const_features)
 
 
 class AndPredicate(_ExpressionBase):
@@ -1466,6 +1463,9 @@ class Model(_BaseModel):
         for vk, vv in self.virtual_features.items():
             vv.assert_valid_expression(all_feature_keys)
             all_feature_keys.add(fd.virtual.fmt_feature(vk))
+
+    def all_virtual_features(self, fd: FeatureDefs) -> dict[FeatureKey, VirtualFeature]:
+        return {fd.virtual.fmt_feature(k): v for k, v in self.virtual_features.items()}
 
     def feature_map(
         self,
