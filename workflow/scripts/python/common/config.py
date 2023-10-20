@@ -1210,10 +1210,6 @@ LabeledQueries = dict[LabeledQueryKey, LabeledVCFQuery]
 UnlabeledQueries = dict[UnlabeledQueryKey, UnlabeledVCFQuery]
 
 
-# def _flatten_features(fs: dict[FeatureKey, Feature]) -> list[FeatureKey]:
-#     return [k if v.alt_name is None else v.alt_name for k, v in fs.items()]
-
-
 class TestDataQuery(_BaseModel):
     "Specifies a test to run within a model."
     query_key: QueryKey
@@ -1286,7 +1282,7 @@ class Feature(_BaseModel):
     "A model feature"
     feature_type: FeatureType = FeatureType.CONTINUOUS
     fill_na: float | None = 0.0
-    # alt_name: FeatureKey | None = None
+    alt_name: FeatureKey | None = None
     visualization: Visualization = Visualization()
     transform: Transform | None = None
 
@@ -1304,6 +1300,10 @@ class Feature(_BaseModel):
         }
 
 
+def _flatten_features(fs: dict[FeatureKey, Feature]) -> list[FeatureKey]:
+    return [k if v.alt_name is None else v.alt_name for k, v in fs.items()]
+
+
 class FeaturePair(_BaseModel):
     "Two model features (for bivariate interaction terms)"
     f1: FeatureKey
@@ -1317,23 +1317,36 @@ InteractionSpec_ = FeatureKey | FeaturePair
 InteractionSpec = Annotated[list[InteractionSpec_], Field(unique_items=True)]
 
 
-def _assert_member_if_str(x: Any, ys: set[FeatureKey]) -> None:
-    if isinstance(x, str):
-        _assert_member(FeatureKey(x), ys)
-    else:
-        assert_never(x)
-
-
 class _ExpressionBase(_BaseModel):
     def assert_valid(self, const_features: set[FeatureKey]) -> None:
         assert False, "override me"
 
 
+class ExpressionSeries(_BaseModel):
+    column: FeatureKey
+
+
+class ExpressionScaler(_BaseModel):
+    numeric: float
+
+
+ExpressionValue = ExpressionSeries | ExpressionScaler
+
+
+def _assert_member_value(x: ExpressionValue, ys: set[FeatureKey]) -> None:
+    if isinstance(x, ExpressionSeries):
+        _assert_member(x.column, ys)
+    elif isinstance(x, ExpressionScaler):
+        pass
+    else:
+        assert_never(x)
+
+
 class ConstExpression(_ExpressionBase):
-    const: FeatureKey | float
+    const: ExpressionValue
 
     def assert_valid(self, const_features: set[FeatureKey]) -> None:
-        _assert_member_if_str(self.const, const_features)
+        _assert_member_value(self.const, const_features)
 
 
 class UnaryExpression(_ExpressionBase):
@@ -1341,47 +1354,47 @@ class UnaryExpression(_ExpressionBase):
     arg: FeatureKey
 
     def assert_valid(self, const_features: set[FeatureKey]) -> None:
-        _assert_member_if_str(self.arg, const_features)
+        _assert_member(self.arg, const_features)
 
 
 class IsMissingPredicate(_ExpressionBase):
     is_missing: FeatureKey
 
     def assert_valid(self, const_features: set[FeatureKey]) -> None:
-        _assert_member_if_str(self.is_missing, const_features)
+        _assert_member(self.is_missing, const_features)
 
 
 class EquationPredicate(_ExpressionBase):
     relation: RelationalOperator
-    left: FeatureKey | float
-    right: FeatureKey | float
+    left: ExpressionValue
+    right: ExpressionValue
 
     def assert_valid(self, const_features: set[FeatureKey]) -> None:
-        _assert_member_if_str(self.left, const_features)
-        _assert_member_if_str(self.right, const_features)
+        _assert_member_value(self.left, const_features)
+        _assert_member_value(self.right, const_features)
 
 
 class AndPredicate(_ExpressionBase):
-    _and: tuple["PredicateExpression", "PredicateExpression"]
+    and_: tuple["PredicateExpression", "PredicateExpression"]
 
     def assert_valid(self, const_features: set[FeatureKey]) -> None:
-        _assert_member_if_str(self._and[0], const_features)
-        _assert_member_if_str(self._and[1], const_features)
+        for i in [0, 1]:
+            self.and_[i].assert_valid(const_features)
 
 
 class OrPredicate(_ExpressionBase):
-    _or: tuple["PredicateExpression", "PredicateExpression"]
+    or_: tuple["PredicateExpression", "PredicateExpression"]
 
     def assert_valid(self, const_features: set[FeatureKey]) -> None:
-        _assert_member_if_str(self._or[0], const_features)
-        _assert_member_if_str(self._or[1], const_features)
+        for i in [0, 1]:
+            self.or_[i].assert_valid(const_features)
 
 
 class NotPredicate(_ExpressionBase):
-    _not: "PredicateExpression"
+    not_: "PredicateExpression"
 
     def assert_valid(self, const_features: set[FeatureKey]) -> None:
-        _assert_member_if_str(self._not, const_features)
+        self.not_.assert_valid(const_features)
 
 
 PredicateExpression = (
@@ -1389,19 +1402,27 @@ PredicateExpression = (
 )
 
 
+IsMissingPredicate.update_forward_refs()
+EquationPredicate.update_forward_refs()
+AndPredicate.update_forward_refs()
+OrPredicate.update_forward_refs()
+NotPredicate.update_forward_refs()
+
+
 class IfThenExpression(_ExpressionBase):
-    predicate: PredicateExpression
-    then: "VirtualExpression"
-    # otherwise ~ else...I just don't feel like using getattr over and over...
-    _else: "VirtualExpression"
+    if_: PredicateExpression
+    then_: "VirtualExpression"
+    else_: "VirtualExpression"
 
     def assert_valid(self, const_features: set[FeatureKey]) -> None:
-        self.predicate.assert_valid(const_features)
-        self.then.assert_valid(const_features)
-        self._else.assert_valid(const_features)
+        self.if_.assert_valid(const_features)
+        self.then_.assert_valid(const_features)
+        self.else_.assert_valid(const_features)
 
 
 VirtualExpression = UnaryExpression | IfThenExpression | ConstExpression
+
+IfThenExpression.update_forward_refs()
 
 
 class VirtualFeature(_BaseModel):
@@ -1427,6 +1448,18 @@ class Model(_BaseModel):
     interactions: NonNegativeInt | InteractionSpec = 0
     virtual_features: VirtualFeatures = {}
     features: dict[FeatureKey, Feature]
+
+    @validator("features")
+    def model_has_matching_alt_features(
+        cls, fs: dict[FeatureKey, Feature]
+    ) -> dict[FeatureKey, Feature]:
+        for k, v in fs.items():
+            alt = v.alt_name
+            if alt is not None:
+                prefix = _assert_match("^[^_]+", k)
+                alt_prefix = _assert_match("^[^_]+", alt)
+                assert alt_prefix == prefix, f"Alt prefix must match for {k}"
+        return fs
 
     def assert_valid_virtual_features(self, fd: FeatureDefs, m: _ModelDeps) -> None:
         all_feature_keys = fd.merge_feature_names(m)
@@ -1569,9 +1602,7 @@ class StratoMod(_BaseModel):
         try:
             m = cls._cls_model_deps(v, values)
             fd = cast(FeatureDefs, values["feature_definitions"])
-            const_features = fd.merge_feature_names(m)
-            for vf in v.virtual_features.values():
-                vf.assert_valid_expression(const_features)
+            v.assert_valid_virtual_features(fd, m)
         except KeyError:
             pass
         return v
@@ -1593,15 +1624,35 @@ class StratoMod(_BaseModel):
         return v
 
     @validator("models", each_item=True)
+    def models_have_valid_features_alt(cls: Type[Self], v: Model) -> Model:
+        # TODO dry?
+        _assert_no_dups(_flatten_features(v.features), "Duplicated features")
+        return v
+
+    @validator("models", each_item=True)
+    def models_have_no_duplicated_features(
+        cls: Type[Self],
+        v: Model,
+        values: dict[str, Any],
+    ) -> Model:
+        try:
+            m = cls._cls_model_deps(v, values)
+            fd = cast(FeatureDefs, values["feature_definitions"])
+            features = v.feature_names(fd, m)
+        except KeyError:
+            pass
+        else:
+            _assert_subset(set(v.features), features)
+        return v
+
+    @validator("models", each_item=True)
     def models_have_valid_interactions(
         cls: Type[Self],
         v: Model,
         values: dict[str, Any],
     ) -> Model:
         if isinstance(v.interactions, set):
-            m = cls._cls_model_desp(v, values)
-            fd = cast(FeatureDefs, values["feature_definitions"])
-            features = v.feature_names(fd, m)
+            features = _flatten_features(v.features)
             interactions = set(
                 flatten(
                     [i.f1, i.f2] if isinstance(i, FeaturePair) else [i]

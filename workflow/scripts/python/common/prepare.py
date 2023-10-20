@@ -167,6 +167,8 @@ def select_columns(
     # since this will work with whatever the column represented by "idx_col"
     # to make a complete index mapping back to the input variant
     all_cols = idx_cols + wanted_cols
+    to_rename = {k: n for k, v in features.items() if (n := v.alt_name) is not None}
+    return df[all_cols].rename(columns=to_rename)
     return df[all_cols]
 
 
