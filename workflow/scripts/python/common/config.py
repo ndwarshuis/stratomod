@@ -39,13 +39,20 @@ from typing import (
     cast,
     Annotated,
 )
-from typing_extensions import Self
-from more_itertools import flatten, duplicates_everseen, unzip, partition
+from typing_extensions import Self, assert_never
+from more_itertools import duplicates_everseen, unzip, partition, flatten
 from itertools import product
 from .functional import maybe
 from snakemake.io import expand, InputFiles  # type: ignore
 from pydantic import BaseModel as PydanticBaseModel
-from pydantic import validator, HttpUrl, PositiveFloat, NonNegativeInt, Field, FilePath
+from pydantic import (
+    validator,
+    HttpUrl,
+    PositiveFloat,
+    NonNegativeInt,
+    Field,
+    FilePath,
+)
 from enum import Enum, unique
 from collections import ChainMap
 
@@ -115,7 +122,7 @@ def _assert_subset(xs: set[X], ys: set[X]) -> None:
     assert xs <= ys, f"not a subset - extra members: {xs - ys}"
 
 
-def _assert_member(x: X, xs: Sequence[X]) -> None:
+def _assert_member(x: X, xs: set[X]) -> None:
     assert x in xs, f"'{x}' is not one of {xs}"
 
 
@@ -218,6 +225,21 @@ class Transform(Enum):
     "Available transforms to apply to features"
     LOG = "log"
     BINARY = "binary"
+
+
+class UnaryFunction(Enum):
+    "Available unary functions to generate new features"
+    LOG = "log"
+    BINARY = "binary"
+
+
+class RelationalOperator(Enum):
+    EQ = "="
+    NE = "/="
+    GT = ">"
+    GE = ">="
+    LT = "<"
+    LE = "<="
 
 
 # useful data bundles
@@ -353,6 +375,9 @@ class Refset(_BaseModel):
     chr_filter: set[ChrIndex]
 
 
+RefsetMap = dict[RefsetKey, Refset]
+
+
 class CatVar(_BaseModel):
     "A categorical VCF variable"
     levels: Annotated[list[str], Field(min_items=1, unique_items=True)]
@@ -362,133 +387,6 @@ class CatVar(_BaseModel):
 class ContVar(_Range):
     "A continuous VCF variable"
     description: FeatureDesc | None = None
-
-
-class TestDataQuery(_BaseModel):
-    "Specifies a test to run within a model."
-    query_key: QueryKey
-    variables: dict[VarKey, VarVal] = {}
-
-
-class EBMMiscParams(_BaseModel):
-    "EBM parameters that aren't specified in the classifier object"
-    downsample: Fraction | None = None
-
-
-class EBMSplitParams(_BaseModel):
-    "Parameters for the EBM train/test split"
-    test_size: Fraction = 0.2
-    random_state: int | None = random.randrange(0, 420420)
-
-
-class EBMClassifierParams(_BaseModel):
-    """
-    Parameters for the EBM classifier.
-
-    The names directly correspond to those from the classifier itself.
-    """
-
-    max_bins: NonNegativeInt = 256
-    max_interaction_bins: NonNegativeInt = 32
-    binning: Binning = Binning.QUANTILE
-    outer_bags: NonNegativeInt = 8
-    inner_bags: NonNegativeInt = 0
-    learning_rate: PositiveFloat = 0.01
-    validation_size: PositiveFloat = 0.15
-    early_stopping_rounds: NonNegativeInt = 50
-    early_stopping_tolerance: PositiveFloat = 0.0001
-    max_rounds: NonNegativeInt = 5000
-    min_samples_leaf: NonNegativeInt = 2
-    max_leaves: NonNegativeInt = 3
-    random_state: int = random.randint(0, 420420)
-
-    # for easy insertion into the ebm classifier object
-    @property
-    def mapping(self) -> dict[str, Any]:
-        return {**self.dict(), "binning": self.binning.value}
-
-
-class EBMsettings(_BaseModel):
-    "All parameters for model training"
-    misc_parameters: EBMMiscParams = EBMMiscParams()
-    split_parameters: EBMSplitParams = EBMSplitParams()
-    classifier_parameters: EBMClassifierParams = EBMClassifierParams()
-
-
-class Truncation(_Range):
-    "Specifies how to truncate a plot"
-    pass
-
-
-class Visualization(_BaseModel):
-    "Specifies how to plot a feature in the final report"
-    truncate: Truncation = Truncation()
-    plot_type: PlotType = PlotType.STEP
-    split_missing: Fraction | None = None
-
-    # convert to R-friendly dict for use in rmarkdown scripts
-    @property
-    def r_dict(self) -> dict[Any, Any]:
-        return {**self.dict(), **{"plot_type": self.plot_type.value}}
-
-
-class Feature(_BaseModel):
-    "A model feature"
-    feature_type: FeatureType = FeatureType.CONTINUOUS
-    fill_na: float | None = 0.0
-    alt_name: FeatureKey | None = None
-    visualization: Visualization = Visualization()
-    transform: Transform | None = None
-
-    # convert to R-friendly dict for use in rmarkdown scripts
-    @property
-    def r_dict(self) -> dict[Any, Any]:
-        return {
-            **self.dict(),
-            **{
-                "feature_type": self.feature_type.value,
-                "visualization": self.visualization.r_dict,
-                # pythonic fmap...
-                "transform": maybe(None, lambda x: x.value, self.transform),
-            },
-        }
-
-
-class FeaturePair(_BaseModel):
-    "Two model features (for bivariate interaction terms)"
-    f1: FeatureKey
-    f2: FeatureKey
-
-
-# NOTE need to use conlist vs set here since this will contain another
-# pydantic model class, which will prevent the overall model from being
-# converted to a dict (see https://github.com/pydantic/pydantic/issues/1090)
-InteractionSpec_ = FeatureKey | FeaturePair
-InteractionSpec = Annotated[list[InteractionSpec_], Field(unique_items=True)]
-
-
-class Model(_BaseModel):
-    "A fully specified model, including parameters and queries to run"
-    train: Annotated[set[LabeledQueryKey], Field(min_items=1)]
-    test: dict[TestKey, TestDataQuery] = {}
-    vartypes: set[VartypeKey]
-    ebm_settings: EBMsettings = EBMsettings()
-    error_labels: Annotated[set[ErrorLabel], Field(min_items=1)]
-    filtered_are_candidates: bool
-    interactions: NonNegativeInt | InteractionSpec = 0
-    features: dict[FeatureKey, Feature]
-
-    @validator("features")
-    def model_has_matching_alt_features(
-        cls, fs: dict[FeatureKey, Feature]
-    ) -> dict[FeatureKey, Feature]:
-        for k, v in fs.items():
-            alt = v.alt_name
-            if alt is not None:
-                prefix = _assert_match("^[^_]+", k)
-                alt_prefix = _assert_match("^[^_]+", alt)
-                assert alt_prefix == prefix, f"Alt prefix must match for {k}"
-        return fs
 
 
 class HashedSrc(_BaseModel):
@@ -704,6 +602,9 @@ class Reference(_BaseModel):
     benchmarks: dict[BenchKey, Benchmark]
 
 
+RefMap = dict[RefKey, Reference]
+
+
 class ColumnSpec(_BaseModel):
     name: NonEmptyStr
     description: FeatureDesc
@@ -724,7 +625,7 @@ class _FeatureGroup(_BaseModel):
 class _ConstFeatureGroup(_FeatureGroup):
     @property
     def features(self) -> FeatureMap:
-        return {}
+        return NotImplemented
 
 
 class VCFColumns(_BaseModel):
@@ -933,7 +834,7 @@ class MergedFeatureGroup(_ConstFeatureGroup, Generic[X]):
         return FeatureKey(f"{middle}_{op.value}")
 
     # TODO generalize this so it can take any sequence rather than a hardcoded
-    # dict?
+    # dict
     def ops_product(
         self,
         xs: FeatureMap,
@@ -1163,6 +1064,15 @@ class VariableGroup(_ConstFeatureGroup):
         return {self.fmt_feature(k): self._parse_var(k, v) for k, v in kvs.items()}
 
 
+class VirtualGroup(_ConstFeatureGroup):
+    prefix: NonEmptyStr = "VIRT"
+    description: NonEmptyStr = (
+        "User-defined features constructed from existing features. These are"
+        "defined at the model-level and can be inspected into the final input"
+        "dataframe to be fed into the model"
+    )
+
+
 class FormatField(_BaseModel):
     """Means to parse a field in the FORMAT/SAMPLE columns of a VCF.
 
@@ -1204,7 +1114,29 @@ class LabeledVCFQuery(UnlabeledVCFQuery):
     benchmark: BenchKey
 
 
+UnlabeledQueryMap = dict[UnlabeledQueryKey, UnlabeledVCFQuery]
+LabeledQueryMap = dict[LabeledQueryKey, LabeledVCFQuery]
+
 VCFQuery = UnlabeledVCFQuery | LabeledVCFQuery
+
+
+def lookup_vcfquery(
+    labeled: dict[LabeledQueryKey, LabeledVCFQuery],
+    unlabeled: dict[UnlabeledQueryKey, UnlabeledVCFQuery],
+    k: QueryKey,
+) -> VCFQuery:
+    try:
+        return labeled[cast(LabeledQueryKey, k)]
+    except KeyError:
+        return unlabeled[cast(UnlabeledQueryKey, k)]
+
+
+class _ModelDeps(NamedTuple):
+    labeled_map: LabeledQueryMap
+    unlabeled_map: UnlabeledQueryMap
+    ref_map: RefMap
+    refset_map: RefsetMap
+    query_keys: list[QueryKey]
 
 
 class FeatureDefs(_BaseModel):
@@ -1217,6 +1149,7 @@ class FeatureDefs(_BaseModel):
     segdups: SegDupsGroup = SegDupsGroup()
     tandem_repeats: TandemRepeatGroup = TandemRepeatGroup()
     variables: VariableGroup = VariableGroup()
+    virtual: VirtualGroup = VirtualGroup()
 
     @property
     def label_name(self: Self) -> FeatureKey:
@@ -1230,6 +1163,42 @@ class FeatureDefs(_BaseModel):
     def non_summary_cols(self) -> list[IndexCol]:
         return self.index_cols + self.vcf.str_features
 
+    def merge_features(
+        self, m: _ModelDeps
+    ) -> dict[FeaturePrefix, tuple[str, FeatureMap]]:
+        def to_keys(f: Callable[[QueryKey], FeatureMap]) -> FeatureMap:
+            return dict(ChainMap(*[f(k) for k in m.query_keys]))
+
+        def querykey_to_vcf(k: QueryKey) -> FeatureMap:
+            x = set(lookup_vcfquery(m.labeled_map, m.unlabeled_map, k).format_fields)
+            return self.vcf.features(x)
+
+        def querykey_to_rmsk(k: QueryKey) -> FeatureMap:
+            rsk = lookup_vcfquery(m.labeled_map, m.unlabeled_map, k).refset
+            rk = m.refset_map[rsk].ref
+            rmsk = m.ref_map[rk].feature_data.repeat_masker
+            return self.repeat_masker.features(rmsk)
+
+        vcf_features = to_keys(querykey_to_vcf)
+        rmsk_features = to_keys(querykey_to_rmsk)
+        return {
+            self.vcf.prefix: (self.vcf.description, vcf_features),
+            self.repeat_masker.prefix: (self.repeat_masker.description, rmsk_features),
+            **{
+                g.prefix: (g.description, g.features)
+                for g in [
+                    self.mappability,
+                    self.homopolymers,
+                    self.segdups,
+                    self.tandem_repeats,
+                    self.variables,
+                ]
+            },
+        }
+
+    def merge_feature_names(self, m: _ModelDeps) -> set[FeatureKey]:
+        return set.union(*[set(x[1]) for x in self.merge_features(m).values()])
+
 
 # mypy be stupid here, see https://github.com/pydantic/pydantic/issues/1684
 class Tools(_BaseModel):
@@ -1241,14 +1210,289 @@ LabeledQueries = dict[LabeledQueryKey, LabeledVCFQuery]
 UnlabeledQueries = dict[UnlabeledQueryKey, UnlabeledVCFQuery]
 
 
+class TestDataQuery(_BaseModel):
+    "Specifies a test to run within a model."
+    query_key: QueryKey
+    variables: dict[VarKey, VarVal] = {}
+
+
+class EBMMiscParams(_BaseModel):
+    "EBM parameters that aren't specified in the classifier object"
+    downsample: Fraction | None = None
+
+
+class EBMSplitParams(_BaseModel):
+    "Parameters for the EBM train/test split"
+    test_size: Fraction = 0.2
+    random_state: int | None = random.randrange(0, 420420)
+
+
+class EBMClassifierParams(_BaseModel):
+    """
+    Parameters for the EBM classifier.
+
+    The names directly correspond to those from the classifier itself.
+    """
+
+    max_bins: NonNegativeInt = 256
+    max_interaction_bins: NonNegativeInt = 32
+    binning: Binning = Binning.QUANTILE
+    outer_bags: NonNegativeInt = 8
+    inner_bags: NonNegativeInt = 0
+    learning_rate: PositiveFloat = 0.01
+    validation_size: PositiveFloat = 0.15
+    early_stopping_rounds: NonNegativeInt = 50
+    early_stopping_tolerance: PositiveFloat = 0.0001
+    max_rounds: NonNegativeInt = 5000
+    min_samples_leaf: NonNegativeInt = 2
+    max_leaves: NonNegativeInt = 3
+    random_state: int = random.randint(0, 420420)
+
+    # for easy insertion into the ebm classifier object
+    @property
+    def mapping(self) -> dict[str, Any]:
+        return {**self.dict(), "binning": self.binning.value}
+
+
+class EBMsettings(_BaseModel):
+    "All parameters for model training"
+    misc_parameters: EBMMiscParams = EBMMiscParams()
+    split_parameters: EBMSplitParams = EBMSplitParams()
+    classifier_parameters: EBMClassifierParams = EBMClassifierParams()
+
+
+class Truncation(_Range):
+    "Specifies how to truncate a plot"
+    pass
+
+
+class Visualization(_BaseModel):
+    "Specifies how to plot a feature in the final report"
+    truncate: Truncation = Truncation()
+    plot_type: PlotType = PlotType.STEP
+    split_missing: Fraction | None = None
+
+    # convert to R-friendly dict for use in rmarkdown scripts
+    @property
+    def r_dict(self) -> dict[Any, Any]:
+        return {**self.dict(), **{"plot_type": self.plot_type.value}}
+
+
+class Feature(_BaseModel):
+    "A model feature"
+    feature_type: FeatureType = FeatureType.CONTINUOUS
+    fill_na: float | None = 0.0
+    alt_name: FeatureKey | None = None
+    visualization: Visualization = Visualization()
+    transform: Transform | None = None
+
+    # convert to R-friendly dict for use in rmarkdown scripts
+    @property
+    def r_dict(self) -> dict[Any, Any]:
+        return {
+            **self.dict(),
+            **{
+                "feature_type": self.feature_type.value,
+                "visualization": self.visualization.r_dict,
+                # pythonic fmap...
+                "transform": maybe(None, lambda x: x.value, self.transform),
+            },
+        }
+
+
 def _flatten_features(fs: dict[FeatureKey, Feature]) -> list[FeatureKey]:
     return [k if v.alt_name is None else v.alt_name for k, v in fs.items()]
 
 
-LabeledQueryMap = dict[LabeledQueryKey, LabeledVCFQuery]
-UnlabeledQueryMap = dict[UnlabeledQueryKey, UnlabeledVCFQuery]
-RefMap = dict[RefKey, Reference]
-RefsetMap = dict[RefsetKey, Refset]
+class FeaturePair(_BaseModel):
+    "Two model features (for bivariate interaction terms)"
+    f1: FeatureKey
+    f2: FeatureKey
+
+
+# NOTE need to use conlist vs set here since this will contain another
+# pydantic model class, which will prevent the overall model from being
+# converted to a dict (see https://github.com/pydantic/pydantic/issues/1090)
+InteractionSpec_ = FeatureKey | FeaturePair
+InteractionSpec = Annotated[list[InteractionSpec_], Field(unique_items=True)]
+
+
+class _ExpressionBase(_BaseModel):
+    def assert_valid(self, const_features: set[FeatureKey]) -> None:
+        assert False, "override me"
+
+
+class ExpressionSeries(_BaseModel):
+    column: FeatureKey
+
+
+class ExpressionScaler(_BaseModel):
+    numeric: float
+
+
+ExpressionValue = ExpressionSeries | ExpressionScaler
+
+
+class ConstExpression(_ExpressionBase):
+    const: ExpressionValue
+
+    def assert_valid(self, const_features: set[FeatureKey]) -> None:
+        x = self.const
+        if isinstance(x, ExpressionSeries):
+            _assert_member(x.column, const_features)
+        elif isinstance(x, ExpressionScaler):
+            pass
+        else:
+            assert_never(x)
+
+
+class UnaryExpression(_ExpressionBase):
+    function: UnaryFunction
+    arg: FeatureKey
+
+    def assert_valid(self, const_features: set[FeatureKey]) -> None:
+        _assert_member(self.arg, const_features)
+
+
+class IsMissingPredicate(_ExpressionBase):
+    is_missing: FeatureKey
+
+    def assert_valid(self, const_features: set[FeatureKey]) -> None:
+        _assert_member(self.is_missing, const_features)
+
+
+class EquationPredicate(_ExpressionBase):
+    relation: RelationalOperator
+    left: ConstExpression
+    right: ConstExpression
+
+    def assert_valid(self, const_features: set[FeatureKey]) -> None:
+        self.left.assert_valid(const_features)
+        self.right.assert_valid(const_features)
+
+
+class AndPredicate(_ExpressionBase):
+    and_: tuple["PredicateExpression", "PredicateExpression"]
+
+    def assert_valid(self, const_features: set[FeatureKey]) -> None:
+        for i in [0, 1]:
+            self.and_[i].assert_valid(const_features)
+
+
+class OrPredicate(_ExpressionBase):
+    or_: tuple["PredicateExpression", "PredicateExpression"]
+
+    def assert_valid(self, const_features: set[FeatureKey]) -> None:
+        for i in [0, 1]:
+            self.or_[i].assert_valid(const_features)
+
+
+class NotPredicate(_ExpressionBase):
+    not_: "PredicateExpression"
+
+    def assert_valid(self, const_features: set[FeatureKey]) -> None:
+        self.not_.assert_valid(const_features)
+
+
+PredicateExpression = (
+    IsMissingPredicate | EquationPredicate | AndPredicate | OrPredicate | NotPredicate
+)
+
+
+IsMissingPredicate.update_forward_refs()
+EquationPredicate.update_forward_refs()
+AndPredicate.update_forward_refs()
+OrPredicate.update_forward_refs()
+NotPredicate.update_forward_refs()
+
+
+class IfThenExpression(_ExpressionBase):
+    if_: PredicateExpression
+    then_: "VirtualExpression"
+    else_: "VirtualExpression"
+
+    def assert_valid(self, const_features: set[FeatureKey]) -> None:
+        self.if_.assert_valid(const_features)
+        self.then_.assert_valid(const_features)
+        self.else_.assert_valid(const_features)
+
+
+VirtualExpression = UnaryExpression | IfThenExpression | ConstExpression
+
+IfThenExpression.update_forward_refs()
+
+
+class VirtualFeature(_BaseModel):
+    description: FeatureDesc
+    expression: VirtualExpression
+
+    def assert_valid_expression(self, const_features: set[FeatureKey]) -> None:
+        self.expression.assert_valid(const_features)
+
+
+# TODO this isn't really a full feature key
+VirtualFeatures = dict[FeatureKey, VirtualFeature]
+
+
+class Model(_BaseModel):
+    "A fully specified model, including parameters and queries to run"
+    train: Annotated[set[LabeledQueryKey], Field(min_items=1)]
+    test: dict[TestKey, TestDataQuery] = {}
+    vartypes: set[VartypeKey]
+    ebm_settings: EBMsettings = EBMsettings()
+    error_labels: Annotated[set[ErrorLabel], Field(min_items=1)]
+    filtered_are_candidates: bool
+    interactions: NonNegativeInt | InteractionSpec = 0
+    virtual_features: VirtualFeatures = {}
+    features: dict[FeatureKey, Feature]
+
+    @validator("features")
+    def model_has_matching_alt_features(
+        cls, fs: dict[FeatureKey, Feature]
+    ) -> dict[FeatureKey, Feature]:
+        for k, v in fs.items():
+            alt = v.alt_name
+            if alt is not None:
+                prefix = _assert_match("^[^_]+", k)
+                alt_prefix = _assert_match("^[^_]+", alt)
+                assert alt_prefix == prefix, f"Alt prefix must match for {k}"
+        return fs
+
+    def assert_valid_virtual_features(self, fd: FeatureDefs, m: _ModelDeps) -> None:
+        all_feature_keys = fd.merge_feature_names(m)
+        for vk, vv in self.virtual_features.items():
+            vv.assert_valid_expression(all_feature_keys)
+            all_feature_keys.add(fd.virtual.fmt_feature(vk))
+
+    def all_virtual_features(self, fd: FeatureDefs) -> dict[FeatureKey, VirtualFeature]:
+        return {fd.virtual.fmt_feature(k): v for k, v in self.virtual_features.items()}
+
+    def feature_map(
+        self,
+        fd: FeatureDefs,
+        m: _ModelDeps,
+    ) -> dict[FeaturePrefix, tuple[str, FeatureMap]]:
+        virt = fd.virtual
+        return {
+            virt.prefix: (
+                virt.description,
+                dict(
+                    virt.fmt_feature_desc(
+                        ColumnSpec(
+                            name=k,
+                            description=v.description,
+                        )
+                    )
+                    for k, v in self.virtual_features.items()
+                ),
+            ),
+            **fd.merge_features(m),
+        }
+
+    def feature_names(self, fd: FeatureDefs, m: _ModelDeps) -> set[FeatureKey]:
+        return set.union(*[set(x[1]) for x in self.feature_map(fd, m).values()])
+
+
 ModelMap = dict[ModelKey, Model]
 
 
@@ -1264,72 +1508,6 @@ class StratoMod(_BaseModel):
     unlabeled_queries: UnlabeledQueries = {}
     models: ModelMap
 
-    @classmethod
-    def _lookup_vcfquery(
-        cls,
-        labeled: dict[LabeledQueryKey, LabeledVCFQuery],
-        unlabeled: dict[UnlabeledQueryKey, UnlabeledVCFQuery],
-        k: QueryKey,
-    ) -> VCFQuery:
-        try:
-            return labeled[cast(LabeledQueryKey, k)]
-        except KeyError:
-            return unlabeled[cast(UnlabeledQueryKey, k)]
-
-    @classmethod
-    def _merge_features(
-        cls,
-        fs: FeatureDefs,
-        lm: LabeledQueryMap,
-        um: UnlabeledQueryMap,
-        rm: RefMap,
-        rsm: RefsetMap,
-        ks: list[QueryKey],
-    ) -> dict[FeaturePrefix, tuple[str, FeatureMap]]:
-        def to_keys(f: Callable[[QueryKey], FeatureMap]) -> FeatureMap:
-            return dict(ChainMap(*[f(k) for k in ks]))
-
-        def querykey_to_vcf(k: QueryKey) -> FeatureMap:
-            x = set(cls._lookup_vcfquery(lm, um, k).format_fields)
-            return fs.vcf.features(x)
-
-        def querykey_to_rmsk(k: QueryKey) -> FeatureMap:
-            rsk = cls._lookup_vcfquery(lm, um, k).refset
-            rk = rsm[rsk].ref
-            rmsk = rm[rk].feature_data.repeat_masker
-            return fs.repeat_masker.features(rmsk)
-
-        vcf_features = to_keys(querykey_to_vcf)
-        rmsk_features = to_keys(querykey_to_rmsk)
-        return {
-            fs.vcf.prefix: (fs.vcf.description, vcf_features),
-            fs.repeat_masker.prefix: (fs.repeat_masker.description, rmsk_features),
-            **{
-                g.prefix: (g.description, g.features)
-                for g in [
-                    fs.mappability,
-                    fs.homopolymers,
-                    fs.segdups,
-                    fs.tandem_repeats,
-                    fs.variables,
-                ]
-            },
-        }
-
-    @classmethod
-    def _merge_feature_names(
-        cls,
-        fs: FeatureDefs,
-        lm: LabeledQueryMap,
-        um: UnlabeledQueryMap,
-        rm: RefMap,
-        rsm: RefsetMap,
-        ks: list[QueryKey],
-    ) -> set[FeatureKey]:
-        return set.union(
-            *[set(x[1]) for x in cls._merge_features(fs, lm, um, rm, rsm, ks).values()]
-        )
-
     @validator("reference_sets", each_item=True)
     def refsets_have_valid_refkeys(
         cls: Type[Self],
@@ -1337,7 +1515,7 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> Refset:
         try:
-            _assert_member(v.ref, list(cast(RefMap, values["references"])))
+            _assert_member(v.ref, set(cast(RefMap, values["references"])))
             _assert_keypattern(v.ref)
         except KeyError:
             pass
@@ -1350,7 +1528,7 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> VCFQuery:
         try:
-            _assert_member(v.refset, list(cast(RefsetMap, values["reference_sets"])))
+            _assert_member(v.refset, set(cast(RefsetMap, values["reference_sets"])))
             _assert_keypattern(v.refset)
         except KeyError:
             pass
@@ -1385,7 +1563,7 @@ class StratoMod(_BaseModel):
         else:
             ref_key = refsets[v.refset].ref
             ref_benchmarks = refs[ref_key].benchmarks
-            _assert_member(v.benchmark, list(ref_benchmarks))
+            _assert_member(v.benchmark, set(ref_benchmarks))
             _assert_keypattern(v.benchmark)
         return v
 
@@ -1403,6 +1581,32 @@ class StratoMod(_BaseModel):
             pass
         return v
 
+    @classmethod
+    def _cls_model_deps(cls, m: Model, values: dict[str, Any]) -> _ModelDeps:
+        # satisfy mypy
+        train_keys: list[QueryKey] = list(m.train)
+        return _ModelDeps(
+            labeled_map=cast(LabeledQueryMap, values["labeled_queries"]),
+            unlabeled_map=cast(UnlabeledQueryMap, values["unlabeled_queries"]),
+            ref_map=cast(RefMap, values["references"]),
+            refset_map=cast(RefsetMap, values["reference_sets"]),
+            query_keys=train_keys + [t.query_key for t in m.test.values()],
+        )
+
+    @validator("models", each_item=True)
+    def virtual_features_are_valid(
+        cls: Type[Self],
+        v: Model,
+        values: dict[str, Any],
+    ) -> Model:
+        try:
+            m = cls._cls_model_deps(v, values)
+            fd = cast(FeatureDefs, values["feature_definitions"])
+            v.assert_valid_virtual_features(fd, m)
+        except KeyError:
+            pass
+        return v
+
     @validator("models", each_item=True)
     def models_have_valid_features(
         cls: Type[Self],
@@ -1410,15 +1614,9 @@ class StratoMod(_BaseModel):
         values: dict[str, Any],
     ) -> Model:
         try:
-            query_keys = list(v.train) + [t.query_key for t in v.test.values()]
-            features = cls._merge_feature_names(
-                cast(FeatureDefs, values["feature_definitions"]),
-                cast(LabeledQueryMap, values["labeled_queries"]),
-                cast(UnlabeledQueryMap, values["unlabeled_queries"]),
-                cast(RefMap, values["references"]),
-                cast(RefsetMap, values["reference_sets"]),
-                query_keys,
-            )
+            m = cls._cls_model_deps(v, values)
+            fd = cast(FeatureDefs, values["feature_definitions"])
+            features = v.feature_names(fd, m)
         except KeyError:
             pass
         else:
@@ -1432,13 +1630,29 @@ class StratoMod(_BaseModel):
         return v
 
     @validator("models", each_item=True)
+    def models_have_no_duplicated_features(
+        cls: Type[Self],
+        v: Model,
+        values: dict[str, Any],
+    ) -> Model:
+        try:
+            m = cls._cls_model_deps(v, values)
+            fd = cast(FeatureDefs, values["feature_definitions"])
+            features = v.feature_names(fd, m)
+        except KeyError:
+            pass
+        else:
+            _assert_subset(set(v.features), features)
+        return v
+
+    @validator("models", each_item=True)
     def models_have_valid_interactions(
         cls: Type[Self],
         v: Model,
         values: dict[str, Any],
     ) -> Model:
         if isinstance(v.interactions, set):
-            features = set(_flatten_features(v.features))
+            features = _flatten_features(v.features)
             interactions = set(
                 flatten(
                     [i.f1, i.f2] if isinstance(i, FeaturePair) else [i]
@@ -1529,11 +1743,7 @@ class StratoMod(_BaseModel):
         return self.reference_sets[key]
 
     def querykey_to_vcf(self, k: QueryKey) -> VCFQuery:
-        return self._lookup_vcfquery(
-            self.labeled_queries,
-            self.unlabeled_queries,
-            k,
-        )
+        return lookup_vcfquery(self.labeled_queries, self.unlabeled_queries, k)
 
     def refsetkey_to_refkey(self, key: RefsetKey) -> RefKey:
         return self.refsetkey_to_refset(key).ref
@@ -1616,28 +1826,23 @@ class StratoMod(_BaseModel):
     def testkey_to_querykey(self, mkey: ModelKey, tkey: TestKey) -> QueryKey:
         return self.models[mkey].test[tkey].query_key
 
+    def _model_deps(self, k: ModelKey) -> _ModelDeps:
+        return _ModelDeps(
+            labeled_map=self.labeled_queries,
+            unlabeled_map=self.unlabeled_queries,
+            ref_map=self.references,
+            refset_map=self.reference_sets,
+            query_keys=self.modelkey_to_querykeys(k),
+        )
+
     def modelkey_to_features(
         self,
         k: ModelKey,
     ) -> dict[FeaturePrefix, tuple[str, FeatureMap]]:
-        return self._merge_features(
-            self.feature_definitions,
-            self.labeled_queries,
-            self.unlabeled_queries,
-            self.references,
-            self.reference_sets,
-            self.modelkey_to_querykeys(k),
-        )
+        return self.feature_definitions.merge_features(self._model_deps(k))
 
     def modelkey_to_feature_names(self, k: ModelKey) -> set[FeatureKey]:
-        return self._merge_feature_names(
-            self.feature_definitions,
-            self.labeled_queries,
-            self.unlabeled_queries,
-            self.references,
-            self.reference_sets,
-            self.modelkey_to_querykeys(k),
-        )
+        return self.feature_definitions.merge_feature_names(self._model_deps(k))
 
     # src getters
 
