@@ -1,3 +1,7 @@
+# 8.2.0
+
+- add DSL to combine column into "virtual" features to use in model
+
 # 8.1.3
 
 - fix vcf contig parsing bug
