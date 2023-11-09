@@ -1,3 +1,7 @@
+# 8.3.0
+
+- add ID/REF/ALT columns to annotated variant output
+
 # 8.2.0
 
 - add DSL to combine column into "virtual" features to use in model

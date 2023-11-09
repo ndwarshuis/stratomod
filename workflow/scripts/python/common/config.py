@@ -630,6 +630,9 @@ class _ConstFeatureGroup(_FeatureGroup):
 
 class VCFColumns(_BaseModel):
     "Columns for a vcf file"
+    id: NonEmptyStr = "ID"
+    ref: NonEmptyStr = "REF"
+    alt: NonEmptyStr = "ALT"
     filter: NonEmptyStr = "FILTER"
     info: NonEmptyStr = "INFO"
     qual: ColumnSpec = ColumnSpec(
@@ -651,6 +654,18 @@ class VCFGroup(_FeatureGroup):
     description: NonEmptyStr = "Features obtained from the query VCF file."
 
     @property
+    def id(self) -> IndexCol:
+        return IndexCol(self.fmt_feature(self.columns.id))
+
+    @property
+    def ref(self) -> IndexCol:
+        return IndexCol(self.fmt_feature(self.columns.ref))
+
+    @property
+    def alt(self) -> IndexCol:
+        return IndexCol(self.fmt_feature(self.columns.alt))
+
+    @property
     def filter(self) -> IndexCol:
         return IndexCol(self.fmt_feature(self.columns.filter))
 
@@ -668,7 +683,7 @@ class VCFGroup(_FeatureGroup):
 
     @property
     def str_features(self) -> list[IndexCol]:
-        return [self.filter, self.info]
+        return [self.id, self.ref, self.alt, self.filter, self.info]
 
     def field_features(
         self,
