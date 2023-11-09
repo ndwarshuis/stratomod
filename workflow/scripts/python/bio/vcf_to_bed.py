@@ -22,6 +22,9 @@ def write_row(
     chrom: str,
     start: str,
     end: str,
+    vid: str,
+    ref: str,
+    alt: str,
     qual: str,
     filt: str,
     info: str,
@@ -30,7 +33,7 @@ def write_row(
     const_fields: list[str],
     label: str | None,
 ) -> None:
-    const_cols = [chrom, start, end, qual, info, filt, indel_length]
+    const_cols = [chrom, start, end, vid, ref, alt, qual, info, filt, indel_length]
     label_col = [] if label is None else [label]
     cols = [*const_cols, *parse_fields, *const_fields, *label_col]
     fo.write("\t".join(cols) + "\n")
@@ -71,22 +74,24 @@ def line_to_bed_row(
 
     chrom = int(ls[0])
     start = int(ls[1]) - 1  # bed's are 0-indexed and vcf's are 1-indexed
+    ref = ls[3]
+    alt = ls[4]
 
     # remove cases where ref and alt are equal (which is what "." means)
-    if ls[4] == "." or ls[3] == ls[4]:
+    if alt == "." or ref == alt:
         logger.info("Skipping equal variant at %s, %s", chrom, start)
         return False
 
     # remove multiallelics
-    if "," in ls[4]:
+    if "," in alt:
         logger.info("Skipping multiallelic variant at %s, %s", chrom, start)
         return False
 
     # remove anything that doesn't pass out length filters
-    ref_len = len(ls[3])
-    alt_len = len(ls[4])
+    ref_len = len(ref)
+    alt_len = len(alt)
 
-    if len(ls[3]) > vcf.max_ref or len(ls[4]) > vcf.max_alt:
+    if ref_len > vcf.max_ref or alt_len > vcf.max_alt:
         logger.info("Skipping oversized variant at %s, %s", chrom, start)
         return False
 
@@ -119,6 +124,9 @@ def line_to_bed_row(
         str(chrom),
         str(start),
         str(start + ref_len),
+        dot_to_blank(ls[2]),
+        dot_to_blank(ref),
+        dot_to_blank(alt),
         dot_to_blank(ls[5]),
         dot_to_blank(ls[6]),
         dot_to_blank(ls[7]),
@@ -154,6 +162,9 @@ def parse(smk: Any, sconf: cfg.StratoMod, fi: TextIO, fo: TextIO) -> None:
         cfg.BED_CHROM,
         cfg.BED_START,
         cfg.BED_END,
+        defs.vcf.id,
+        defs.vcf.ref,
+        defs.vcf.alt,
         defs.vcf.qual[0],
         defs.vcf.filter,
         defs.vcf.info,
