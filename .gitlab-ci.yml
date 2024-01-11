@@ -105,7 +105,7 @@ snakemake_dry:
     - <<: *smk_envs_cache
 
 snakemake_resources:
-  needs: [snakemake_dry, install_global_env]
+  needs: [snakemake_dry]
   stage: test
   <<: *activate_smk
   script:
@@ -118,7 +118,7 @@ snakemake_resources:
     - <<: *smk_resources_cache
 
 snakemake_results:
-  needs: [snakemake_resources, install_global_env]
+  needs: [snakemake_resources]
   stage: test
   <<: *activate_smk
   script:
