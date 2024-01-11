@@ -1,3 +1,11 @@
+# 8.4.1
+
+- fix localrule typo for hp download
+
+# 8.4.0
+
+- add TP baseline switch
+
 # 8.3.0
 
 - add ID/REF/ALT columns to annotated variant output
