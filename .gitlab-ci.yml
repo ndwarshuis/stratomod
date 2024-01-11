@@ -53,6 +53,10 @@ image: condaforge/mambaforge:4.12.0-0
 .activate_smk: &activate_smk
   before_script:
     - eval "$(${CONDA_DIR}/bin/conda shell.bash hook 2> /dev/null)"
+    - >
+      test -d $ENV_DIR
+      && echo "Env already created"
+      || mamba env create -f env.yml -p $ENV_DIR
     - conda activate $ENV_DIR
 
 ################################################################################
@@ -61,15 +65,15 @@ image: condaforge/mambaforge:4.12.0-0
 # - ASSUME mamba is already installed on the system hosting the gitlab runner
 # - ASSUME the cache will track any changes to env.yml and will force an update
 #   if this changes
-install_global_env:
-  stage: test
-  script:
-    - >
-      test -d $ENV_DIR
-      && echo "Env already created"
-      || mamba env create -f env.yml -p $ENV_DIR
-  cache: 
-    - <<: *smk_global_cache
+# install_global_env:
+#   stage: test
+#   script:
+#     - >
+#       test -d $ENV_DIR
+#       && echo "Env already created"
+#       || mamba env create -f env.yml -p $ENV_DIR
+#   cache: 
+#     - <<: *smk_global_cache
 
 ################################################################################
 # lint code
@@ -92,14 +96,12 @@ run_linters:
 # test snakemake things
 
 snakemake_dry:
-  needs: [install_global_env]
   stage: test
   <<: *activate_smk
   script:
     - snakemake --use-conda -c 1 --configfile=$TESTCONF --dryrun
   cache:
     - <<: *smk_global_cache
-      policy: pull
     - <<: *smk_envs_cache
 
 snakemake_resources:
