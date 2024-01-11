@@ -134,7 +134,7 @@ snakemake_dry:
     - <<: *smk_envs_cache
 
 snakemake_resources:
-  needs: [install_smk_conda_envs, install_global_env]
+  needs: [install_global_env]
   stage: test
   <<: *activate_smk
   script:
