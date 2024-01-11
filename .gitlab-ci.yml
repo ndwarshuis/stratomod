@@ -69,19 +69,7 @@ run_linters:
 ################################################################################
 # test snakemake things
 
-# This does two things a) downloads the main snakemake env and caches it and b)
-# downloads all the snakemake rule-specific envs and caches them
-snakemake_conda:
-  stage: test
-  <<: *activate_smk
-  script:
-    - snakemake --use-conda -c 1 --configfile=$TESTCONF all --conda-create-envs-only
-  cache:
-    - <<: *smk_global_cache
-    - <<: *smk_envs_cache
-
 snakemake_dry:
-  needs: [snakemake_conda]
   stage: test
   <<: *activate_smk
   script:
@@ -93,14 +81,12 @@ snakemake_dry:
 # config doesn't change we can save lots of time/bandwidth before running the
 # results
 snakemake_resources:
-  needs: [snakemake_conda]
   stage: test
   <<: *activate_smk
   script:
     - snakemake -p --use-conda -c 8 --configfile=$TESTCONF all_resources
   cache:
     - <<: *smk_global_cache
-    - <<: *smk_envs_cache
     - <<: *smk_resources_cache
 
 snakemake_results:
@@ -111,5 +97,5 @@ snakemake_results:
     - snakemake -p --use-conda -c 8 --configfile=$TESTCONF all
   cache:
     - <<: *smk_global_cache
-    - <<: *smk_envs_cache
     - <<: *smk_resources_cache
+    - <<: *smk_envs_cache
