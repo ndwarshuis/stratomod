@@ -1,15 +1,8 @@
 ################################################################################
 # global pipeline config
 
-stages:
-  - lint
-  - snakemake_global
-  - snakemake_conda
-  - test
-
 variables:
   ENV_DIR: ./this-env
-  LINT_DIR: ./lint
   TESTCONF: config/testing.yml
   # speed up cache compression
   FF_USE_FASTZIP: "true"
@@ -71,7 +64,7 @@ image: condaforge/mambaforge:4.12.0-0
 # - ASSUME the cache will track any changes to env.yml and will force an update
 #   if this changes
 install_global_env:
-  stage: snakemake_global
+  stage: test
   script:
     - >
       test -d $ENV_DIR
@@ -80,22 +73,15 @@ install_global_env:
   cache: 
     - <<: *smk_global_cache
 
-
 ################################################################################
 # lint code
 
-# install_lint_envs:
-#   stage: lint
-#   script: 
-#   cache:
-#     - <<: *lint_cache
-
 run_linters:
-  stage: lint
+  stage: test
   script:
     - eval "$(${CONDA_DIR}/bin/conda shell.bash hook 2> /dev/null)"
-    - ./setup_dev.sh $LINT_DIR
-    - ./lint.sh $LINT_DIR
+    - ./setup_dev.sh ./lint
+    - ./lint.sh ./lint
   cache:
     paths:
       - ./lint-*
@@ -103,21 +89,6 @@ run_linters:
       files:
         - workflow/scripts/python/*/env.yml
         - workflow/scripts/rmarkdown/*/env.yml
-    # - <<: *lint_cache
-    #   policy: pull
-
-################################################################################
-# set up snakemake rule conda environments
-
-# install_smk_conda_envs:
-#   stage: snakemake_conda
-#   <<: *activate_smk
-#   script:
-#     - snakemake --use-conda -c 1 --configfile=$TESTCONF --conda-create-envs-only
-#   cache:
-#     - <<: *smk_global_cache
-#       policy: pull
-#     - <<: *smk_envs_cache
 
 ################################################################################
 # test snakemake things
@@ -147,7 +118,7 @@ snakemake_resources:
     - <<: *smk_resources_cache
 
 snakemake_results:
-  needs: [install_global_env]
+  needs: [snakemake_resources, install_global_env]
   stage: test
   <<: *activate_smk
   script:
