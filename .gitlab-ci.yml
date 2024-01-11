@@ -69,14 +69,25 @@ run_linters:
 ################################################################################
 # test snakemake things
 
-snakemake_dry:
+
+snakemake_conda:
   stage: test
   <<: *activate_smk
   script:
-    - snakemake --use-conda -c 1 --configfile=$TESTCONF --dryrun
+    - snakemake --use-conda -c 1 --configfile=$TESTCONF all --conda-create-envs-only
   cache:
     - <<: *smk_global_cache
     - <<: *smk_envs_cache
+
+snakemake_dry:
+  needs: [snakemake_conda]
+  stage: test
+  <<: *activate_smk
+  script:
+    - snakemake --use-conda -c 1 --configfile=$TESTCONF all --dryrun
+  cache:
+    - <<: *smk_global_cache
+      policy: pull
 
 snakemake_resources:
   needs: [snakemake_dry]
@@ -96,7 +107,7 @@ snakemake_results:
   stage: test
   <<: *activate_smk
   script:
-    - snakemake -p --use-conda -c 8 --configfile=$TESTCONF
+    - snakemake -p --use-conda -c 8 --configfile=$TESTCONF all
   cache:
     - <<: *smk_global_cache
       policy: pull
