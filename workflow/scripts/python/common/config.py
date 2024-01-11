@@ -187,6 +187,7 @@ class VCFLabel(_ListEnum):
     FP = "fp"
     FN = "fn"
     TP = "tp"
+    TPBL = "tpbl"
 
 
 class AnyLabel(_ListEnum):
@@ -307,7 +308,8 @@ _constraints: dict[str, str] = {
     # refers to the variant type (SNP or INDEL, for now)
     "vartype_key": alternate_constraint(VartypeKey.all()),
     # refers to a variant benchmarking label (tp, fp, etc)
-    "label": alternate_constraint(VCFLabel.all()),
+    # "tpbl" = "tp baseline" (and I prefer short alphanum wildcard names)
+    "label": alternate_constraint(["tpbl", "tp", "fp", "fn"]),
     # refers to a nucleotide base
     "base": alternate_constraint(Base.all()),
 }
@@ -1127,6 +1129,11 @@ class UnlabeledVCFQuery(VCFFile):
 class LabeledVCFQuery(UnlabeledVCFQuery):
     "A vcf to be used as the query for a model with labels (requires benchmark)."
     benchmark: BenchKey
+    # TODO it might be more efficient (sometime in the distant future) to have
+    # this at the model run level and not at the query level. This will allow
+    # me to use the same query and output either baseline or query TPs (which
+    # I might want to do if I am using them for either FN or FP models)
+    tp_from_baseline: bool = False
 
 
 UnlabeledQueryMap = dict[UnlabeledQueryKey, UnlabeledVCFQuery]
@@ -1759,6 +1766,9 @@ class StratoMod(_BaseModel):
 
     def querykey_to_vcf(self, k: QueryKey) -> VCFQuery:
         return lookup_vcfquery(self.labeled_queries, self.unlabeled_queries, k)
+
+    def querykey_to_tp_baseline(self, k: LabeledQueryKey) -> bool:
+        return self.labeled_queries[k].tp_from_baseline
 
     def refsetkey_to_refkey(self, key: RefsetKey) -> RefKey:
         return self.refsetkey_to_refset(key).ref

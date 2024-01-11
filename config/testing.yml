@@ -38,6 +38,12 @@ labeled_queries:
     # Default: false
     split_biallelics: false
 
+    # Use the TP variant from the benchmark (aka "baseline") if True, otherwise
+    # use the TP variant from the query. Useful in situations where one is
+    # analyzing individual variants and want the representation to exactly
+    # match either the query or benchmark.
+    tp_from_baseline: true
+
     # The location from which to retrieve this query vcf
     src:
       url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh37/SupplementaryFiles/inputvcfsandbeds/HG002_GRCh37_1_22_PacBio_HiFi_DeepVariant.vcf.gz

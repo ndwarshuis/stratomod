@@ -146,7 +146,10 @@ def parse(smk: Any, sconf: cfg.StratoMod, fi: TextIO, fo: TextIO) -> None:
     found_error = False
 
     try:
-        label = str(smk.wildcards.label)
+        lbl = cfg.VCFLabel(smk.wildcards.label)
+        if lbl is cfg.VCFLabel.TPBL:
+            lbl = cfg.VCFLabel.TP
+        label = lbl.value
     except AttributeError:
         label = None
 
