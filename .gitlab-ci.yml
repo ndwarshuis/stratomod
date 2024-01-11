@@ -1,27 +1,13 @@
 ################################################################################
 # global pipeline config
 
-stages:
-  - lint
-  - snakemake_global
-  - snakemake_conda
-  - test
-
 variables:
   ENV_DIR: ./this-env
-  LINT_DIR: ./lint
   TESTCONF: config/testing.yml
   # speed up cache compression
   FF_USE_FASTZIP: "true"
   ARTIFACT_COMPRESSION_LEVEL: "fast"
   CACHE_COMPRESSION_LEVEL: "fast"
-
-# only run this pipeline on master/default/feature branches
-workflow:
-  rules:
-    - if: $CI_COMMIT_BRANCH =~ /^x_.*/
-      when: never
-    - when: always
 
 image: condaforge/mambaforge:4.12.0-0
 
@@ -30,28 +16,28 @@ image: condaforge/mambaforge:4.12.0-0
 
 .smk_global_cache: &smk_global_cache
   paths:
-    - this-env
+    - this-env/
   key:
     files:
       - env.yml
 
 .smk_envs_cache: &smk_envs_cache
   paths:
-    - .snakemake/conda
+    - .snakemake/conda/
   key:
     files:
       - workflow/envs
 
 .smk_resources_cache: &smk_resources_cache
   paths:
-    - resources
+    - resources/
   key:
     files:
       - config/testing.yml
 
 .lint_cache: &lint_cache
   paths:
-    - ./lint-*
+    - lint-*/
   key:
     files:
       - workflow/scripts/python/*/env.yml
@@ -60,93 +46,58 @@ image: condaforge/mambaforge:4.12.0-0
 .activate_smk: &activate_smk
   before_script:
     - eval "$(${CONDA_DIR}/bin/conda shell.bash hook 2> /dev/null)"
+    - test -d $ENV_DIR && echo Env exists || mamba env create -f env.yml -p $ENV_DIR
     - conda activate $ENV_DIR
-
-################################################################################
-# set up global conda environment
-
-# - ASSUME mamba is already installed on the system hosting the gitlab runner
-# - ASSUME the cache will track any changes to env.yml and will force an update
-#   if this changes
-install_global_env:
-  stage: snakemake_global
-  script:
-    - >
-      test -d $ENV_DIR
-      && echo "Env already created"
-      || mamba env create -f env.yml -p $ENV_DIR
-  cache: 
-    - <<: *smk_global_cache
-
 
 ################################################################################
 # lint code
 
-install_lint_envs:
-  stage: lint
-  script: ./setup_dev.sh $LINT_DIR
-  cache:
-    - <<: *lint_cache
-
 run_linters:
-  stage: lint
+  stage: test
   script:
-    - echo $CONDA_EXE
     - eval "$(${CONDA_DIR}/bin/conda shell.bash hook 2> /dev/null)"
-    - ./lint.sh $LINT_DIR
+    - ./setup_dev.sh ./lint
+    - ./lint.sh ./lint
   cache:
-    - <<: *lint_cache
-      policy: pull
-
-################################################################################
-# set up snakemake rule conda environments
-
-install_smk_conda_envs:
-  stage: snakemake_conda
-  <<: *activate_smk
-  script:
-    - snakemake --use-conda -c 1 --configfile=$TESTCONF --conda-create-envs-only
-  cache:
-    - <<: *smk_global_cache
-      policy: pull
-    - <<: *smk_envs_cache
+    paths:
+      - ./lint-*
+    key:
+      files:
+        - workflow/scripts/python/*/env.yml
+        - workflow/scripts/rmarkdown/*/env.yml
 
 ################################################################################
 # test snakemake things
 
 snakemake_dry:
-  needs: [install_global_env]
   stage: test
   <<: *activate_smk
   script:
-    - snakemake --use-conda -c 1 --configfile=$TESTCONF --dryrun
+    - snakemake --use-conda -c 1 --configfile=$TESTCONF all --dryrun
   cache:
     - <<: *smk_global_cache
-      policy: pull
 
+# Run the resources bit of the pipeline and cache the result. Assuming the
+# config doesn't change we can save lots of time/bandwidth before running the
+# results. Don't cache .snakemake/conda here since we only need a few envs for
+# this step and it probably takes as long to download as it does to decompress
+# the cache
 snakemake_resources:
-  needs: [install_smk_conda_envs, install_global_env]
   stage: test
   <<: *activate_smk
   script:
     - snakemake -p --use-conda -c 8 --configfile=$TESTCONF all_resources
   cache:
     - <<: *smk_global_cache
-      policy: pull
-    - <<: *smk_envs_cache
-      policy: pull
     - <<: *smk_resources_cache
 
 snakemake_results:
-  needs: [install_smk_conda_envs, install_global_env]
+  needs: [snakemake_resources]
   stage: test
   <<: *activate_smk
   script:
-    - snakemake -p --use-conda -c 8 --configfile=$TESTCONF
+    - snakemake -p --use-conda -c 8 --configfile=$TESTCONF all
   cache:
     - <<: *smk_global_cache
-      policy: pull
-    - <<: *smk_envs_cache
-      policy: pull
     - <<: *smk_resources_cache
-      policy: pull
+    - <<: *smk_envs_cache

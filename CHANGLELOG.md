@@ -1,3 +1,7 @@
+# 8.4.2
+
+- fix and optimize CI/CD
+
 # 8.4.1
 
 - fix localrule typo for hp download
