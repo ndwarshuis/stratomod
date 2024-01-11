@@ -23,28 +23,28 @@ image: condaforge/mambaforge:4.12.0-0
 
 .smk_global_cache: &smk_global_cache
   paths:
-    - this-env
+    - this-env/
   key:
     files:
       - env.yml
 
 .smk_envs_cache: &smk_envs_cache
   paths:
-    - .snakemake/conda
+    - .snakemake/conda/
   key:
     files:
       - workflow/envs
 
 .smk_resources_cache: &smk_resources_cache
   paths:
-    - resources
+    - resources/
   key:
     files:
       - config/testing.yml
 
 .lint_cache: &lint_cache
   paths:
-    - ./lint-*
+    - lint-*/
   key:
     files:
       - workflow/scripts/python/*/env.yml
