@@ -1,3 +1,7 @@
+# 8.4.1
+
+- fix localrule typo for hp download
+
 # 8.4.0
 
 - add TP baseline switch
