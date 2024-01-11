@@ -109,15 +109,15 @@ run_linters:
 ################################################################################
 # set up snakemake rule conda environments
 
-install_smk_conda_envs:
-  stage: snakemake_conda
-  <<: *activate_smk
-  script:
-    - snakemake --use-conda -c 1 --configfile=$TESTCONF --conda-create-envs-only
-  cache:
-    - <<: *smk_global_cache
-      policy: pull
-    - <<: *smk_envs_cache
+# install_smk_conda_envs:
+#   stage: snakemake_conda
+#   <<: *activate_smk
+#   script:
+#     - snakemake --use-conda -c 1 --configfile=$TESTCONF --conda-create-envs-only
+#   cache:
+#     - <<: *smk_global_cache
+#       policy: pull
+#     - <<: *smk_envs_cache
 
 ################################################################################
 # test snakemake things
@@ -131,6 +131,7 @@ snakemake_dry:
   cache:
     - <<: *smk_global_cache
       policy: pull
+    - <<: *smk_envs_cache
 
 snakemake_resources:
   needs: [install_smk_conda_envs, install_global_env]
