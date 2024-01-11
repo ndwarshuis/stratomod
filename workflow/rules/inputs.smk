@@ -1,5 +1,10 @@
 from functools import partial
-import scripts.python.common.config as cfg
+from scripts.python.common.config import (
+    wildcard_format_ext,
+    wildcard_format,
+    VCFLabel,
+    wildcard_ext,
+)
 from scripts.python.common.functional import flip, compose
 
 
@@ -12,11 +17,11 @@ def expand_benchmark_path(path, wildcards):
 
 
 def labeled_file(ext):
-    return cfg.wildcard_format_ext(f"{{}}_{{}}", ["vartype_key", "label"], ext)
+    return wildcard_format_ext(f"{{}}_{{}}", ["vartype_key", "label"], ext)
 
 
 def unlabeled_file(ext):
-    return cfg.wildcard_ext("vartype_key", ext)
+    return wildcard_ext("vartype_key", ext)
 
 
 ################################################################################
@@ -310,10 +315,15 @@ rule label_vcf:
             refset_key=config.querykey_to_refsetkey(w.l_query_key),
         ),
     output:
-        [
-            config.vcfeval_res_dir(log=False) / f"{lbl}.vcf.gz"
-            for lbl in cfg.VCFLabel.all()
-        ],
+        **{
+            x: config.vcfeval_res_dir(log=False) / f"{y}.vcf.gz"
+            for x, y in [
+                (VCFLabel.TP.value, "tp"),
+                (VCFLabel.TPBL.value, "tp-baseline"),
+                (VCFLabel.FP.value, "fp"),
+                (VCFLabel.FN.value, "fn"),
+            ]
+        },
     conda:
         "../envs/bio.yml"
     params:
@@ -348,7 +358,7 @@ rule label_vcf:
 
 rule parse_labeled_vcf:
     input:
-        config.vcfeval_res_dir(log=False) / cfg.wildcard_ext("label", "vcf.gz"),
+        lambda w: getattr(rules.label_vcf.output, w["label"]),
     output:
         config.query_parsed_res_dir(labeled=True, log=False) / labeled_file("tsv.gz"),
     log:
@@ -365,21 +375,30 @@ rule parse_labeled_vcf:
 
 rule concat_labeled_tsvs:
     input:
-        expand(
+        lambda w: expand(
             rules.parse_labeled_vcf.output,
-            label=cfg.VCFLabel.all(),
+            label=[
+                x.value
+                for x in [
+                    VCFLabel.FP,
+                    VCFLabel.FN,
+                    VCFLabel.TPBL
+                    if config.querykey_to_tp_baseline(w.l_query_key)
+                    else VCFLabel.TP,
+                ]
+            ],
             allow_missing=True,
         ),
     output:
         ensure(
             config.query_parsed_res_dir(labeled=True, log=False)
-            / cfg.wildcard_format("{}_labeled.tsv.gz", "vartype_key"),
+            / wildcard_format("{}_labeled.tsv.gz", "vartype_key"),
             non_empty=True,
         ),
     conda:
         "../envs/bio.yml"
     benchmark:
-        config.query_parsed_res_dir(labeled=True, log=True) / cfg.wildcard_format(
+        config.query_parsed_res_dir(labeled=True, log=True) / wildcard_format(
             "{}_concat.bench", "vartype_key"
         )
     script:
