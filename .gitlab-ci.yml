@@ -84,22 +84,27 @@ install_global_env:
 ################################################################################
 # lint code
 
-install_lint_envs:
-  stage: lint
-  script: ./setup_dev.sh $LINT_DIR
-  cache:
-    - <<: *lint_cache
+# install_lint_envs:
+#   stage: lint
+#   script: 
+#   cache:
+#     - <<: *lint_cache
 
 run_linters:
   stage: lint
   script:
     - eval "$(${CONDA_DIR}/bin/conda shell.bash hook 2> /dev/null)"
-    - pwd
-    - ls -al
+    - ./setup_dev.sh $LINT_DIR
     - ./lint.sh $LINT_DIR
   cache:
-    - <<: *lint_cache
-      policy: pull
+    paths:
+      - ./lint-*
+    key:
+      files:
+        - workflow/scripts/python/*/env.yml
+        - workflow/scripts/rmarkdown/*/env.yml
+    # - <<: *lint_cache
+    #   policy: pull
 
 ################################################################################
 # set up snakemake rule conda environments
