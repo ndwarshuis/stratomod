@@ -79,7 +79,9 @@ snakemake_dry:
 
 # Run the resources bit of the pipeline and cache the result. Assuming the
 # config doesn't change we can save lots of time/bandwidth before running the
-# results
+# results. Don't cache .snakemake/conda here since we only need a few envs for
+# this step and it probably takes as long to download as it does to decompress
+# the cache
 snakemake_resources:
   stage: test
   <<: *activate_smk
