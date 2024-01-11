@@ -5,9 +5,9 @@ variables:
   ENV_DIR: ./this-env
   TESTCONF: config/testing.yml
   # speed up cache compression
-  FF_USE_FASTZIP: "true"
-  ARTIFACT_COMPRESSION_LEVEL: "fast"
-  CACHE_COMPRESSION_LEVEL: "fast"
+  # FF_USE_FASTZIP: "true"
+  # ARTIFACT_COMPRESSION_LEVEL: "fast"
+  # CACHE_COMPRESSION_LEVEL: "fast"
 
 # only run this pipeline on master/default/feature branches
 workflow:
@@ -58,22 +58,6 @@ image: condaforge/mambaforge:4.12.0-0
       && echo "Env already created"
       || mamba env create -f env.yml -p $ENV_DIR
     - conda activate $ENV_DIR
-
-################################################################################
-# set up global conda environment
-
-# - ASSUME mamba is already installed on the system hosting the gitlab runner
-# - ASSUME the cache will track any changes to env.yml and will force an update
-#   if this changes
-# install_global_env:
-#   stage: test
-#   script:
-#     - >
-#       test -d $ENV_DIR
-#       && echo "Env already created"
-#       || mamba env create -f env.yml -p $ENV_DIR
-#   cache: 
-#     - <<: *smk_global_cache
 
 ################################################################################
 # lint code
