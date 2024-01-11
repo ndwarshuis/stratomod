@@ -60,6 +60,8 @@ image: condaforge/mambaforge:4.12.0-0
 .activate_smk: &activate_smk
   before_script:
     - eval "$(${CONDA_DIR}/bin/conda shell.bash hook 2> /dev/null)"
+    - pwd
+    - ls -al
     - conda activate $ENV_DIR
 
 ################################################################################
