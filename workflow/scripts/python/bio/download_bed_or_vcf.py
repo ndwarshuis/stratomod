@@ -13,7 +13,7 @@ from common.io import get_md5, is_gzip, setup_logging
 log = setup_logging(snakemake.log[0])  # type: ignore
 
 GZIP = ["gzip", "-c"]
-CURL = ["curl", "-Ss", "-L", "-q"]
+CURL = ["curl", "-f", "-Ss", "-L", "-q"]
 
 
 def main(opath: Path, src: cfg.FileSrc | None) -> None:
