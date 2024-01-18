@@ -14,7 +14,7 @@ rule download_repseq:
         "../../envs/utils.yml"
     localrule: True
     shell:
-        "curl -sS -L -o {output} {params.url}"
+        "curl -f -sS -L -o {output} {params.url}"
 
 
 rule unpack_repseq:
