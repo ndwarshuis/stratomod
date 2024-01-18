@@ -1,3 +1,7 @@
+# 8.4.3
+
+- make curl commands fail upon non-2xx return codes
+
 # 8.4.2
 
 - fix and optimize CI/CD
