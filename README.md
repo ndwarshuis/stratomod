@@ -82,9 +82,10 @@ configuration. This includes:
 
 ### Installation
 
-This assumes the user has a working `conda` or `mamba` installation.
+This assumes the user has a working `conda` or `mamba` installation (tested
+below with mamba 1.5.1/conda 23.7.4).
 
-Run the following to set up the runtime environment.
+Run the following to set up the runtime environment:
 
 ```
 mamba env create -f env.yml
