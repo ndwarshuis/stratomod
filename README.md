@@ -181,12 +181,12 @@ manually, invoke the following:
 
 This assumes all development environments are installed (see above).
 
-### New Feature Workflow
+### Development Workflow
 
-There are two main development branches: `master` and `develop`.
+There are two primary branches: `master` and `develop`.
 
-Make a new branch off of develop for the new feature, then merge into develop
-when done (note `--no-ff`).
+Make a new branch off of develop for a new feature/bugfix, then merge into
+develop when done (note `--no-ff`).
 
 ```
 git checkout develop
