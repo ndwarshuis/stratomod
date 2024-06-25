@@ -92,7 +92,7 @@ mamba env create -f env.yml
 
 ### Configuration
 
-A sample configuration file may be found in `config/dynamic-testing.yml` which
+A sample configuration file may be found in `config/testing.yml` which
 may be copied as a starting point and modified to one's liking. This file is
 heavily annotated to explain all the options/flags and their purpose.
 
@@ -137,8 +137,8 @@ test).
 In addition to the model data itself, the raw input data (that is the master
 dataframe with all features for each query vcf prior to
 filtering/transformation) can be found in
-`results/annotated/{unlabeled,labeled}/<query_key>` where `query_key` is the key
-under either `labeled_queries` or `unlabeled_queries` in the config.
+`results/annotated_variants/{unlabeled,labeled}/<query_key>` where `query_key`
+is the key under either `labeled_queries` or `unlabeled_queries` in the config.
 
 Each of these directories contains the raw dataframe itself (both both SNVs and
 INDELs) as well as an HTML report summarizing the dataframe (statistics for each
@@ -214,5 +214,9 @@ git merge --no-ff vX.Y.Z
 ```
 
 NOTE: do not add an experiment-specific configuration to `master` or `develop`.
-The yml files in `config` for these branches are used for testing. See below
-for how to add an experiment.
+The yml files in `config` for these branches are used for testing.
+
+To make an experiment, one has several options a) import this pipeline as a
+module in a wrapper pipeline which contains the experimental config
+(recommended) b) track experimental configurations in a separate directory c)
+fork this repo and add experimental configurations in your fork.
